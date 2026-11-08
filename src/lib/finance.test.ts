@@ -207,3 +207,21 @@ describe('portfolio and net worth history', () => {
     expect(h.every((x) => x.yours === x.value - x.owed)).toBe(true);
   });
 });
+
+describe('late-rent notices', () => {
+  it('uses the shorter N4 period from Sept 21, 2026 and adds days for mail', async () => {
+    const { terminationDate } = await import('./notices');
+    expect(terminationDate('2026-09-01', 'hand')).toBe('2026-09-15');
+    expect(terminationDate('2026-11-08', 'hand')).toBe('2026-11-15');
+    expect(terminationDate('2026-11-08', 'mail')).toBe('2026-11-20');
+  });
+  it('claims rent only, for periods already due', async () => {
+    const { seedState } = await import('../data/seed');
+    const { arrears } = await import('./notices');
+    const s = seedState();
+    const lease = s.leases.find((l) => l.id === 'l-patel')!;
+    const a = arrears(s, lease, '2026-11-08');
+    expect(a.total).toBe(145_000);
+    expect(a.periods.map((p) => p.period)).toEqual(['2026-11']);
+  });
+});

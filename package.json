@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Keyholder \u2014 a personal assistant for the self-managing Canadian landlord (Stage 1: frontend on mock data)",
+  "description": "Keyholder — a personal assistant for the self-managing Canadian landlord (Stage 1: frontend on mock data)",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -13,11 +13,13 @@
     "preview:claude": "vite build && node scripts/build-artifact.mjs"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",

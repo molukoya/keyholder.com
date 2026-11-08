@@ -1,17 +1,25 @@
 # Keyholder build plan
 
-## App structure (after the UX overhaul)
+## App structure
 
 | Tab | Job | Contents |
 |---|---|---|
-| Home | Is this month okay? | Headline, rent this month with Mark paid / Confirm, top 3 to-dos, Keyholder score chip |
-| Portfolio | What do I own and is it working? | Net worth, 12-month earnings and return vs a GIC, split of where it came from, net worth over time, property cards or comparison table |
-| Money | Where did the money go? | Expenses, Cash flow |
-| Taxes | Tax time | Per property and year: checklist, totals with T776 lines, export |
-| Paperwork | Records | Receipts, messages, leases, history |
-| To do | The only task list | Needs you now (receipts, reminders, payments, renewals) and Raise your Keyholder score |
+| Home | Is this month okay, and what needs me? | Keyholder score chip, headline, rent this month (Mark paid / Confirm), Needs you now (receipts, reminders, payments, renewals, new applications, notice deadlines), Raise your Keyholder score |
+| Rentals | Run the rentals | Every property (metal strip) and its units: tenant, rent status, one action (Mark paid, Late rent options, Find a tenant). Property page: Units and tenants, Find a tenant, Late rent and notices, Value, Mortgage |
+| Portfolio | What do I own and is it working? | Overview (net worth, 12-month earnings and return, net worth over time, property cards or table) and Cash flow |
+| Taxes | Tax time | Checklist, totals with T776 lines, export |
+| Paperwork | Records | Expense receipts, Rental income, Leases (with next allowed rent increase), Notices and letters |
 
-Phones: Home, Portfolio, camera, To do, More (Money, Taxes, Paperwork, Settings). Rent tracking setup is in Settings.
+Phones: Home, Rentals, camera, Portfolio, More (Taxes, Paperwork, Settings).
+
+**Find a tenant:** listing (asking rent, date, description), application form link by email/text/copy/QR,
+fixed rights-safe form, applications with status, side-by-side comparison, decline with fair reasons only,
+accept → tenant + draft lease, vacancy cost counter.
+
+**Late rent:** reminder → N4 (prefilled from the ledger, termination date from the rules pack, checks, slide to
+approve, delivery method limited by email consent, proof of service, cancelled automatically if paid in full)
+→ L1 once the N4 date passes. Other provinces: a generic notice of rent owing. Previews only until Stage 2 fills
+the official forms. N4 period: 7 days for notices on/after Sept 21, 2026 (14 before), +5 days by mail — verify.
 
 Colour meanings: pine = money in, good, main buttons; rust = needs attention; brass = Keyholder score only;
 bronze/silver/gold metal = property stage, on property cards only; ink blue = links.

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Lease, Message, Property, Tone } from '../data/types';
 import { keyholderScore } from '../lib/score';
+import { nextNotice } from '../lib/notices';
 import { hasSilver, type Level } from '../lib/levels';
 import { LevelUpForm, ScoreRing } from '../components/levels';
 import { useStore } from '../data/store';
@@ -16,7 +17,8 @@ import { Icon } from '../components/Icon';
 
 // The approval tray: a stack of paper slips, one primary and one secondary action each.
 
-export function Tray() {
+/** Everything that needs the owner, shown on Home: "Needs you now" and "Raise your Keyholder score". */
+export function TodoSections() {
   const { state, act, today } = useStore();
   const nav = useNavigate();
   const items = useMemo(() => trayItems(state, today), [state, today]);
@@ -33,10 +35,13 @@ export function Tray() {
   const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; });
   const urgent = items.length + renewals.length;
 
+  const [allScore, setAllScore] = useState(false);
+  // Also needs you: new applications and notices whose next step is due.
+  const newApps = state.units.map((u) => ({ u, n: state.applicants.filter((a) => a.unitId === u.id && a.status === 'new').length })).filter((x) => x.n > 0);
+  const l1Ready = state.leases.filter((l) => nextNotice(state, l, today)?.kind === 'L1');
+  const urgentAll = urgent + newApps.length + l1Ready.length;
   return (
-    <div className="page">
-      <div className="page-head"><h1>To do</h1></div>
-
+    <>
       {offerAuto && (
         <div className="callout pine">
           <p style={{ margin: '0 0 8px' }}><strong>Want Keyholder to send receipts and reminders for you?</strong> You've approved {p.approvedUnchanged} without changes.</p>
@@ -46,8 +51,20 @@ export function Tray() {
 
       <section className="section">
         <h2 className="section-title">Needs you now</h2>
-        {urgent === 0 ? <div className="sheet"><Empty title="Nothing urgent.">Receipts, reminders and payments to confirm show up here.</Empty></div> : (
+        {urgentAll === 0 ? <div className="sheet"><Empty title="Nothing needs you right now.">Receipts, reminders, payments to confirm and applications show up here.</Empty></div> : (
           <div className="tray">
+            {newApps.map(({ u, n }) => (
+              <div key={`apps-${u.id}`} className="slip info">
+                <div><div className="what">{n} new application{n > 1 ? 's' : ''} for Unit {u.label}</div><div className="why">{state.properties.find((x) => x.id === u.propertyId)?.nickname}</div></div>
+                <div className="btn-row"><button className="btn primary" onClick={() => nav(`/rent/property/${u.propertyId}/find`)}>Review</button></div>
+              </div>
+            ))}
+            {l1Ready.map((l) => (
+              <div key={`l1-${l.id}`} className="slip urgent">
+                <div><div className="what">{name(l.tenantId)}'s notice deadline has passed</div><div className="why">Rent is still owing. You can apply to the Landlord and Tenant Board.</div></div>
+                <div className="btn-row"><button className="btn primary" onClick={() => nav(`/rent/property/${state.units.find((u) => u.id === l.unitId)?.propertyId}/notices`)}>See options</button></div>
+              </div>
+            ))}
             {renewals.map((m) => (
               <div key={m.id} className="slip urgent">
                 <div><div className="what">Mortgage renews in {daysBetween(today, m.termEnd)} days</div><div className="why">{state.properties.find((x) => x.id === m.propertyId)?.nickname} · {m.lender} · compare rates now</div></div>
@@ -92,11 +109,11 @@ export function Tray() {
         )}
       </section>
 
-      <section className="section">
+      <section className="section" id="score">
         <h2 className="section-title">Raise your Keyholder score</h2>
         <div className="sheet">
           <div className="score-hero"><ScoreRing score={score} big /><p style={{ margin: 0 }}>{score >= 100 ? 'Everything is complete. Your numbers are as accurate as they can be.' : 'Each detail makes your numbers more accurate. Most valuable property first.'}</p></div>
-          {todo.length > 0 && <ul className="rows">{todo.map((i) => (
+          {todo.length > 0 && <ul className="rows">{(allScore ? todo : todo.slice(0, 3)).map((i) => (
             <li key={i.id} className="row" style={{ gridTemplateColumns: '56px 1fr auto' }}>
               <span className="pts">+{i.points - i.earned}</span>
               <span className="title">{i.text}</span>
@@ -107,6 +124,7 @@ export function Tray() {
               }}>Do it</button>
             </li>
           ))}</ul>}
+          {todo.length > 3 && <button className="btn ghost small" onClick={() => setAllScore((x) => !x)}>{allScore ? 'Show fewer' : `Show all ${todo.length}`}</button>}
         </div>
       </section>
 
@@ -114,11 +132,11 @@ export function Tray() {
       {rem && <ReminderDrawer lease={rem.lease} period={rem.line.period} tone={rem.tone} onClose={() => setRem(null)} />}
       {match && <MatchDrawer item={match} onClose={() => setMatch(null)} />}
       {form && <LevelUpForm property={form.p} to={form.to} onClose={() => setForm(null)} />}
-    </div>
+    </>
   );
 }
 
-function ReminderDrawer({ lease, period, tone: initial, onClose }: { lease: Lease; period: string; tone: Tone; onClose: () => void }) {
+export function ReminderDrawer({ lease, period, tone: initial, onClose }: { lease: Lease; period: string; tone: Tone; onClose: () => void }) {
   const { state, act, today } = useStore();
   const [tone, setTone] = useState<Tone>(initial);
   const draft = reminderDraft(state, lease, period, tone, today);

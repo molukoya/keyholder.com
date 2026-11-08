@@ -35,7 +35,7 @@ export function BankStatus({ compact }: { compact?: boolean }) {
       <div className={`track-line${compact ? ' compact' : ''}`}>
         <Icon name="check" size={18} />
         <span>You mark rent paid yourself.</span>
-        <Link to="/money/bank">Check my bank automatically instead</Link>
+        <Link to="/settings#rent-tracking">Check my bank automatically instead</Link>
       </div>
     );
   }

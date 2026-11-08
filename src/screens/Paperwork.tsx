@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import type { Message, Receipt } from '../data/types';
 import { useStore } from '../data/store';
-import { fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
+import { addDays, addMonths, fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
+import { province } from '../lib/jurisdiction';
+import { Expenses } from './Money';
 import { fmt } from '../lib/money';
 import { messageBody } from '../lib/templates';
 import { Letterhead, ReceiptLetter, methodLabel } from '../components/domain';
@@ -10,44 +12,75 @@ import { Drawer, Empty, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function Paperwork() {
-  const { tab = 'receipts' } = useParams();
-  const tabs = [{ id: 'receipts', label: 'Receipts' }, { id: 'letters', label: 'Messages sent' }, { id: 'leases', label: 'Leases' }, { id: 'log', label: 'History' }];
+  const { tab = 'expenses' } = useParams();
+  const tabs = [{ id: 'expenses', label: 'Expense receipts' }, { id: 'income', label: 'Rental income' }, { id: 'leases', label: 'Leases' }, { id: 'notices', label: 'Notices and letters' }];
+  const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
   return (
     <div className="page">
       <div className="page-head"><h1>Paperwork</h1></div>
-      <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={tab === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
-      {tab === 'receipts' && <Receipts />}
-      {tab === 'letters' && <Letters />}
-      {tab === 'leases' && <Leases />}
-      {tab === 'log' && <Log />}
+      <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
+      {cur === 'expenses' && <Expenses />}
+      {cur === 'income' && <Income />}
+      {cur === 'leases' && <Leases />}
+      {cur === 'notices' && <><NoticesLog /><section className="section"><h2 className="section-title">Receipts and reminders sent</h2><Letters /></section><section className="section"><h2 className="section-title">History of changes</h2><Log /></section></>}
     </div>
   );
 }
 
-function Receipts() {
+/** Rental income log: every payment received, with its receipt. */
+function Income() {
   const { state } = useStore();
   const [open, setOpen] = useState<Receipt | null>(null);
-  const rs = [...state.receipts].sort((a, b) => b.number - a.number);
-  if (!rs.length) return <div className="sheet"><Empty title="No receipts yet.">Every rent payment you confirm creates one automatically.</Empty></div>;
+  const [prop, setProp] = useState('all');
+  const years = [...new Set(state.payments.map((p) => p.date.slice(0, 4)))].sort().reverse();
+  const [year, setYear] = useState(years[0] ?? '');
+  const rows = state.payments.filter((p) => !p.voided && p.date.startsWith(year)).filter((p) => {
+    if (prop === 'all') return true;
+    const l = state.leases.find((x) => x.id === p.leaseId); return state.units.find((u) => u.id === l?.unitId)?.propertyId === prop;
+  }).sort((a, b) => b.date.localeCompare(a.date));
+  const total = rows.reduce((a, p) => a + p.amount, 0);
+  if (!state.payments.length) return <div className="sheet"><Empty title="No rent received yet.">Every payment you mark paid, or the bank finds, is listed here.</Empty></div>;
   return (
     <>
+      <div className="btn-row" style={{ marginBottom: 16 }}>
+        <select className="input" style={{ width: 'auto' }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property"><option value="all">All properties</option>{state.properties.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{p.nickname}</option>)}</select>
+        <select className="input" style={{ width: 'auto' }} value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">{years.map((y) => <option key={y}>{y}</option>)}</select>
+        <span className="soft">{rows.length} payments · <strong className="mono">{fmt(total)}</strong></span>
+      </div>
       <div className="sheet tight table-scroll"><table className="ledger">
-        <thead><tr><th>No.</th><th>Tenant</th><th>Period</th><th>Received</th><th className="num">Amount</th><th>Status</th></tr></thead>
-        <tbody>{rs.slice(0, 200).map((r) => {
-          const p = state.payments.find((x) => x.id === r.paymentId);
-          const l = state.leases.find((x) => x.id === p?.leaseId);
-          const t = state.tenants.find((x) => x.id === l?.tenantId);
-          if (!p) return null;
+        <thead><tr><th>Received</th><th>Tenant</th><th>Unit</th><th>For</th><th>How</th><th className="num">Amount</th><th>Receipt</th></tr></thead>
+        <tbody>{rows.map((p) => {
+          const l = state.leases.find((x) => x.id === p.leaseId); const t = state.tenants.find((x) => x.id === l?.tenantId); const u = state.units.find((x) => x.id === l?.unitId); const pr = state.properties.find((x) => x.id === u?.propertyId);
+          const r = state.receipts.find((x) => x.paymentId === p.id && x.status !== 'superseded');
           return (
-            <tr key={r.id} className="click" onClick={() => setOpen(r)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpen(r)}>
-              <td className="date">#{r.number}</td><td>{t?.names.join(' & ')}</td><td>{fmtPeriod(p.period)}</td><td className="date">{fmtDate(p.date)} · {methodLabel(p.method)}</td><td className="num">{fmt(p.amount)}</td>
-              <td><Stamp kind={r.status}>{r.status}</Stamp></td>
+            <tr key={p.id}>
+              <td className="date">{fmtDate(p.date)}</td><td>{t?.names.join(' & ')}</td><td>{pr?.nickname.split(' ')[0]} · {u?.label}</td><td>{fmtPeriod(p.period)}</td><td className="small">{methodLabel(p.method)}{p.source !== 'manual' ? ' · bank' : ''}</td><td className="num in">{fmt(p.amount)}</td>
+              <td>{r ? <button className="btn small ghost" onClick={() => setOpen(r)}>#{r.number}{r.status === 'draft' ? ' (not sent)' : ''}</button> : '—'}</td>
             </tr>
           );
         })}</tbody>
       </table></div>
       {open && <Drawer title={`Receipt #${open.number}`} onClose={() => setOpen(null)} wide footer={embedded ? undefined : <button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}><ReceiptLetter receipt={open} /></Drawer>}
     </>
+  );
+}
+
+/** Notices served, with proof of service. */
+function NoticesLog() {
+  const { state } = useStore();
+  const ns = [...state.notices].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return (
+    <section className="section">
+      <h2 className="section-title">Notices</h2>
+      <div className="sheet">
+        {ns.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices served. Late-rent notices are prepared from a tenant's page or Rentals.</p> : (
+          <ul className="rows">{ns.map((n) => {
+            const t = state.tenants.find((x) => x.id === n.tenantId);
+            return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · delivered {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>;
+          })}</ul>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -78,16 +111,24 @@ function Letters() {
   );
 }
 
+/** 12-month rule: rent can rise once every 12 months, with 90 days' written notice (N1 in Ontario). */
+function increaseText(start: string, prov: string, today: string): string {
+  let next = addMonths(start, 12);
+  while (next < today) next = addMonths(next, 12);
+  const g = province(prov as never).rentIncreaseGuidelinePct;
+  return `From ${fmtDate(next)}${g ? `, up to ${g}%` : ''} · give notice by ${fmtDate(addDays(next, -90))}`;
+}
+
 function Leases() {
-  const { state } = useStore();
+  const { state, today } = useStore();
   if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet.">Add a tenant to create the first lease record.</Empty></div>;
   return (
     <div className="sheet tight table-scroll"><table className="ledger">
-      <thead><tr><th>Tenant</th><th>Unit</th><th>Term</th><th className="num">Rent</th><th className="num">LMR deposit</th><th>Email notices</th></tr></thead>
+      <thead><tr><th>Tenant</th><th>Unit</th><th>Term</th><th className="num">Rent</th><th className="num">Last month's deposit</th><th>Email notices</th><th>Next rent increase</th></tr></thead>
       <tbody>{state.leases.map((l) => {
         const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId); const p = state.properties.find((x) => x.id === u?.propertyId);
         return (
-          <tr key={l.id}><td><Link to={`/rent/tenant/${t?.id}`}>{t?.names.join(' & ')}</Link></td><td>{p?.nickname} · {u?.label}</td><td className="date">{fmtDate(l.start)} → {l.end ? fmtDate(l.end) : 'month-to-month'}</td><td className="num">{fmt(l.rent)}</td><td className="num">{fmt(l.lmrDeposit)}</td><td>{l.emailNoticeConsent ? 'Consented' : 'Paper only'}</td></tr>
+          <tr key={l.id}><td><Link to={`/rent/tenant/${t?.id}`}>{t?.names.join(' & ')}</Link></td><td>{p?.nickname} · {u?.label}</td><td className="date">{fmtDate(l.start)} → {l.end ? fmtDate(l.end) : 'month-to-month'}</td><td className="num">{fmt(l.rent)}</td><td className="num">{fmt(l.lmrDeposit)}</td><td>{l.emailNoticeConsent ? 'Consented' : 'Paper only'}</td><td className="small">{l.end ? '—' : increaseText(l.start, p?.province ?? 'ON', today)}</td></tr>
         );
       })}</tbody>
     </table></div>

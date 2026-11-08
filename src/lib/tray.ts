@@ -2,6 +2,7 @@ import type { AppState, BankTxn, Lease, Message, Tone } from '../data/types';
 import { daysBetween } from './dates';
 import { activeLease, leaseLedger, type LedgerLine } from './finance';
 import { suggestMatch, type Suggestion } from './matching';
+import { nextNotice } from './notices';
 
 // The approval tray (PRD §12): everything that needs a decision. Its count is the only badge in the app.
 
@@ -47,4 +48,12 @@ export function trayItems(state: AppState, today: string): TrayItem[] {
     if (t.amount > 0) items.push({ kind: 'match', id: t.id, txn: t, suggestion: suggestMatch(state, t, today) });
   }
   return items;
+}
+
+/** How many things need the owner now (Home badge): tray items, mortgage renewals, new applications, L1-ready notices. */
+export function needsYouCount(state: AppState, today: string): number {
+  const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; }).length;
+  const apps = new Set(state.applicants.filter((a) => a.status === 'new').map((a) => a.unitId)).size;
+  const l1 = state.leases.filter((l) => nextNotice(state, l, today)?.kind === 'L1').length;
+  return trayItems(state, today).length + renewals + apps + l1;
 }

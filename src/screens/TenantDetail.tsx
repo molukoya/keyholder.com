@@ -7,6 +7,7 @@ import { leaseBalance, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { Letterhead, ReceiptLetter, methodLabel, ordinal } from '../components/domain';
 import { PaymentForm } from '../components/forms';
+import { LateRentDrawer } from './Rentals';
 import { Drawer, Empty, Field, SlideToConfirm, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
 
@@ -20,8 +21,9 @@ export function TenantDetail() {
   const [pause, setPause] = useState(false);
   const [end, setEnd] = useState(false);
   const [editContact, setEditContact] = useState(false);
+  const [late, setLate] = useState(false);
   const t = state.tenants.find((x) => x.id === id);
-  if (!t) return <div className="page"><Empty title="That tenant isn't here." action={<Link to="/rent" className="btn">Back to Rent</Link>} /></div>;
+  if (!t) return <div className="page"><Empty title="That tenant isn't here." action={<Link to="/rentals" className="btn">Back to Rent</Link>} /></div>;
   const lease = state.leases.filter((l) => l.tenantId === t.id).sort((a, b) => b.start.localeCompare(a.start))[0];
   const unit = state.units.find((u) => u.id === lease?.unitId);
   const prop = state.properties.find((p) => p.id === unit?.propertyId);
@@ -32,7 +34,7 @@ export function TenantDetail() {
 
   return (
     <div className="page">
-      <Link to="/rent" className="crumb"><Icon name="back" size={16} />Rent</Link>
+      <Link to={prop ? `/rent/property/${prop.id}` : "/rentals"} className="crumb"><Icon name="back" size={16} />{prop?.nickname ?? "Rentals"}</Link>
       <div className="page-head">
         <div>
           <div className="eyebrow">{prop?.nickname} · Unit {unit?.label}</div>
@@ -41,6 +43,7 @@ export function TenantDetail() {
         </div>
         <div className="btn-row">
           <button className="btn" onClick={() => setStatement(true)}><Icon name="print" size={16} />Statement</button>
+          {bal > 0 && lease && !lease.end && <button className="btn danger" onClick={() => setLate(true)}>Late rent options</button>}
           {lease && !lease.end && <button className="btn primary" onClick={() => setPay(true)}><Icon name="check" size={16} />Confirm rent</button>}
         </div>
       </div>
@@ -169,6 +172,7 @@ export function TenantDetail() {
         <EndDrawer onClose={() => setEnd(false)} onConfirm={(d) => { act.endTenancy(lease.id, d); setEnd(false); }} name={t.names.join(' & ')} />
       )}
       {editContact && <ContactDrawer onClose={() => setEditContact(false)} />}
+      {late && lease && <LateRentDrawer lease={lease} onClose={() => setLate(false)} />}
     </div>
   );
 

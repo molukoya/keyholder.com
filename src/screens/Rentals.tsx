@@ -1,0 +1,440 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
+import type { Applicant, Lease, Listing, Notice, Unit } from '../data/types';
+import { currentLine, unitTenant, useStore } from '../data/store';
+import { addDays, daysBetween, fmtDate, fmtDay, fmtPeriod } from '../lib/dates';
+import { arrears, nextNotice, noticeChecks, noticeName, n4NoticeDays, MAIL_EXTRA_DAYS, terminationDate } from '../lib/notices';
+import { reminderStage } from '../lib/tray';
+import { province } from '../lib/jurisdiction';
+import { fmt, fmt0 } from '../lib/money';
+import { propertyLevel } from '../lib/levels';
+import { byValue } from '../lib/score';
+import { Letterhead } from '../components/domain';
+import { PaymentForm, PropertyForm, TenancyForm, UnitForm } from '../components/forms';
+import { Drawer, Empty, Field, MoneyInput, Seg, SlideToConfirm, Stamp } from '../components/ui';
+import { Icon } from '../components/Icon';
+import { ReminderDrawer } from './Tray';
+
+// Rentals: every property and unit, and everything about running them.
+
+export function Rentals() {
+  const { state, today } = useStore();
+  const [addProp, setAddProp] = useState(false);
+  const props = byValue(state, today);
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Rentals</h1>
+        <button className="btn" onClick={() => setAddProp(true)}><Icon name="plus" size={16} />Add property</button>
+      </div>
+      {!props.length && <div className="sheet"><Empty title="No properties yet." action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Units and tenants come next.</Empty></div>}
+      {props.map((p) => <PropertyBlock key={p.id} propertyId={p.id} />)}
+      {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
+    </div>
+  );
+}
+
+function PropertyBlock({ propertyId }: { propertyId: string }) {
+  const { state } = useStore();
+  const p = state.properties.find((x) => x.id === propertyId)!;
+  const units = state.units.filter((u) => u.propertyId === p.id);
+  return (
+    <section className="section">
+      <Link to={`/rent/property/${p.id}`} className={`prop-strip ${propertyLevel(state, p)}`}>
+        <span><strong>{p.nickname}</strong><span>{p.address}, {p.city}</span></span>
+        <span className="prop-strip-go">Open <Icon name="next" size={18} /></span>
+      </Link>
+      <div className="sheet tight">
+        {units.length === 0 ? <Empty title="No units yet." action={<Link className="btn" to={`/rent/property/${p.id}`}>Add a unit</Link>} /> : (
+          <ul className="unit-list">{units.map((u) => <UnitRow key={u.id} unit={u} />)}</ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One row per unit: who lives there, this month's rent, and the one action that matters. */
+export function UnitRow({ unit }: { unit: Unit }) {
+  const { state, today } = useStore();
+  const nav = useNavigate();
+  const [pay, setPay] = useState(false);
+  const [late, setLate] = useState<Lease | null>(null);
+  const { lease, tenant } = unitTenant(state, unit.id, today);
+  if (!lease || !tenant) {
+    const listing = state.listings.find((l) => l.unitId === unit.id);
+    const apps = state.applicants.filter((a) => a.unitId === unit.id && a.status !== 'declined');
+    const since = listing?.vacantSince ?? state.leases.filter((l) => l.unitId === unit.id && l.end).map((l) => l.end!).sort().pop();
+    const days = since ? Math.max(0, daysBetween(since, today)) : 0;
+    return (
+      <li className="unit-row vacant">
+        <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
+        <span className="unit-who"><strong>Empty{days ? ` for ${days} days` : ''}</strong><span>{listing ? `Asking ${fmt0(listing.askingRent)}` : `Last rent ${fmt0(unit.rent)}`}{days ? ` · about ${fmt0(Math.round((unit.rent * 12 * days) / 365))} rent lost` : ''}</span></span>
+        <span className="unit-state">{apps.length ? <span className="status due">{apps.length} application{apps.length > 1 ? 's' : ''}</span> : <span className="status vacant">No applications</span>}</span>
+        <button className="btn primary" onClick={() => nav(`/rent/property/${unit.propertyId}/find`)}>Find a tenant</button>
+      </li>
+    );
+  }
+  const line = currentLine(state, lease, today)!;
+  const isLate = line.state === 'late' || (line.state === 'partial' && line.daysLate > 0);
+  return (
+    <li className={`unit-row ${isLate ? 'late' : ''}`}>
+      <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
+      <Link to={`/rent/tenant/${tenant.id}`} className="unit-who"><strong>{tenant.names.join(' & ')}</strong><span>{fmt(lease.rent)} a month</span></Link>
+      <span className="unit-state">
+        {line.state === 'paid' && <span className="status paid"><Icon name="check" size={16} />Paid</span>}
+        {isLate && <span className="status late">Late · {line.daysLate} days</span>}
+        {(line.state === 'due' || line.state === 'upcoming') && <span className="status due">{line.state === 'due' ? 'Due today' : `Due ${fmtDay(line.due)}`}</span>}
+      </span>
+      {isLate ? <button className="btn primary" onClick={() => setLate(lease)}>Late rent options</button>
+        : line.state !== 'paid' ? <button className="btn" onClick={() => setPay(true)}>Mark paid</button> : <span />}
+      {pay && <PaymentForm leaseId={lease.id} onClose={() => setPay(false)} />}
+      {late && <LateRentDrawer lease={late} onClose={() => setLate(null)} />}
+    </li>
+  );
+}
+
+// =====================================================================================
+// Units and tenants tab (property page)
+// =====================================================================================
+export function UnitsTab({ propertyId }: { propertyId: string }) {
+  const { state } = useStore();
+  const [unitEdit, setUnitEdit] = useState<string | 'new' | null>(null);
+  const [addTenant, setAddTenant] = useState(false);
+  const units = state.units.filter((u) => u.propertyId === propertyId);
+  return (
+    <>
+      <section className="section">
+        <h2 className="section-title">Units and tenants <span className="btn-row"><button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button>{units.length > 0 && <button className="btn small" onClick={() => setAddTenant(true)}><Icon name="plus" size={14} />Add tenant</button>}</span></h2>
+        <div className="sheet tight">
+          {units.length ? <ul className="unit-list">{units.map((u) => <UnitRow key={u.id} unit={u} />)}</ul> : <Empty title="No units yet." action={<button className="btn" onClick={() => setUnitEdit('new')}>Add a unit</button>}>A whole house counts as one unit.</Empty>}
+        </div>
+        {units.length > 0 && <div className="btn-row" style={{ marginTop: 8 }}>{units.map((u) => <button key={u.id} className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button>)}</div>}
+      </section>
+      {unitEdit && <UnitForm propertyId={propertyId} unit={unitEdit === 'new' ? undefined : state.units.find((u) => u.id === unitEdit)} onClose={() => setUnitEdit(null)} />}
+      {addTenant && <TenancyForm unitId={units.find((u) => !unitTenant(state, u.id, new Date().toISOString().slice(0, 10)).lease)?.id} onClose={() => setAddTenant(false)} />}
+    </>
+  );
+}
+
+// =====================================================================================
+// Find a tenant: listing, application form link, applications
+// =====================================================================================
+const SAFE_DECLINE = ['The unit has been rented to another applicant', 'Income does not meet the rent-to-income guideline', 'Could not verify references', 'Move-in date does not work'];
+
+export function FindTenantTab({ propertyId }: { propertyId: string }) {
+  const { state, today } = useStore();
+  const empty = state.units.filter((u) => u.propertyId === propertyId && !unitTenant(state, u.id, today).lease);
+  if (!empty.length) return <div className="sheet"><Empty title="Every unit is rented.">When a unit is empty, you can list it and send the application form from here.</Empty></div>;
+  return <>{empty.map((u) => <FindTenantUnit key={u.id} unit={u} />)}</>;
+}
+
+function FindTenantUnit({ unit }: { unit: Unit }) {
+  const { state, act, today } = useStore();
+  const existing = state.listings.find((l) => l.unitId === unit.id);
+  const [l, setL] = useState<Listing>(existing ?? { unitId: unit.id, askingRent: unit.rent, available: addDays(today, 14), notes: '', vacantSince: today, slug: `${unit.propertyId}-${unit.label}`.toLowerCase().replace(/[^a-z0-9]+/g, '-') });
+  const [send, setSend] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [compare, setCompare] = useState(false);
+  const [open, setOpen] = useState<Applicant | null>(null);
+  const apps = state.applicants.filter((a) => a.unitId === unit.id).sort((a, b) => b.submitted.localeCompare(a.submitted));
+  const live = apps.filter((a) => a.status !== 'declined');
+  const link = `https://keyholder.ca/apply/${l.slug}`;
+  const days = Math.max(0, daysBetween(l.vacantSince, today));
+
+  return (
+    <section className="section">
+      <h2 className="section-title">Unit {unit.label} · empty for {days} days <span className="small urgent">about {fmt0(Math.round((unit.rent * 12 * days) / 365))} rent lost so far</span></h2>
+      <div className="split">
+        <div className="sheet">
+          <h3 style={{ marginBottom: 12 }}>1. Your listing</h3>
+          <div className="grid2">
+            <Field label="Asking rent" htmlFor={`ls-r-${unit.id}`}><MoneyInput id={`ls-r-${unit.id}`} value={l.askingRent} onChange={(c) => setL({ ...l, askingRent: c ?? 0 })} /></Field>
+            <Field label="Available from" htmlFor={`ls-d-${unit.id}`}><input id={`ls-d-${unit.id}`} type="date" className="input" value={l.available} onChange={(e) => setL({ ...l, available: e.target.value })} /></Field>
+          </div>
+          <Field label="About the unit" htmlFor={`ls-n-${unit.id}`}><textarea id={`ls-n-${unit.id}`} className="input" style={{ minHeight: 80 }} value={l.notes} onChange={(e) => setL({ ...l, notes: e.target.value })} placeholder="Bedrooms, laundry, parking, what's nearby" /></Field>
+          <button className="btn" onClick={() => act.saveListing(l)}>Save listing</button>
+        </div>
+        <div className="sheet">
+          <h3 style={{ marginBottom: 8 }}>2. Send the application form</h3>
+          <p className="small soft" style={{ marginTop: 0 }}>People fill it in on their phone. No account needed.</p>
+          <div className="copy-row"><code>{link}</code></div>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={() => setSend(true)}><Icon name="mail" size={16} />Send by email or text</button>
+            <button className="btn" onClick={() => { navigator.clipboard?.writeText(link).catch(() => undefined); }}>Copy link</button>
+            <button className="btn ghost" onClick={() => setPreview(true)}>See the form</button>
+          </div>
+          <QR text={link} />
+        </div>
+      </div>
+
+      <div className="sheet tight" style={{ marginTop: 16 }}>
+        <div className="sheet-head"><h3>3. Applications ({live.length})</h3>{live.length > 1 && <button className="btn small" onClick={() => setCompare(true)}>Compare side by side</button>}</div>
+        {apps.length === 0 ? <Empty title="No applications yet.">Send the form to people who ask about the unit.</Empty> : (
+          <ul className="unit-list">{apps.map((a) => (
+            <li key={a.id} className="unit-row">
+              <span className="unit-label"><Icon name="user" /></span>
+              <button className="unit-who as-link" onClick={() => setOpen(a)}><strong>{a.names.join(' & ')}</strong><span>Applied {fmtDate(a.submitted)} · income {fmt0(a.monthlyIncome)}/mo ({(a.monthlyIncome / l.askingRent).toFixed(1)}× rent)</span></button>
+              <span className="unit-state"><span className={`status ${a.status === 'declined' ? 'vacant' : a.status === 'offered' || a.status === 'accepted' ? 'paid' : 'due'}`}>{({ new: 'New', shortlisted: 'Shortlisted', declined: 'Declined', offered: 'Offer sent', accepted: 'Accepted' })[a.status]}</span></span>
+              <button className="btn" onClick={() => setOpen(a)}>Review</button>
+            </li>
+          ))}</ul>
+        )}
+      </div>
+
+      {send && <SendFormDrawer unit={unit} link={link} onClose={() => setSend(false)} />}
+      {preview && <ApplicationFormPreview unit={unit} listing={l} onClose={() => setPreview(false)} />}
+      {open && <ApplicantDrawer applicant={open} listing={l} onClose={() => setOpen(null)} />}
+      {compare && (
+        <Drawer title="Compare applications" onClose={() => setCompare(false)} wide>
+          <div className="table-scroll"><table className="ledger">
+            <tbody>
+              {([['Applicants', (a: Applicant) => a.names.join(' & ')], ['Move-in', (a: Applicant) => fmtDate(a.moveIn)], ['Monthly income', (a: Applicant) => `${fmt0(a.monthlyIncome)} (${(a.monthlyIncome / l.askingRent).toFixed(1)}× rent)`], ['Work', (a: Applicant) => a.employer], ['Current home', (a: Applicant) => `${a.currentAddress} · ${a.yearsAtAddress} yrs`], ['Reference', (a: Applicant) => a.references], ['Pets', (a: Applicant) => (a.pets ? `Yes${a.notes ? ` (${a.notes})` : ''}` : 'No')], ['Status', (a: Applicant) => a.status]] as [string, (a: Applicant) => string][]).map(([k, f]) => (
+                <tr key={k}><td className="soft">{k}</td>{live.map((a) => <td key={a.id}>{f(a)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table></div>
+          <p className="tiny soft">Tip: many landlords look for income of about 3× the rent. In Ontario a "no pets" clause in a lease can't be enforced, so decide on pets before you sign.</p>
+        </Drawer>
+      )}
+    </section>
+  );
+}
+
+function QR({ text }: { text: string }) {
+  const [svg, setSvg] = useState('');
+  useEffect(() => { QRCode.toString(text, { type: 'svg', margin: 1, color: { dark: '#1B2421', light: '#FFFDF8' } }).then(setSvg).catch(() => setSvg('')); }, [text]);
+  if (!svg) return null;
+  return (
+    <div className="qr"><div className="qr-img" dangerouslySetInnerHTML={{ __html: svg }} /><span className="small soft">QR code for a sign at the door or in the window.</span></div>
+  );
+}
+
+function SendFormDrawer({ unit, link, onClose }: { unit: Unit; link: string; onClose: () => void }) {
+  const { act } = useStore();
+  const [to, setTo] = useState('');
+  const [how, setHow] = useState<'email' | 'text'>('email');
+  return (
+    <Drawer title={`Send the form for Unit ${unit.label}`} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!to.trim()} onClick={() => { act.sendApplicationLink(unit.label, to); onClose(); }}>Send</button></>}>
+      <Field label="Send by"><Seg label="Send by" value={how} onChange={setHow} options={[{ id: 'email', label: 'Email' }, { id: 'text', label: 'Text message' }]} /></Field>
+      <Field label={how === 'email' ? 'Their email' : 'Their mobile number'} htmlFor="sf-to"><input id="sf-to" className="input" type={how === 'email' ? 'email' : 'tel'} value={to} onChange={(e) => setTo(e.target.value)} autoFocus /></Field>
+      <div className="letter"><div className="body">{`Hi,\n\nThanks for your interest in Unit ${unit.label}. You can apply here, it takes about 5 minutes:\n${link}\n\nThanks!`}</div></div>
+      <p className="tiny soft" style={{ marginTop: 8 }}>Preview only: nothing is sent yet.</p>
+    </Drawer>
+  );
+}
+
+function ApplicationFormPreview({ unit, listing, onClose }: { unit: Unit; listing: Listing; onClose: () => void }) {
+  const { state } = useStore();
+  const p = state.properties.find((x) => x.id === unit.propertyId);
+  const sections: [string, string[]][] = [
+    ['About you', ['Full name of every adult who will live there', 'Email and phone', 'Preferred move-in date']],
+    ['Where you live now', ['Current address and how long', 'Current landlord name and phone (reference)']],
+    ['Work and income', ['Employer or source of income', 'Monthly income (before tax)']],
+    ['References', ['One more reference (optional)']],
+    ['Pets', ['Do you have pets? (information only)']],
+    ['Consent', ['I agree Keyholder may share this application with the landlord and contact my references', 'Declined applications are deleted after 90 days']],
+  ];
+  return (
+    <Drawer title="The application form" onClose={onClose} wide>
+      <div className="letter">
+        <div className="serif" style={{ fontSize: 'var(--t-20)' }}>Apply for Unit {unit.label}, {p?.address}</div>
+        <p className="small">{fmt0(listing.askingRent)} a month · available {fmtDate(listing.available)}</p>
+        {sections.map(([h, qs]) => <div key={h} style={{ marginBottom: 12 }}><strong>{h}</strong><ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{qs.map((q) => <li key={q}>{q}</li>)}</ul></div>)}
+      </div>
+      <div className="callout" style={{ marginTop: 16 }}><strong>Fair by design.</strong> The form never asks about family status, children, age, religion, ethnicity, place of origin, disability or receipt of public assistance, which the Ontario Human Rights Code protects. Questions can't be added.</div>
+    </Drawer>
+  );
+}
+
+function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant; listing: Listing; onClose: () => void }) {
+  const { act, today } = useStore();
+  const a = applicant;
+  const [mode, setMode] = useState<'view' | 'decline' | 'accept'>('view');
+  const [reason, setReason] = useState(SAFE_DECLINE[0]);
+  const [start, setStart] = useState(a.moveIn > today ? a.moveIn : addDays(today, 7));
+  const [rent, setRent] = useState<number | undefined>(listing.askingRent);
+  return (
+    <Drawer title={a.names.join(' & ')} onClose={onClose} footer={mode === 'view' ? (
+      <>
+        {a.status !== 'declined' && a.status !== 'accepted' && <button className="btn ghost danger" onClick={() => setMode('decline')}>Decline</button>}
+        {a.status === 'new' && <button className="btn" onClick={() => { act.setApplicantStatus(a.id, 'shortlisted'); onClose(); }}>Shortlist</button>}
+        {(a.status === 'new' || a.status === 'shortlisted') && <button className="btn" onClick={() => { act.setApplicantStatus(a.id, 'offered'); onClose(); }}>Send offer</button>}
+        {a.status !== 'declined' && a.status !== 'accepted' && <button className="btn primary" onClick={() => setMode('accept')}>Accept</button>}
+      </>
+    ) : mode === 'decline' ? (
+      <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" onClick={() => { act.setApplicantStatus(a.id, 'declined'); onClose(); }}>Send decline</button></>
+    ) : (
+      <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" disabled={!rent} onClick={() => { act.acceptApplicant(a.id, start, rent!); onClose(); }}>Make them the tenant</button></>
+    )}>
+      {mode === 'view' && (
+        <div className="kv">
+          <div>Applied</div><div>{fmtDate(a.submitted)}</div>
+          <div>Wants to move in</div><div>{fmtDate(a.moveIn)}</div>
+          <div>Email / phone</div><div>{a.email}<br />{a.phone}</div>
+          <div>Monthly income</div><div>{fmt0(a.monthlyIncome)} ({(a.monthlyIncome / listing.askingRent).toFixed(1)}× rent)</div>
+          <div>Work</div><div style={{ fontFamily: 'inherit' }}>{a.employer}</div>
+          <div>Lives at</div><div style={{ fontFamily: 'inherit' }}>{a.currentAddress} · {a.yearsAtAddress} yrs</div>
+          <div>Reference</div><div style={{ fontFamily: 'inherit' }}>{a.references}</div>
+          <div>Pets</div><div>{a.pets ? `Yes${a.notes ? `, ${a.notes}` : ''}` : 'No'}</div>
+        </div>
+      )}
+      {mode === 'decline' && (
+        <>
+          <Field label="Reason (only fair reasons are offered)">
+            <div className="stack">{SAFE_DECLINE.map((r) => <label key={r} className="check"><input type="radio" name="decline" checked={reason === r} onChange={() => setReason(r)} />{r}</label>)}</div>
+          </Field>
+          <div className="letter"><div className="body">{`Hi ${a.names[0].split(' ')[0]},\n\nThank you for applying. ${reason}, so we won't be moving forward with your application this time.\n\nWe wish you the best in your search.`}</div></div>
+        </>
+      )}
+      {mode === 'accept' && (
+        <>
+          <p style={{ marginTop: 0 }}>{a.names.join(' & ')} become the tenants. A lease is drafted with these terms, and other applicants get a polite decline.</p>
+          <div className="grid2">
+            <Field label="Lease starts" htmlFor="ac-s"><input id="ac-s" type="date" className="input" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+            <Field label="Monthly rent" htmlFor="ac-r"><MoneyInput id="ac-r" value={rent} onChange={setRent} /></Field>
+          </div>
+        </>
+      )}
+    </Drawer>
+  );
+}
+
+// =====================================================================================
+// Late rent: reminder → notice (N4) → tribunal application (L1)
+// =====================================================================================
+export function LateRentDrawer({ lease, onClose }: { lease: Lease; onClose: () => void }) {
+  const { state, today } = useStore();
+  const [step, setStep] = useState<'menu' | 'reminder' | 'notice'>('menu');
+  const tenant = state.tenants.find((t) => t.id === lease.tenantId)!;
+  const a = arrears(state, lease, today);
+  const next = nextNotice(state, lease, today);
+  const line = currentLine(state, lease, today)!;
+  const st = reminderStage(Math.max(1, line.daysLate), state.profile.graceDays, state.profile.reminderTone);
+  const served = state.notices.filter((n) => n.leaseId === lease.id).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+  if (step === 'reminder') return <ReminderDrawer lease={lease} period={a.periods[a.periods.length - 1]?.period ?? line.period} tone={st?.tone ?? 'gentle'} onClose={onClose} />;
+  if (step === 'notice' && next) return <NoticeWizard lease={lease} kind={next.kind} onClose={onClose} />;
+  return (
+    <Drawer title={`Late rent · ${tenant.names.join(' & ')}`} onClose={onClose}>
+      <p style={{ marginTop: 0 }}><strong>{fmt(a.total)} owing</strong> for {a.periods.map((p) => fmtPeriod(p.period)).join(', ')}.</p>
+      <ol className="late-steps">
+        <li>
+          <div><strong>Send a reminder</strong><span>Most late rent is paid after a friendly note.</span></div>
+          <button className="btn" onClick={() => setStep('reminder')}>Write reminder</button>
+        </li>
+        <li className={next?.kind === 'N4' || next?.kind === 'generic' ? '' : 'muted'}>
+          <div><strong>{next?.kind === 'generic' ? 'Give a written notice of rent owing' : 'Give a notice to end the tenancy for unpaid rent (N4)'}</strong><span>The tenancy can end if rent isn't paid by the date on the notice. Paying in full cancels it.</span></div>
+          {(next?.kind === 'N4' || next?.kind === 'generic') ? <button className="btn primary" onClick={() => setStep('notice')}>Prepare notice</button> : <span className="small soft">{served.some((n) => n.kind === 'N4' && n.status === 'served') ? 'Served' : '—'}</span>}
+        </li>
+        <li className={next?.kind === 'L1' ? '' : 'muted'}>
+          <div><strong>Apply to the Landlord and Tenant Board (L1)</strong><span>Only after the N4 date has passed and rent is still owing.</span></div>
+          {next?.kind === 'L1' ? <button className="btn primary" onClick={() => setStep('notice')}>Prepare L1</button> : <span className="small soft">Not yet</span>}
+        </li>
+      </ol>
+      {served.length > 0 && (
+        <>
+          <h3 style={{ margin: '16px 0 8px' }}>Notices so far</h3>
+          <ul className="rows">{served.map((n) => <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span>{n.kind} · {fmt(n.arrears)}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>)}</ul>
+        </>
+      )}
+      <p className="tiny soft" style={{ marginTop: 16 }}>Rules for {province(state.properties.find((p) => p.id === state.units.find((u) => u.id === lease.unitId)?.propertyId)?.province ?? 'ON').name}. Keyholder prepares documents. You decide and sign. <a href="https://tribunalsontario.ca/ltb/forms/" target="_blank" rel="noopener noreferrer">Official forms</a></p>
+    </Drawer>
+  );
+}
+
+function NoticeWizard({ lease, kind, onClose }: { lease: Lease; kind: Notice['kind']; onClose: () => void }) {
+  const { state, act, today } = useStore();
+  const tenant = state.tenants.find((t) => t.id === lease.tenantId)!;
+  const unit = state.units.find((u) => u.id === lease.unitId)!;
+  const prop = state.properties.find((p) => p.id === unit.propertyId)!;
+  const [method, setMethod] = useState<Notice['serveMethod']>(tenant.emailConsent ? 'email' : 'hand');
+  const [servedOn, setServedOn] = useState(today);
+  const [servedBy, setServedBy] = useState(state.profile.name);
+  const a = arrears(state, lease, today);
+  const checks = useMemo(() => noticeChecks(state, lease, method, today), [state, lease, method, today]);
+  const ok = checks.every((c) => c.ok) && !!servedBy.trim();
+  const end = kind === 'L1' ? undefined : terminationDate(servedOn, method);
+  const n4 = state.notices.find((n) => n.leaseId === lease.id && n.kind === 'N4' && n.status === 'served');
+
+  return (
+    <Drawer title={noticeName(kind, prop.province)} onClose={onClose} wide>
+      <div className="letter">
+        <Letterhead state={state} />
+        <div className="spread"><div className="serif" style={{ fontSize: 'var(--t-20)' }}>{kind === 'L1' ? 'Application L1 (prepared)' : kind === 'N4' ? 'Notice N4' : 'Notice of rent owing'}</div><Stamp kind="draft">Preview</Stamp></div>
+        <table><tbody>
+          <tr><td>To (tenant)</td><td>{tenant.names.join(' & ')}</td></tr>
+          <tr><td>From (landlord)</td><td>{state.profile.name || '—'}</td></tr>
+          <tr><td>Rental unit</td><td>Unit {unit.label}, {prop.address}, {prop.city}</td></tr>
+          {a.periods.map((p) => <tr key={p.period}><td>Rent owing for {fmtPeriod(p.period)}</td><td>{fmt(p.owing)}</td></tr>)}
+          <tr><td><strong>Total rent owing</strong></td><td><strong>{fmt(a.total)}</strong></td></tr>
+          {end && <tr><td>Pay by (termination date)</td><td>{fmtDate(end)}</td></tr>}
+          {kind === 'L1' && n4 && <tr><td>N4 served</td><td>{fmtDate(n4.servedOn!)} · {n4.serveMethod} · termination {fmtDate(n4.terminationDate!)}</td></tr>}
+        </tbody></table>
+        <p className="tiny" style={{ color: '#55605B' }}>{kind === 'L1' ? 'Attached: tenant ledger, copy of the N4, certificate of service.' : `If the tenant pays ${fmt(a.total)} by ${end ? fmtDate(end) : 'the date'}, this notice is void and the tenancy continues.`}</p>
+        <p className="tiny" style={{ color: '#55605B' }}>Preview. The official {kind === 'generic' ? 'provincial' : 'Tribunals Ontario'} form is filled in when Keyholder's backend is ready. Verify notice periods with the tribunal.</p>
+      </div>
+
+      <h3 style={{ margin: '20px 0 8px' }}>Checks</h3>
+      <ul className="checks">{checks.map((c) => <li key={c.text} className={c.ok ? 'ok' : 'bad'}><Icon name={c.ok ? 'check' : 'alert'} size={18} />{c.text}</li>)}</ul>
+
+      {kind !== 'L1' && (
+        <>
+          <h3 style={{ margin: '20px 0 8px' }}>How it is delivered</h3>
+          <Seg label="Delivery" value={method} onChange={setMethod} options={[{ id: 'email', label: 'Email' }, { id: 'hand', label: 'By hand' }, { id: 'mail-slot', label: 'Mail slot' }, { id: 'mail', label: 'Mail' }]} />
+          <p className="small soft">{method === 'mail' ? `Mail adds ${MAIL_EXTRA_DAYS} days.` : `At least ${n4NoticeDays(servedOn)} days' notice is given.`}</p>
+          <div className="grid2">
+            <Field label="Date delivered" htmlFor="nw-d"><input id="nw-d" type="date" className="input" value={servedOn} onChange={(e) => setServedOn(e.target.value)} /></Field>
+            <Field label="Delivered by" htmlFor="nw-b"><input id="nw-b" className="input" value={servedBy} onChange={(e) => setServedBy(e.target.value)} /></Field>
+          </div>
+          <p className="small soft">This is recorded as your proof of service (Certificate of Service).</p>
+        </>
+      )}
+
+      <div className="callout warn" style={{ marginTop: 16 }}>
+        <strong>Before you approve:</strong> this is a legal {kind === 'L1' ? 'application' : 'notice'}. {kind === 'L1' ? 'Filing costs a fee and starts a hearing.' : `If ${fmt(a.total)} isn't paid by ${end ? fmtDate(end) : 'the date'}, you can apply to end the tenancy.`} Talking to the tenant first often works better.
+      </div>
+      {ok ? <SlideToConfirm label={kind === 'L1' ? 'Slide to prepare the L1' : 'Slide to approve and record'} onConfirm={() => { act.serveNotice({ kind, leaseId: lease.id, tenantId: tenant.id, arrears: a.total, periods: a.periods.map((p) => p.period), serveMethod: method, servedOn: kind === 'L1' ? today : servedOn, servedBy, terminationDate: end }); onClose(); }} />
+        : <p className="urgent small">Fix the checks above before approving.</p>}
+    </Drawer>
+  );
+}
+
+// =====================================================================================
+// Notices tab (property page)
+// =====================================================================================
+export function NoticesTab({ propertyId }: { propertyId: string }) {
+  const { state, today } = useStore();
+  const [late, setLate] = useState<Lease | null>(null);
+  const unitIds = state.units.filter((u) => u.propertyId === propertyId).map((u) => u.id);
+  const leases = state.leases.filter((l) => unitIds.includes(l.unitId));
+  const owing = leases.filter((l) => arrears(state, l, today).total > 0);
+  const notices = state.notices.filter((n) => leases.some((l) => l.id === n.leaseId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return (
+    <>
+      <section className="section">
+        <h2 className="section-title">Rent owing</h2>
+        <div className="sheet">
+          {owing.length === 0 ? <p className="soft" style={{ margin: 0 }}>No one owes rent. Nothing to do.</p> : (
+            <ul className="rows">{owing.map((l) => {
+              const t = state.tenants.find((x) => x.id === l.tenantId)!;
+              const a = arrears(state, l, today);
+              return <li key={l.id} className="row" style={{ gridTemplateColumns: '1fr auto' }}><span><span className="title">{t.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(a.total)} owing</span></span><button className="btn primary" onClick={() => setLate(l)}>Late rent options</button></li>;
+            })}</ul>
+          )}
+        </div>
+      </section>
+      <section className="section">
+        <h2 className="section-title">Notices served</h2>
+        <div className="sheet">
+          {notices.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices yet.</p> : (
+            <ul className="rows">{notices.map((n) => {
+              const t = state.tenants.find((x) => x.id === n.tenantId);
+              return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>;
+            })}</ul>
+          )}
+        </div>
+      </section>
+      {late && <LateRentDrawer lease={late} onClose={() => setLate(null)} />}
+    </>
+  );
+}

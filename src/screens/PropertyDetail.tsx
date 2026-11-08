@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import { useStore } from '../data/store';
+import { unitTenant, useStore } from '../data/store';
+import { FindTenantTab, NoticesTab, UnitsTab } from './Rentals';
 import type { Property } from '../data/types';
 import { propertyLevel, atLeast } from '../lib/levels';
 import { LevelInvite, PropertyCard } from '../components/levels';
@@ -10,58 +11,50 @@ import {
 } from '../lib/finance';
 import { regionData } from '../lib/jurisdiction';
 import { fmt, fmt0, fmtShort, pct } from '../lib/money';
-import { DoorPlate, RentRoll } from '../components/domain';
-import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm, TenancyForm, UnitForm } from '../components/forms';
+import { RentRoll } from '../components/domain';
+import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function PropertyDetail() {
-  const { id, tab = 'overview' } = useParams();
-  const { state } = useStore();
+  const { id, tab = 'units' } = useParams();
+  const { state, today } = useStore();
   const [edit, setEdit] = useState(false);
   const p = state.properties.find((x) => x.id === id);
-  if (!p) return <div className="page"><Empty title="That property isn't here." action={<Link to="/rent" className="btn">Back to Rent</Link>} /></div>;
+  if (!p) return <div className="page"><Empty title="That property isn't here." action={<Link to="/rentals" className="btn">Back to Rentals</Link>} /></div>;
+  const hasEmpty = state.units.some((u) => u.propertyId === p.id && !unitTenant(state, u.id, today).lease);
+  const cur = tab === 'overview' ? 'units' : tab;
+  const base = `/rent/property/${p.id}`;
 
   return (
     <div className="page">
-      <Link to="/portfolio" className="crumb"><Icon name="back" size={16} />Portfolio</Link>
+      <Link to="/rentals" className="crumb"><Icon name="back" size={16} />Rentals</Link>
       <h1 className="sr-only">{p.nickname}</h1>
       <div className="prop-head">
         <PropertyCard property={p} active banner />
         <button className="btn" onClick={() => setEdit(true)}><Icon name="edit" size={16} />Edit details</button>
       </div>
       <nav className="tabs" aria-label="Property sections">
-        <NavLink end to={`/rent/property/${p.id}`} className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
-        <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>
-        <NavLink to={`/rent/property/${p.id}/mortgage`}>Mortgage</NavLink>
+        <NavLink end to={base} className={cur === 'units' ? 'active' : ''}>Units and tenants</NavLink>
+        {hasEmpty && <NavLink to={`${base}/find`}>Find a tenant</NavLink>}
+        <NavLink to={`${base}/notices`}>Late rent and notices</NavLink>
+        <NavLink to={`${base}/value`}>Value</NavLink>
+        <NavLink to={`${base}/mortgage`}>Mortgage</NavLink>
       </nav>
-      {tab === 'overview' && <Overview id={p.id} />}
-      {tab === 'value' && <ValueTab id={p.id} />}
-      {tab === 'mortgage' && (atLeast(propertyLevel(state, p), 'gold') ? <MortgageTab id={p.id} /> : (
+      {cur === 'units' && (
+        <>
+          <UnitsTab propertyId={p.id} />
+          {state.units.some((u) => u.propertyId === p.id) && <section className="section"><h2 className="section-title">Rent, last 12 months</h2><div className="sheet"><RentRoll propertyId={p.id} /></div></section>}
+        </>
+      )}
+      {cur === 'find' && <FindTenantTab propertyId={p.id} />}
+      {cur === 'notices' && <NoticesTab propertyId={p.id} />}
+      {cur === 'value' && <ValueTab id={p.id} />}
+      {cur === 'mortgage' && (atLeast(propertyLevel(state, p), 'gold') ? <MortgageTab id={p.id} /> : (
         <LevelInvite property={p} to="gold" title="Track your mortgage" points={['See what you still owe and what you paid off this year', 'Get mortgage interest into your taxes', 'Full tax numbers with depreciation', 'Your gain if you sold']} />
       ))}
       {edit && <PropertyForm property={p} onClose={() => setEdit(false)} />}
     </div>
-  );
-}
-
-function Overview({ id }: { id: string }) {
-  const { state, today } = useStore();
-  const [unitEdit, setUnitEdit] = useState<string | 'new' | null>(null);
-  const [addTenant, setAddTenant] = useState(false);
-  const units = state.units.filter((u) => u.propertyId === id);
-  return (
-    <>
-      <section className="section">
-        <h2 className="section-title">Units and tenants <span className="btn-row"><button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button>{units.length > 0 && <button className="btn small" onClick={() => setAddTenant(true)}><Icon name="plus" size={14} />Add tenant</button>}</span></h2>
-        {units.length ? <div className="plates">{units.map((u) => <div key={u.id} className="plate-wrap"><DoorPlate unit={u} /><button className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button></div>)}</div>
-          : <div className="sheet"><Empty title="No units yet." action={<button className="btn" onClick={() => setUnitEdit('new')}>Add a unit</button>} /></div>}
-      </section>
-      {units.length > 0 && <section className="section"><h2 className="section-title">Rent roll</h2><div className="sheet"><RentRoll propertyId={id} /></div></section>}
-      <p className="small"><Link to="/money/cash-flow">See this property's cash flow</Link></p>
-      {addTenant && <TenancyForm unitId={units.find((u) => !state.leases.some((l) => l.unitId === u.id && (!l.end || l.end >= today)))?.id} onClose={() => setAddTenant(false)} />}
-      {unitEdit && <UnitForm propertyId={id} unit={unitEdit === 'new' ? undefined : state.units.find((u) => u.id === unitEdit)} onClose={() => setUnitEdit(null)} />}
-    </>
   );
 }
 

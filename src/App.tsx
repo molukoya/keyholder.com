@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
-import { trayItems } from './lib/tray';
-import { daysBetween } from './lib/dates';
+import { needsYouCount } from './lib/tray';
 import { Icon, KeyMark } from './components/Icon';
 import { ExpenseForm, PaymentForm } from './components/forms';
 import { Onboarding } from './screens/Onboarding';
@@ -11,10 +10,10 @@ import { Today } from './screens/Today';
 import { Portfolio } from './screens/Portfolio';
 import { PropertyDetail } from './screens/PropertyDetail';
 import { TenantDetail } from './screens/TenantDetail';
-import { Money, Taxes } from './screens/Money';
+import { Taxes } from './screens/Money';
+import { Rentals } from './screens/Rentals';
 import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
-import { Tray } from './screens/Tray';
 
 export function App() {
   return (
@@ -46,8 +45,8 @@ function Shell() {
   const [pay, setPay] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
-  // Badge = everything under "Needs you now" on To do (renewals included).
-  const count = useMemo(() => trayItems(state, today).length + state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; }).length, [state, today]);
+  // Badge on Home = everything under "Needs you now".
+  const count = useMemo(() => needsYouCount(state, today), [state, today]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
   // Desktop keyboard shortcuts (PRD §12): P = log a payment, E = add an expense, T = open the tray.
@@ -64,9 +63,9 @@ function Shell() {
   }, [navigate]);
 
   const nav = [
-    { to: '/today', label: 'Home', icon: 'home' },
+    { to: '/today', label: 'Home', icon: 'home', badge: true },
+    { to: '/rentals', label: 'Rentals', icon: 'rent' },
     { to: '/portfolio', label: 'Portfolio', icon: 'chart' },
-    { to: '/money', label: 'Money', icon: 'money' },
     { to: '/taxes', label: 'Taxes', icon: 'print' },
     { to: '/paperwork', label: 'Paperwork', icon: 'paper' },
   ];
@@ -75,8 +74,7 @@ function Shell() {
     <div className="shell">
       <aside className="rail" aria-label="Main">
         <Link to="/today" className="brand"><KeyMark />Keyholder</Link>
-        {nav.map((n) => <NavLink key={n.to} to={n.to} className="nav-link"><Icon name={n.icon} />{n.label}</NavLink>)}
-        <NavLink to="/todo" className="nav-link"><Icon name="tray" />To do{count > 0 && <span className="badge" aria-label={`${count} items`}>{count}</span>}</NavLink>
+        {nav.map((n) => <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
         <div style={{ height: 16 }} />
         <button className="btn primary" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
@@ -93,7 +91,9 @@ function Shell() {
             <Route path="/" element={<Navigate to="/today" replace />} />
             <Route path="/today" element={<Today />} />
             <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/rent" element={<Navigate to="/portfolio" replace />} />
+            <Route path="/portfolio/:tab" element={<Portfolio />} />
+            <Route path="/rentals" element={<Rentals />} />
+            <Route path="/rent" element={<Navigate to="/rentals" replace />} />
             <Route path="/taxes" element={<Taxes />} />
             <Route path="/money/tax" element={<Navigate to="/taxes" replace />} />
             <Route path="/money/worth-it" element={<Navigate to="/portfolio" replace />} />
@@ -102,12 +102,14 @@ function Shell() {
             <Route path="/rent/property/:id" element={<PropertyDetail />} />
             <Route path="/rent/property/:id/:tab" element={<PropertyDetail />} />
             <Route path="/rent/tenant/:id" element={<TenantDetail />} />
-            <Route path="/money" element={<Money />} />
-            <Route path="/money/:tab" element={<Money />} />
+            <Route path="/money" element={<Navigate to="/paperwork/expenses" replace />} />
+            <Route path="/money/expenses" element={<Navigate to="/paperwork/expenses" replace />} />
+            <Route path="/money/cash-flow" element={<Navigate to="/portfolio/cash-flow" replace />} />
+            <Route path="/money/summary" element={<Navigate to="/portfolio/cash-flow" replace />} />
             <Route path="/paperwork" element={<Paperwork />} />
             <Route path="/paperwork/:tab" element={<Paperwork />} />
-            <Route path="/todo" element={<Tray />} />
-            <Route path="/tray" element={<Navigate to="/todo" replace />} />
+            <Route path="/todo" element={<Navigate to="/today" replace />} />
+            <Route path="/tray" element={<Navigate to="/today" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
@@ -115,11 +117,11 @@ function Shell() {
       </div>
 
       <nav className="bottombar" aria-label="Main">
-        <NavLink to="/today"><Icon name="home" />Home</NavLink>
-        <NavLink to="/portfolio"><Icon name="chart" />Portfolio</NavLink>
+        <NavLink to="/today"><Icon name="home" />Home{count > 0 && <span className="badge">{count}</span>}</NavLink>
+        <NavLink to="/rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
         <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
-        <NavLink to="/todo"><Icon name="tray" />To do{count > 0 && <span className="badge">{count}</span>}</NavLink>
-        <NavLink to="/more" className={['/money', '/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
+        <NavLink to="/portfolio"><Icon name="chart" />Portfolio</NavLink>
+        <NavLink to="/more" className={['/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
 
       {capture && <ExpenseForm onClose={() => setCapture(false)} />}
@@ -132,9 +134,8 @@ function Shell() {
 /** Phone "More" menu: big, plain buttons for the less frequent tabs. */
 function More() {
   const items = [
-    { to: '/money', icon: 'money', label: 'Money', sub: 'Expenses and cash flow' },
     { to: '/taxes', icon: 'print', label: 'Taxes', sub: 'Your tax summary for the year' },
-    { to: '/paperwork', icon: 'paper', label: 'Paperwork', sub: 'Receipts, messages and leases' },
+    { to: '/paperwork', icon: 'paper', label: 'Paperwork', sub: 'Expense receipts, rental income, leases, notices' },
     { to: '/settings', icon: 'settings', label: 'Settings', sub: 'You, rent tracking, reminders' },
   ];
   return (

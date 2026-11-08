@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 export function defaultProfile(): Profile {
   return {
@@ -37,7 +37,7 @@ export function emptyState(profile?: Profile): AppState {
     version: STATE_VERSION,
     profile: profile ?? defaultProfile(),
     properties: [], units: [], tenants: [], leases: [], payments: [], receipts: [], messages: [],
-    txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], audit: [],
+    txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], listings: [], applicants: [], notices: [], audit: [],
   };
 }
 
@@ -49,7 +49,7 @@ export function seedState(profile?: Profile): AppState {
 
   s.properties = [
     {
-      id: 'p-maple', nickname: 'Maple duplex', address: '48 Maple Ave', city: 'Hamilton', province: 'ON', type: 'duplex',
+      id: 'p-maple', nickname: 'Maple triplex', address: '48 Maple Ave', city: 'Hamilton', province: 'ON', type: 'triplex',
       rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100,
       purchaseDate: '2019-06-14', purchasePrice: 61_500_000, approxMortgageBalance: 40_400_000, approxMortgagePayment: 230_500,
       closingCosts: 350_000, landTransferTax: 865_000, improvementsAtPurchase: 1_200_000, landValuePct: 30,
@@ -65,6 +65,7 @@ export function seedState(profile?: Profile): AppState {
   s.units = [
     { id: 'u-a', propertyId: 'p-maple', label: 'A', rent: 165_000, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'occupied' },
     { id: 'u-b', propertyId: 'p-maple', label: 'B', rent: 145_000, bedrooms: 1, utilitiesIncluded: ['Water', 'Heat'], status: 'occupied' },
+    { id: 'u-c', propertyId: 'p-maple', label: 'C', rent: 155_000, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'vacant' },
     { id: 'u-bsmt', propertyId: 'p-birch', label: 'Basement', rent: 150_000, bedrooms: 1, utilitiesIncluded: ['Water', 'Heat', 'Hydro', 'Internet'], status: 'occupied' },
   ];
 
@@ -160,6 +161,16 @@ export function seedState(profile?: Profile): AppState {
   // Phase 3
   s.mortgages = [
     { id: 'm-maple', propertyId: 'p-maple', lender: 'RBC Royal Bank', principal: 49_200_000, startDate: '2019-07-01', ratePct: 2.89, amortYears: 25, termEnd: addDays(today, 110), frequency: 'monthly' },
+  ];
+
+  // An empty unit with a listing and two applications.
+  const vacantSince = addMonths(`${thisPeriod}-01`, -1);
+  s.listings = [{ unitId: 'u-c', askingRent: 155_000, available: addDays(today, 7), notes: 'Freshly painted 2-bedroom on the top floor. Laundry in the basement.', vacantSince, slug: 'maple-c' }];
+  s.applicants = [
+    { id: 'ap-1', unitId: 'u-c', names: ['Daniel Osei'], email: 'd.osei@example.com', phone: '905-555-0191', submitted: addDays(today, -4), moveIn: addDays(today, 14),
+      currentAddress: '210 King St E, Hamilton', yearsAtAddress: 3, employer: 'McMaster University (lab technician)', monthlyIncome: 520_000, references: 'Current landlord: R. Fischer, 905-555-0110', pets: false, notes: '', status: 'new' },
+    { id: 'ap-2', unitId: 'u-c', names: ['Lena Novak', 'Tom Novak'], email: 'lena.novak@example.com', phone: '289-555-0163', submitted: addDays(today, -2), moveIn: addDays(today, 24),
+      currentAddress: '15 James St S, Hamilton', yearsAtAddress: 5, employer: 'City of Hamilton; Novak Plumbing', monthlyIncome: 780_000, references: 'Current landlord: Sandra Lee, 905-555-0175', pets: true, notes: 'One cat', status: 'new' },
   ];
 
   s.audit = [{ id: 'a-0', at: now, action: 'Sample data loaded', detail: 'Two properties, three tenants, a year of history' }];

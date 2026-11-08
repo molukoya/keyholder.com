@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
-  AppState, BankName, BankTxn, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
+  AppState, Applicant, BankName, BankTxn, Listing, Notice, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
 } from './types';
 import { emptyState, seedState, STATE_VERSION, defaultProfile } from './seed';
 import { addDays, dueDate, periodOf, todayISO } from '../lib/dates';
@@ -66,6 +66,9 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     if (line && line.paid >= line.charge) {
       for (const m of d.messages) if (m.kind === 'reminder' && m.leaseId === lease.id && m.period === p.period && m.status === 'draft') m.status = 'cancelled';
     }
+    // Cure tracking (N4-7): if all arrears are paid, a served notice is cancelled by payment.
+    const owing = leaseLedger(lease, d.payments, today()).filter((l) => l.due < today() && l.paid < l.charge).length;
+    if (!owing) for (const n of d.notices) if (n.leaseId === lease.id && n.status === 'served') { n.status = 'voided-by-payment'; audit(d, 'Notice cancelled by payment', n.kind); }
     audit(d, 'Payment logged', `${fmt(p.amount)} from ${tenantName(d, lease.id)} for ${p.period} (${p.source})`);
     return pay;
   }
@@ -279,6 +282,37 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     removeValuation(id: string) { mut((d) => { d.valuations = d.valuations.filter((v) => v.id !== id); }); },
     saveComparable(c: Comparable) { mut((d) => { const i = d.comparables.findIndex((x) => x.id === c.id); if (i >= 0) d.comparables[i] = c; else d.comparables.push(c); }); },
     removeComparable(id: string) { mut((d) => { d.comparables = d.comparables.filter((c) => c.id !== id); }); },
+
+    // ---- Finding a tenant ----
+    saveListing(l: Listing) { mut((d) => { const i = d.listings.findIndex((x) => x.unitId === l.unitId); if (i >= 0) d.listings[i] = l; else d.listings.push(l); audit(d, 'Listing saved', l.unitId); }); toast('Listing saved.'); },
+    sendApplicationLink(unitLabel: string, to: string) { mut((d) => audit(d, 'Application form sent', `Unit ${unitLabel} to ${to}`)); toast(`Application form sent to ${to}.`); },
+    setApplicantStatus(id: string, status: Applicant['status']) {
+      let name = '';
+      mut((d) => { const a = d.applicants.find((x) => x.id === id); if (a) { a.status = status; name = a.names[0]; audit(d, `Applicant ${status}`, a.names.join(' & ')); } });
+      if (status === 'declined') toast(`Decline message sent to ${name || 'the applicant'}.`);
+      if (status === 'offered') toast(`Offer sent to ${name || 'the applicant'}.`);
+    },
+    /** Turn an accepted applicant into a tenant with a draft lease, and close the listing. */
+    acceptApplicant(id: string, start: string, rent: number) {
+      mut((d) => {
+        const a = d.applicants.find((x) => x.id === id); if (!a) return;
+        a.status = 'accepted';
+        const tid = uid('t');
+        d.tenants.push({ id: tid, unitId: a.unitId, names: a.names, email: a.email, phone: a.phone, noticeMethod: 'email', emailConsent: true, emailConsentDate: start, aliases: [] });
+        d.leases.push({ id: uid('l'), unitId: a.unitId, tenantId: tid, start, rent, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: rent, utilities: '', parking: false, pets: a.pets, emailNoticeConsent: true });
+        const u = d.units.find((x) => x.id === a.unitId); if (u) { u.status = 'occupied'; u.rent = rent; }
+        d.listings = d.listings.filter((l) => l.unitId !== a.unitId);
+        for (const o of d.applicants) if (o.unitId === a.unitId && o.id !== id && o.status !== 'declined') o.status = 'declined';
+        audit(d, 'Applicant accepted', `${a.names.join(' & ')} from ${start}`);
+      });
+      toast('Tenant added and lease drafted. Other applicants were sent a polite decline.');
+    },
+
+    // ---- Late-rent notices ----
+    serveNotice(n: Omit<Notice, 'id' | 'createdAt' | 'status'>) {
+      mut((d) => { d.notices.push({ ...n, id: uid('n'), createdAt: new Date().toISOString(), status: n.kind === 'L1' ? 'filed' : 'served' }); audit(d, n.kind === 'L1' ? 'L1 prepared' : `${n.kind} served`, `${fmt(n.arrears)} · ${n.serveMethod}${n.terminationDate ? ` · ends ${n.terminationDate}` : ''}`); });
+      toast(n.kind === 'L1' ? 'L1 application prepared with the ledger, notice and proof of service.' : 'Notice approved and recorded with proof of service.');
+    },
 
     // ---- Phase 3 ----
     saveMortgage(m: Mortgage) { mut((d) => { const i = d.mortgages.findIndex((x) => x.id === m.id); if (i >= 0) d.mortgages[i] = m; else d.mortgages.push(m); audit(d, 'Mortgage saved', `${m.lender} ${fmt(m.principal)}`); }); toast('Mortgage saved. Payments are now split into principal and interest.'); },

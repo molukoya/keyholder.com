@@ -19,6 +19,12 @@ In the app, **Settings → Build phase preview** switches between Phase 1, 2 and
 
 Keyboard shortcuts on desktop: `P` log a payment, `E` add an expense, `T` open the tray.
 
+## Live preview on GitHub Pages
+
+https://molukoya.github.io/keyholder.com/ is published by `.github/workflows/pages.yml` on every push to
+`main` (and the working branch). One-time setup: repository **Settings → Pages → Build and deployment →
+Source: GitHub Actions**.
+
 ## Deploy to Render
 
 `render.yaml` is a Render Blueprint. In the Render dashboard choose **New → Blueprint**, pick this repo,

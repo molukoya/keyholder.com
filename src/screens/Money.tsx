@@ -38,7 +38,7 @@ export function Taxes() {
 }
 
 // =====================================================================================
-function Expenses() {
+export function Expenses() {
   const { state } = useStore();
   const [form, setForm] = useState<Expense | 'new' | null>(null);
   const [prop, setProp] = useState('all');
@@ -141,7 +141,7 @@ export function RentTracking() {
                     <span className="sub" style={{ display: 'block' }}>{t.status === 'matched' ? `Marked as ${ten?.names[0]}'s rent` : 'Needs you to confirm'}</span></span>
                   {t.status === 'matched'
                     ? <button className="btn small ghost" onClick={() => pay && act.voidPayment(pay.id)}>Undo</button>
-                    : <Link className="btn small primary" to="/todo">Confirm</Link>}
+                    : <Link className="btn small primary" to="/today">Confirm</Link>}
                 </li>
               );
             })}</ul></div>
@@ -174,7 +174,7 @@ function ConnectBank({ onClose }: { onClose: () => void }) {
 // =====================================================================================
 // The picture — "See the math" (PRD 7.10)
 // =====================================================================================
-function ThePicture() {
+export function ThePicture() {
   const { state, today } = useStore();
   const [range, setRange] = useState<'month' | 'ytd' | 't12'>('t12');
   const [prop, setProp] = useState<string>('all');
@@ -329,7 +329,7 @@ function TaxPackPage() {
             </li>
           ))}</ul>
         )}
-        {fixes > 0 && <Link to="/money/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
+        {fixes > 0 && <Link to="/paperwork/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
       </div>
 
       <div className="sheet print-me">

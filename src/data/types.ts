@@ -260,6 +260,56 @@ export interface Mortgage {
   paymentOverride?: Cents;
 }
 
+// ---- Finding a tenant (RA-1 – RA-9) ----
+export interface Listing {
+  unitId: ID;
+  askingRent: Cents;
+  available: ISODate;
+  notes: string;
+  vacantSince: ISODate;
+  /** Public link slug for the application form. */
+  slug: string;
+}
+
+export type ApplicantStatus = 'new' | 'shortlisted' | 'declined' | 'offered' | 'accepted';
+
+export interface Applicant {
+  id: ID;
+  unitId: ID;
+  names: string[];
+  email: string;
+  phone: string;
+  submitted: ISODate;
+  moveIn: ISODate;
+  currentAddress: string;
+  yearsAtAddress: number;
+  employer: string;
+  monthlyIncome: Cents;
+  references: string;
+  pets: boolean;
+  notes: string;
+  status: ApplicantStatus;
+}
+
+// ---- Notices for late rent (N4 / L1, Ontario; generic elsewhere) ----
+export type NoticeKind = 'N4' | 'L1' | 'generic';
+export type NoticeStatus = 'draft' | 'served' | 'voided-by-payment' | 'filed';
+
+export interface Notice {
+  id: ID;
+  kind: NoticeKind;
+  leaseId: ID;
+  tenantId: ID;
+  createdAt: string;
+  arrears: Cents;
+  periods: Period[];
+  serveMethod: 'email' | 'hand' | 'mail' | 'mail-slot';
+  servedOn?: ISODate;
+  servedBy?: string;
+  terminationDate?: ISODate;
+  status: NoticeStatus;
+}
+
 export interface AuditEntry {
   id: ID;
   at: string;
@@ -283,5 +333,8 @@ export interface AppState {
   valuations: Valuation[];
   comparables: Comparable[];
   mortgages: Mortgage[];
+  listings: Listing[];
+  applicants: Applicant[];
+  notices: Notice[];
   audit: AuditEntry[];
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { addDays, fmtDate, yearOf } from '../lib/dates';
 import { netWorthHistory, portfolio, verdict, worthIt } from '../lib/finance';
@@ -7,12 +7,25 @@ import { fmt0, fmtShort } from '../lib/money';
 import { PropertyCard } from '../components/levels';
 import { PropertyForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
-import { Icon } from '../components/Icon';
-import { BenchmarkRuler } from './Money';
+import { BenchmarkRuler, ThePicture } from './Money';
 
 // Portfolio: what you own and whether it is working, at a glance.
 
 export function Portfolio() {
+  const { tab = 'overview' } = useParams();
+  return (
+    <div className="page">
+      <div className="page-head"><h1>Portfolio</h1></div>
+      <nav className="tabs" aria-label="Portfolio sections">
+        <NavLink end to="/portfolio" className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
+        <NavLink to="/portfolio/cash-flow">Cash flow</NavLink>
+      </nav>
+      {tab === 'cash-flow' ? <ThePicture /> : <Overview />}
+    </div>
+  );
+}
+
+function Overview() {
   const { state, today } = useStore();
   const [addProp, setAddProp] = useState(false);
   const [table, setTable] = useState(false);
@@ -22,8 +35,7 @@ export function Portfolio() {
 
   if (!pf.rows.length) {
     return (
-      <div className="page">
-        <div className="page-head"><h1>Portfolio</h1></div>
+      <div>
         <div className="sheet"><Empty title="No properties yet." action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Tenants come next.</Empty></div>
         {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
       </div>
@@ -38,11 +50,7 @@ export function Portfolio() {
   const pos = parts.reduce((a, p) => a + Math.max(0, p.v), 0) || 1;
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <h1>Portfolio</h1>
-        <button className="btn" onClick={() => setAddProp(true)}><Icon name="plus" size={16} />Add property</button>
-      </div>
+    <div>
 
       <div className="pf-hero">
         <div className="sheet pf-worth">
@@ -96,7 +104,7 @@ export function Portfolio() {
         ) : (
           <div className="pcards">{pf.rows.map((r) => <PropertyCard key={r.property.id} property={r.property} />)}</div>
         )}
-        {pf.estimates > 0 && <p className="small soft" style={{ marginTop: 12 }}>Property values are estimates. Add your own estimate or nearby sales on a property's Value tab. <Link to="/todo">Complete details in To do</Link></p>}
+        {pf.estimates > 0 && <p className="small soft" style={{ marginTop: 12 }}>Property values are estimates. Add your own estimate or nearby sales on a property's Value tab. <Link to="/today">Complete details on Home</Link></p>}
       </section>
       {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
     </div>

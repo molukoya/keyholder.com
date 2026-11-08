@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { daysBetween, fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
+import { fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
 import { activeLease, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { ScoreChip } from '../components/levels';
-import { keyholderScore } from '../lib/score';
+import { TodoSections } from './Tray';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
-import { Empty } from '../components/ui';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 import { Icon } from '../components/Icon';
@@ -31,9 +30,9 @@ export function Today() {
         <div className="sheet">
           <h2 style={{ marginBottom: 12 }}>Let's get you set up</h2>
           <ul className="rows">
-            <li className="row"><span className="margin">Step 1</span><span className="title">Add your property</span><Link className="btn primary" to="/rent">Add</Link></li>
+            <li className="row"><span className="margin">Step 1</span><span className="title">Add your property</span><Link className="btn primary" to="/rentals">Add</Link></li>
             <li className="row"><span className="margin">Step 2</span><span className="title soft">Add your tenant</span><span /></li>
-            <li className="row"><span className="margin">Step 3</span><span className="title soft">Choose how rent is tracked</span><Link className="btn" to="/money/bank">Choose</Link></li>
+            <li className="row"><span className="margin">Step 3</span><span className="title soft">Choose how rent is tracked</span><Link className="btn" to="/settings#rent-tracking">Choose</Link></li>
           </ul>
         </div>
       </div>
@@ -59,19 +58,6 @@ export function Today() {
   else if (!late.length) headline = <><em>All rent is in.</em> You're all set.</>;
   else headline = <>{paid} of {occupied.length} paid. <span className="bad">{late.length === 1 ? `${firstName(late[0])} is late.` : `${late.length} tenants are late.`}</span></>;
 
-  // Top 3 from the one To do list: urgent things first, then the biggest score gains.
-  const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; });
-  const tname = (id?: string) => state.tenants.find((x) => x.id === id)?.names[0].split(' ')[0] ?? 'a tenant';
-  const urgentItems = [
-    ...todo.map((t) => ({
-      id: t.id, urgent: true, points: 0,
-      text: t.kind === 'message' ? `Send ${tname(t.message.tenantId)} a receipt` : t.kind === 'reminder' ? `Remind ${tname(t.lease.tenantId)} about rent` : `Confirm a payment from ${t.txn.payer}`,
-    })),
-    ...renewals.map((m) => ({ id: m.id, urgent: true, points: 0, text: `Mortgage renews in ${daysBetween(today, m.termEnd)} days` })),
-  ];
-  const scoreItems = keyholderScore(state, today).todo.map((i) => ({ id: i.id, urgent: false, points: i.points - i.earned, text: i.text }));
-  const top = [...urgentItems, ...scoreItems].slice(0, 3);
-
   return (
     <div className="page">
       <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
@@ -85,7 +71,7 @@ export function Today() {
               <li key={r.unit.id} className="rent-row">
                 <div><div className="who">Unit {r.unit.label}</div><div className="where">{propName(r.unit.propertyId)}</div></div>
                 <span className="status vacant">Empty</span>
-                <Link className="btn" to={`/rent/property/${r.unit.propertyId}`}>Add tenant</Link>
+                <Link className="btn" to={`/rent/property/${r.unit.propertyId}/find`}>Find a tenant</Link>
               </li>
             ) : (
               pending.has(r.lease.id) && r.line.state !== 'paid' ? (
@@ -95,7 +81,7 @@ export function Today() {
                   <div className="where">{propName(r.unit.propertyId)} · Unit {r.unit.label} · {fmt(r.line.charge)}</div>
                 </Link>
                 <span className="status due">Payment found</span>
-                <Link className="btn primary" to="/todo">Confirm</Link>
+                <Link className="btn primary" to="/today">Confirm</Link>
               </li>
               ) :
               <li key={r.unit.id} className={`rent-row ${r.line.state}`}>
@@ -120,16 +106,7 @@ export function Today() {
         <BankStatus compact />
       </section>
 
-      <section className="section">
-        <h2 className="section-title">To do <Link to="/todo" className="small">See all</Link></h2>
-        {top.length === 0 ? <div className="sheet"><Empty title="All done.">Nothing needs you right now.</Empty></div> : (
-          <ul className="todo-preview">
-            {top.map((t) => (
-              <li key={t.id}><Link to="/todo" className={t.urgent ? 'urgent' : ''}><span>{t.text}</span>{t.points ? <em>+{t.points}</em> : null}<Icon name="next" size={18} /></Link></li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <TodoSections />
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
     </div>
