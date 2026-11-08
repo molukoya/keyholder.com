@@ -60,6 +60,7 @@ export function Today() {
 
   return (
     <div className="page">
+      <h1 className="sr-only">Home</h1>
       <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
       <p className="pulse">{headline}</p>
       <div className="track-top"><BankStatus /></div>
