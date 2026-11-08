@@ -3,7 +3,8 @@ import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLo
 import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
 import { needsYouCount } from './lib/tray';
-import { Icon, KeyMark } from './components/Icon';
+import { Icon } from './components/Icon';
+import { Brand } from './components/Brand';
 import { ExpenseForm, PaymentForm } from './components/forms';
 import { Onboarding } from './screens/Onboarding';
 import { Today } from './screens/Today';
@@ -78,7 +79,7 @@ function Shell() {
   return (
     <div className="shell">
       <aside className="rail" aria-label="Main">
-        <Link to="/welcome" className="brand" title="About Keyholder"><KeyMark />Keyholder</Link>
+        <Link to="/welcome" className="brand" title="About Keyholder"><Brand size={28} /></Link>
         {nav.map((n) => <NavLink key={n.to} to={n.to} data-tour={n.to.slice(1)} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
         <div style={{ height: 16 }} />
         <button className="btn primary" data-tour="receipt" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
@@ -89,7 +90,7 @@ function Shell() {
 
       <div className="main">
         <div className="mobile-top">
-          <Link to="/welcome" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
+          <Link to="/welcome" className="brand" style={{ margin: 0 }}><Brand size={24} /></Link>
         </div>
         <main>
           <SampleBanner />

@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import type { Goal, Profile, Province, RentMethod, SetupKind, Tone } from '../data/types';
 import { useStore } from '../data/store';
 import { PROVINCES, province } from '../lib/jurisdiction';
-import { Icon, KeyMark } from '../components/Icon';
+import { Icon } from '../components/Icon';
+import { Brand } from '../components/Brand';
 import { Letterhead } from '../components/domain';
 
 // Signup as a pain-point questionnaire (PRD §5): six questions, one per screen, then the plan letter.
@@ -133,7 +134,7 @@ export function Onboarding() {
   return (
     <div className="q-wrap">
       <div className="q-top">
-        <span className="brand" style={{ margin: 0 }}><KeyMark />Keyholder</span>
+        <span className="brand" style={{ margin: 0 }}><Brand /></span>
         <button className="btn ghost q-exit" onClick={exit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button>
         <div className="q-lines" aria-label={`Question ${step + 1} of ${steps.length}`}>
           {steps.map((_, i) => <span key={i} className={i < step ? 'done' : i === step ? 'now' : ''} />)}
@@ -174,7 +175,7 @@ function PlanLetter({ a, name, email, setName, setEmail, onBack, onExit, onFinis
 
   return (
     <div className="q-wrap">
-      <div className="q-top"><span className="brand" style={{ margin: 0 }}><KeyMark />Keyholder</span><button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button></div>
+      <div className="q-top"><span className="brand" style={{ margin: 0 }}><Brand /></span><button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button></div>
       <div className="letter" style={{ maxWidth: 720, width: '100%' }}>
         <Letterhead state={{ ...state, profile: { ...state.profile, name: 'Keyholder', email: 'Your plan' } }} />
         <h1 className="serif" style={{ fontSize: 'var(--t-28)', marginBottom: 16 }}>Here's what Keyholder will take off your plate</h1>

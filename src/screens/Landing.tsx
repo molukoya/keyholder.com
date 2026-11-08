@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
 import { useStore } from '../data/store';
-import { KeyMark, Icon } from '../components/Icon';
+import { Icon } from '../components/Icon';
+import { Brand, KeyMark, WORDMARKS, Wordmark, setWordmark, useWordmark } from '../components/Brand';
 import { POPULAR_BANKS, RETURN_PRESETS, province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 
@@ -42,17 +43,20 @@ export function Landing() {
   const nav = useNavigate();
   const loc = useLocation();
   const [menu, setMenu] = useState(false);
+  const [solid, setSolid] = useState(false);
+  useEffect(() => { const on = () => setSolid(window.scrollY > 24); on(); window.addEventListener('scroll', on, { passive: true }); return () => window.removeEventListener('scroll', on); }, []);
   const seg = loc.pathname.split('/').filter(Boolean);
   const raw = seg[0] === 'welcome' ? seg[1] ?? '' : seg[0] ?? '';
+  const logo = raw === 'logo';
   const page: PageId = (PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
-  const idx = PAGES.findIndex((p) => p.id === page);
+  const idx = logo ? -1 : PAGES.findIndex((p) => p.id === page);
   const signedIn = state.profile.onboarded;
   const demo = () => { act.startDemo(); nav('/today'); };
   const start = () => nav(signedIn ? '/today' : '/start');
-  useEffect(() => { window.scrollTo(0, 0); setMenu(false); }, [page]);
-  useEffect(() => { document.title = idx === 0 ? 'Keyholder · Your rental, handled' : `${PAGES[idx].label} · Keyholder`; }, [idx]);
+  useEffect(() => { window.scrollTo(0, 0); setMenu(false); }, [page, logo]);
+  useEffect(() => { document.title = logo ? 'Logo options · Keyholder' : idx === 0 ? 'Keyholder · Your rental, handled' : `${PAGES[idx].label} · Keyholder`; }, [idx, logo]);
   useEffect(() => { document.body.style.overflow = menu ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [menu]);
-  useReveal(page);
+  useReveal(logo ? 'logo' : page);
 
   const ctas = signedIn
     ? <Link className="btn primary" to="/today">Open my dashboard</Link>
@@ -61,9 +65,9 @@ export function Landing() {
 
   return (
     <div className="lp">
-      <header className="lp-nav">
+      <header className={`lp-nav${solid || menu ? ' solid' : ''}`}>
         <div className="lp-wrap lp-nav-in">
-          <Link to="/welcome" className="lp-brand"><KeyMark size={26} /><span>Keyholder</span></Link>
+          <Link to="/welcome" className="lp-brand"><Brand size={28} /></Link>
           <nav aria-label="Site" className="lp-links">
             {PAGES.map((p) => (
               <div key={p.id} className="lp-dd-item">
@@ -89,22 +93,23 @@ export function Landing() {
       </header>
 
       <main className="lp-main">
-        {page === '' && <Overview start={start} demo={demo} signedIn={signedIn} />}
-        {page === 'features' && <Features />}
-        {page === 'provinces' && <Provinces />}
-        {page === 'pricing' && <Pricing start={start} />}
-        {page === 'questions' && <Questions start={start} demo={demo} signedIn={signedIn} />}
+        {logo && <LogoOptions />}
+        {!logo && page === '' && <Overview start={start} demo={demo} signedIn={signedIn} />}
+        {!logo && page === 'features' && <Features />}
+        {!logo && page === 'provinces' && <Provinces />}
+        {!logo && page === 'pricing' && <Pricing start={start} />}
+        {!logo && page === 'questions' && <Questions start={start} demo={demo} signedIn={signedIn} />}
 
-        <nav className="lp-wrap lp-pager" aria-label="Pages">
+        {!logo && <nav className="lp-wrap lp-pager" aria-label="Pages">
           {idx > 0 ? <Link to={href(PAGES[idx - 1].id)} className="lp-pg prev"><span>Back</span>{PAGES[idx - 1].label}</Link> : <span />}
           {next ? <Link to={href(next.id)} className="lp-pg next"><span>Next</span>{next.label}</Link> : <button className="lp-pg next" onClick={start}><span>Ready?</span>{signedIn ? 'Open my dashboard' : 'Get started'}</button>}
-        </nav>
+        </nav>}
       </main>
 
       <footer className="lp-foot">
         <div className="lp-wrap lp-foot-grid">
-          <Link to="/welcome" className="lp-brand"><KeyMark size={24} /><span>Keyholder</span></Link>
-          <nav aria-label="Footer">{PAGES.map((p) => <Link key={p.id} to={href(p.id)}>{p.label}</Link>)}<Link to="/start">Sign up</Link></nav>
+          <Link to="/welcome" className="lp-brand"><Brand size={26} /></Link>
+          <nav aria-label="Footer">{PAGES.map((p) => <Link key={p.id} to={href(p.id)}>{p.label}</Link>)}<Link to="/start">Sign up</Link><Link to="/welcome/logo">Logo options</Link></nav>
           <p className="tiny">Keyholder prepares documents and information. It does not give legal or tax advice, file returns, or hold or move money. Notice periods, forms and rates in this preview are being verified with each province. © 2026 Keyholder.</p>
         </div>
       </footer>
@@ -161,12 +166,13 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
   }, []);
   return (
     <>
-      <section className="lp-hero">
-        <div className="lp-mesh" aria-hidden />
+      <section className="lp-hero lp-night">
+        <div className="lp-aurora" aria-hidden><i /><i /><i /></div>
+        <div className="lp-gridlines" aria-hidden />
         <div className="lp-wrap lp-hero-grid">
           <div className="lp-hero-copy">
             <Badge>Made for Canadian landlords with 1 to 10 units</Badge>
-            <h1 className="lp-hero-h">Your rental, <em>handled.</em></h1>
+            <h1 className="lp-hero-h" aria-label="Your rental, handled."><span className="w" style={{ animationDelay: '80ms' }}>Your</span> <span className="w" style={{ animationDelay: '200ms' }}>rental,</span> <em className="w" style={{ animationDelay: '340ms' }}>handled.</em></h1>
             <p className="lp-lede">Rent tracked. Receipts and reminders sent. Late-rent notices prepared for your province. Every receipt kept. And a plain answer to whether your property is worth it.</p>
             <div className="btn-row">
               <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Get started, free'} <span aria-hidden className="lp-chev">›</span></button>
@@ -446,5 +452,30 @@ function LiveDemo() {
       {sent.maya && <div className="lp-receipt" aria-live="polite"><strong>Rent receipt #1042</strong><span>Maya Chen · $1,650.00 · Nov 1</span><span className="stamp paid">Paid</span></div>}
       <div className="lp-demo-foot"><Icon name="bank" size={16} /> Checking RBC and TD every 4 hours</div>
     </div>
+  );
+}
+
+// ================================================================ Logo options (pick one)
+function LogoOptions() {
+  const cur = useWordmark();
+  return (
+    <>
+      <PageHead kicker="Logo options" title={<>Pick your <em>Keyholder</em> logo.</>}>Three versions drawn for Keyholder. Tap one to use it across the site and the app, then tell me which you chose.</PageHead>
+      <section className="lp-sec lp-sec-tight">
+        <div className="lp-wrap lp-logos">
+          {WORDMARKS.map((w, i) => (
+            <button key={w.id} className={`lp-logo-card reveal${cur === w.id ? ' on' : ''}`} aria-pressed={cur === w.id} onClick={() => setWordmark(w.id)} style={{ transitionDelay: `${i * 90}ms` }}>
+              <span className="lp-logo-stage light"><Brand size={44} variant={w.id} /></span>
+              <span className="lp-logo-stage dark"><Brand size={44} variant={w.id} /></span>
+              <span className="lp-logo-meta"><b>{String.fromCharCode(65 + i)} · {w.name}</b><span>{w.note}</span><em>{cur === w.id ? 'In use' : 'Use this one'}</em></span>
+            </button>
+          ))}
+        </div>
+        <div className="lp-wrap lp-logo-icons reveal">
+          <p className="lp-label lp-label-inline">The app icon, at every size</p>
+          <div>{[64, 44, 32, 24, 16].map((n) => <KeyMark key={n} size={n} />)}<span className="lp-logo-word"><Wordmark variant={cur} /></span></div>
+        </div>
+      </section>
+    </>
   );
 }
