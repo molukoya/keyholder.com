@@ -3,7 +3,9 @@ import type { AppState, Lease, Mortgage, Payment, Property } from '../data/types
 import {
   amortization, blendedValue, buildingCostBase, ccaSchedule, chargeState, comparablesEstimate, indexEstimate,
   leaseBalance, leaseLedger, mortgageBalanceAt, mortgagePaidBetween, mortgagePayment, periodicRate, rentalPortion,
+  rentBasedValue, worthIt,
 } from './finance';
+import { propertyLevel } from './levels';
 import { addMonths, dueDate, periodRange } from './dates';
 import { parseMoney } from './money';
 
@@ -158,5 +160,35 @@ describe('CCA (phase 3)', () => {
   it('claims nothing when CCA is off', () => {
     const [row] = ccaSchedule(state, { ...base, claimCCA: false }, 2026, 10_000_000);
     expect(row.claimed).toBe(0);
+  });
+});
+
+describe('levels and rent-based value (Bronze)', () => {
+  const base = (o: Partial<Property> = {}) => prop({ id: 'p1', city: 'Hamilton', ...o });
+  const state = (p: Property, extra: Partial<AppState> = {}) => ({
+    properties: [p], units: [{ id: 'u1', propertyId: 'p1', label: 'A', rent: 200000, bedrooms: 2, utilitiesIncluded: [], status: 'occupied' }],
+    leases: [], payments: [], expenses: [], valuations: [], comparables: [], mortgages: [], tenants: [], ...extra,
+  }) as unknown as AppState;
+
+  it('estimates value from rent and the local gross yield', () => {
+    // $2,000 × 12 = $24,000 a year ÷ 5.0% Hamilton typical yield = $480,000
+    expect(rentBasedValue(state(base()), base())).toBe(48_000_000);
+  });
+
+  it('counts estimated value growth even with only rent known', () => {
+    const w = worthIt(state(base()), '2026-11-08');
+    expect(w.roughValue).toEqual(['Test']);
+    expect(w.appreciation).toBe(Math.round(48_000_000 * 0.03)); // 5-year Hamilton trend 3.0%
+    expect(w.returnPct).toBeNull(); // no GIC comparison until Silver
+  });
+
+  it('moves Bronze → Silver → Gold as details are added', () => {
+    const b = base();
+    expect(propertyLevel(state(b), b)).toBe('bronze');
+    const s = base({ purchasePrice: 50_000_000, purchaseDate: '2020-01-01' });
+    expect(propertyLevel(state(s), s)).toBe('silver');
+    const g = { ...s, closingCosts: 0, landTransferTax: 600_000, mortgageFree: true };
+    expect(propertyLevel(state(g), g)).toBe('gold');
+    expect(worthIt(state(s), '2026-11-08').returnPct).not.toBeNull();
   });
 });

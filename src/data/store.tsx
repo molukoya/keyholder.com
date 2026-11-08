@@ -9,6 +9,7 @@ import { suggestMatch } from '../lib/matching';
 import { reminderDraft } from '../lib/templates';
 import { fmt } from '../lib/money';
 import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
+import { levelInfo, propertyLevel, type Level } from '../lib/levels';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -94,16 +95,19 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     setProfile(p: Partial<Profile>) { mut((d) => { Object.assign(d.profile, p); }); },
     resetDemo() { mut((d) => { const prof = { ...d.profile }; Object.assign(d, seedState(prof)); }); toast('Sample data restored.'); },
     clearAll() { mut((d) => { Object.assign(d, emptyState({ ...d.profile })); }); toast('All data cleared. Start by adding a property.'); },
-    restartOnboarding() { mut((d) => { Object.assign(d, seedState({ ...defaultProfile(), phase: d.profile.phase })); }); },
+    restartOnboarding() { mut((d) => { Object.assign(d, seedState(defaultProfile())); }); },
 
     // ---- Properties & units ----
     saveProperty(p: Property) {
       mut((d) => {
         const i = d.properties.findIndex((x) => x.id === p.id);
         if (i >= 0) { d.properties[i] = p; audit(d, 'Property updated', p.nickname); }
-        else {
-          d.properties.push(p); audit(d, 'Property added', p.nickname);
-          if (p.purchasePrice && p.purchaseDate) d.valuations.push({ id: uid('v'), propertyId: p.id, date: p.purchaseDate, source: 'purchase', low: p.purchasePrice, likely: p.purchasePrice, high: p.purchasePrice, confidence: 'high', note: 'Purchase price' });
+        else { d.properties.push(p); audit(d, 'Property added', p.nickname); }
+        // Keep one "what you paid" entry in the value history, in step with the property.
+        const pv = d.valuations.find((v) => v.propertyId === p.id && v.source === 'purchase');
+        if (p.purchasePrice && p.purchaseDate) {
+          const v = { propertyId: p.id, date: p.purchaseDate, source: 'purchase' as const, low: p.purchasePrice, likely: p.purchasePrice, high: p.purchasePrice, confidence: 'high' as const, note: 'Purchase price' };
+          if (pv) Object.assign(pv, v); else d.valuations.push({ id: uid('v'), ...v });
         }
       });
     },
@@ -308,6 +312,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const id = setTimeout(() => act.syncBank(true), Math.max(1000, due));
     return () => clearTimeout(id);
   }, [lastSync, act]);
+  // Celebrate when a property moves up a level (Bronze → Silver → Gold).
+  const levelsRef = useRef<Map<string, Level> | null>(null);
+  useEffect(() => {
+    const now = new Map(state.properties.map((p) => [p.id, propertyLevel(state, p)]));
+    const before = levelsRef.current;
+    levelsRef.current = now;
+    if (!before) return;
+    for (const p of state.properties) {
+      const was = before.get(p.id), is = now.get(p.id)!;
+      if (was && levelInfo(is).rank > levelInfo(was).rank) {
+        toast(is === 'gold' ? `${p.nickname} is now Gold. Mortgage and full tax numbers are ready.` : `${p.nickname} is now Silver. You can see what it's worth.`);
+      }
+    }
+  }, [state, toast]);
   const today = todayISO();
   const value = useMemo(() => ({ state, act, today, toasts }), [state, act, today, toasts]);
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
@@ -319,9 +337,6 @@ export function useStore(): Ctx {
   return c;
 }
 
-export function usePhase() {
-  return useStore().state.profile.phase;
-}
 
 // Small selectors used across screens.
 export function unitTenant(state: AppState, unitId: string, today: string) {

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import type {
   CCAClass, Comparable, Expense, ExpenseCategory, Lease, Mortgage, MortgageFrequency, PayMethod, Payment, Property, PropertyType, Tenant, Unit, Valuation,
 } from '../data/types';
-import { uid, unitTenant, usePhase, useStore } from '../data/store';
-import { enabled } from '../data/phases';
+import { uid, unitTenant, useStore } from '../data/store';
+import { propertyLevel } from '../lib/levels';
 import { addMonths, fmtPeriod, periodOf } from '../lib/dates';
 import { leaseLedger, mortgagePayment, rentalPortion } from '../lib/finance';
 import { CATEGORIES, CCA_CLASSES, PROVINCES, category, province } from '../lib/jurisdiction';
@@ -97,7 +97,6 @@ async function compress(file: File): Promise<string> {
 
 export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: () => void; expense?: Expense; prefill?: Partial<Expense>; fromTxn?: string }) {
   const { state, act, today } = useStore();
-  const phase = usePhase();
   const props = state.properties.filter((p) => !p.archived);
   const [e, setE] = useState<Expense>(() => expense ?? {
     id: uid('exp'), propertyId: props[0]?.id ?? '', date: today, amount: 0, vendor: '', category: 'repairs', kind: 'current',
@@ -176,7 +175,8 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
         </Field>
       </div>
 
-      {enabled('repair-or-improvement', phase) && (
+      {(
+
         <div className="field">
           <span className="label">Was it a fix or an upgrade?</span>
           <div className="choices two" role="radiogroup">
@@ -190,7 +190,7 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
         </div>
       )}
 
-      {e.kind === 'capital' && enabled('cca', phase) && (
+      {e.kind === 'capital' && prop && propertyLevel(state, prop) === 'gold' && (
         <Field label={<>Which <Term def="Capital Cost Allowance: CRA's depreciation classes for capital items">CCA class</Term>?</>} htmlFor="ex-cca">
           <select id="ex-cca" className="input" value={e.ccaClass ?? ''} onChange={(x) => set({ ccaClass: (x.target.value || undefined) as CCAClass | undefined })}>
             <option value="">Not sure yet</option>
@@ -223,11 +223,10 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
 }
 
 // =====================================================================================
-// Property (PS-1, PS-3, PS-5) — fields appear by phase
+// Property (PS-1, PS-3, PS-5) — extra detail is optional and raises the property's level
 // =====================================================================================
 export function PropertyForm({ onClose, property }: { onClose: () => void; property?: Property }) {
   const { state, act } = useStore();
-  const phase = usePhase();
   const [p, setP] = useState<Property>(() => property ?? {
     id: uid('p'), nickname: '', address: '', city: state.profile.city, province: state.profile.province, type: 'house',
     rentalSharePct: state.profile.setup === 'part-home' ? 40 : 100, ownerOccupied: state.profile.setup === 'part-home', ownershipPct: 100, claimCCA: false,
@@ -273,26 +272,24 @@ export function PropertyForm({ onClose, property }: { onClose: () => void; prope
       )}
       <Field label="Your ownership share" htmlFor="pp-own" hint="100% unless you co-own it"><input id="pp-own" type="number" min={1} max={100} className="input" value={p.ownershipPct} onChange={(e) => set({ ownershipPct: Number(e.target.value) || 100 })} /></Field>
 
-      {enabled('purchase-price', phase) && (
-        <>
-          <hr className="hr" />
-          <h3 style={{ marginBottom: 12 }}>Purchase <span className="lock">Phase 2</span></h3>
-          <div className="grid2">
+      {property && (
+        <details className="more" open={!!p.purchasePrice}>
+          <summary>What you paid (for Silver)</summary>
+          <div className="grid2" style={{ paddingTop: 4 }}>
             <Field label="Purchase date" htmlFor="pp-pd"><input id="pp-pd" type="date" className="input" value={p.purchaseDate ?? ''} onChange={(e) => set({ purchaseDate: e.target.value || undefined })} /></Field>
             <Field label="Purchase price" htmlFor="pp-pp"><MoneyInput id="pp-pp" value={p.purchasePrice} onChange={(c) => set({ purchasePrice: c })} /></Field>
           </div>
-          {phase < 3 && (
+          {!state.mortgages.some((m) => m.propertyId === p.id) && (
             <div className="grid2">
-              <Field label="Mortgage balance today (approx.)" htmlFor="pp-mb" hint="Used for equity. Phase 3 replaces this with the full mortgage."><MoneyInput id="pp-mb" value={p.approxMortgageBalance} onChange={(c) => set({ approxMortgageBalance: c })} /></Field>
-              <Field label="Monthly mortgage payment (approx.)" htmlFor="pp-mp"><MoneyInput id="pp-mp" value={p.approxMortgagePayment} onChange={(c) => set({ approxMortgagePayment: c })} /></Field>
+              <Field label="Mortgage still owed (rough)" htmlFor="pp-mb"><MoneyInput id="pp-mb" value={p.approxMortgageBalance} onChange={(c) => set({ approxMortgageBalance: c })} /></Field>
+              <Field label="Monthly mortgage payment (rough)" htmlFor="pp-mp"><MoneyInput id="pp-mp" value={p.approxMortgagePayment} onChange={(c) => set({ approxMortgagePayment: c })} /></Field>
             </div>
           )}
-        </>
+        </details>
       )}
-      {enabled('purchase-details', phase) && (
-        <>
-          <hr className="hr" />
-          <h3 style={{ marginBottom: 12 }}>Purchase details and carrying costs <span className="lock">Phase 3</span></h3>
+      {property && (
+        <details className="more" open={p.closingCosts !== undefined}>
+          <summary>Purchase costs and taxes (for Gold)</summary>
           <div className="grid2">
             <Field label="Closing costs" htmlFor="pp-cc" hint="Legal fees, title insurance, inspection"><MoneyInput id="pp-cc" value={p.closingCosts} onChange={(c) => set({ closingCosts: c })} /></Field>
             <Field label="Land transfer tax" htmlFor="pp-ltt"><MoneyInput id="pp-ltt" value={p.landTransferTax} onChange={(c) => set({ landTransferTax: c })} /></Field>
@@ -302,11 +299,11 @@ export function PropertyForm({ onClose, property }: { onClose: () => void; prope
             <Field label="Annual insurance" htmlFor="pp-ins"><MoneyInput id="pp-ins" value={p.annualInsurance} onChange={(c) => set({ annualInsurance: c })} /></Field>
           </div>
           <label className="check"><input type="checkbox" checked={p.claimCCA} onChange={(e) => set({ claimCCA: e.target.checked })} />
-            <span>Claim <Term def="Capital Cost Allowance — yearly depreciation deduction">CCA</Term> on this property
-              <span className="tiny soft" style={{ display: 'block' }}>{p.ownerOccupied ? 'Off by default for a home you live in: claiming CCA on the rented part can affect the principal-residence exemption when you sell. Confirm with an accountant first.' : 'Lowers tax now, but CCA claimed is usually taxed back (recapture) when you sell.'}</span>
+            <span>Claim depreciation (CCA) on this property
+              <span className="tiny soft" style={{ display: 'block' }}>{p.ownerOccupied ? 'Off for a home you live in. It can affect tax when you sell. Ask your accountant first.' : 'Lowers tax now, but some is usually paid back when you sell.'}</span>
             </span>
           </label>
-        </>
+        </details>
       )}
     </Drawer>
   );

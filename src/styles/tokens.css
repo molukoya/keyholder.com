@@ -18,6 +18,9 @@
   --ink-blue-tint: #DDE3EE;
   --stamp-red: #C23B2A;
   --on-pine: #FBF8F2;
+  --bronze: #9A5B2E;
+  --silver: #6E7780;
+  --gold: #A67C1E;
 
   --font-display: 'Fraunces', 'Newsreader', Georgia, serif;
   --font-ui: 'Instrument Sans', 'Public Sans', system-ui, -apple-system, sans-serif;
@@ -43,6 +46,7 @@
     --pine: #4E9A82; --pine-tint: #1D3029; --brass: #D2AE62; --brass-tint: #33291A;
     --rust: #E07A5F; --rust-tint: #3A211B; --ink-blue: #8BA6D9; --ink-blue-tint: #1E2638;
     --stamp-red: #E86A55; --on-pine: #0F1413;
+    --bronze: #D08A55; --silver: #AEB6BE; --gold: #D9B45A;
     --grain-opacity: 0.04;
     color-scheme: dark;
   }
@@ -54,6 +58,7 @@
   --pine: #4E9A82; --pine-tint: #1D3029; --brass: #D2AE62; --brass-tint: #33291A;
   --rust: #E07A5F; --rust-tint: #3A211B; --ink-blue: #8BA6D9; --ink-blue-tint: #1E2638;
   --stamp-red: #E86A55; --on-pine: #0F1413;
+    --bronze: #D08A55; --silver: #AEB6BE; --gold: #D9B45A;
   --grain-opacity: 0.04;
   color-scheme: dark;
 }

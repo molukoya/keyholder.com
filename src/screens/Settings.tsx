@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { Phase } from '../data/types';
 import { useStore } from '../data/store';
-import { FEATURES, PHASES } from '../data/phases';
+import { Link } from 'react-router-dom';
+import { LEVELS, propertyLevel } from '../lib/levels';
+import { LevelBadge } from '../components/levels';
 import { PACK_VERIFIED, PACK_VERSION, PROVINCES, province } from '../lib/jurisdiction';
 import { fmtDate } from '../lib/dates';
 import { TONES } from '../lib/templates';
@@ -18,26 +19,22 @@ export function Settings() {
     <div className="page">
       <div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1></div></div>
 
-      <section className="section" id="phase">
-        <h2 className="section-title">Build phase preview</h2>
+      <section className="section" id="levels">
+        <h2 className="section-title">Levels</h2>
         <div className="sheet">
-          <p className="small soft">Stage 1 is the full front end for all three phases on sample data. Pick a phase to see exactly what that release would ship — each one works on its own.</p>
-          <div className="choices" role="radiogroup" aria-label="Phase">
-            {PHASES.map((ph) => (
-              <button key={ph.id} role="radio" aria-checked={p.phase === ph.id} className="choice" onClick={() => act.setProfile({ phase: ph.id as Phase })}>
-                <span className="mono tiny soft">PHASE {ph.id}</span>
-                <span className="t">{ph.name}</span>
-                <span className="s">{ph.promise}</span>
-              </button>
-            ))}
-          </div>
-          <details style={{ marginTop: 16 }}>
-            <summary className="small">What's in each phase ({Object.keys(FEATURES).length} features)</summary>
-            <div className="table-scroll"><table className="ledger" style={{ marginTop: 8 }}>
-              <thead><tr><th>Phase</th><th>Feature</th><th>PRD ref</th><th>In this preview</th></tr></thead>
-              <tbody>{Object.entries(FEATURES).map(([k, f]) => <tr key={k}><td className="date">{f.phase}</td><td>{f.label}</td><td className="mono tiny">{f.prd}</td><td>{f.phase <= p.phase ? 'On' : <span className="soft">Off</span>}</td></tr>)}</tbody>
-            </table></div>
-          </details>
+          <p className="soft" style={{ marginTop: 0 }}>Each property earns a level as you add more about it. Nothing beyond Bronze is required.</p>
+          <ul className="rows">{LEVELS.map((l) => (
+            <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
+              <LevelBadge level={l.id} />
+              <span><span className="title">{l.gives}</span><span className="sub" style={{ display: 'block' }}>Add: {l.needs.toLowerCase()}</span></span>
+            </li>
+          ))}</ul>
+          <h3 style={{ margin: '16px 0 8px' }}>Your properties</h3>
+          <ul className="rows">{state.properties.filter((x) => !x.archived).map((x) => (
+            <li key={x.id} className="row" style={{ gridTemplateColumns: '1fr auto' }}>
+              <Link to={`/rent/property/${x.id}`} className="title">{x.nickname}</Link><LevelBadge level={propertyLevel(state, x)} />
+            </li>
+          ))}</ul>
         </div>
       </section>
 

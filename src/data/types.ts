@@ -70,6 +70,8 @@ export interface Property {
   annualPropertyTax?: Cents;
   annualInsurance?: Cents;
   claimCCA: boolean;
+  /** Owner said there is no mortgage (counts as mortgage details for Gold). */
+  mortgageFree?: boolean;
   archived?: boolean;
 }
 

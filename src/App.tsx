@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
-import { PHASES } from './data/phases';
 import { trayItems } from './lib/tray';
 import { Icon, KeyMark } from './components/Icon';
 import { ExpenseForm, PaymentForm } from './components/forms';
@@ -47,7 +46,6 @@ function Shell() {
   const loc = useLocation();
   const navigate = useNavigate();
   const count = useMemo(() => trayItems(state, today).length, [state, today]);
-  const phase = PHASES.find((p) => p.id === state.profile.phase)!;
 
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
   // Desktop keyboard shortcuts (PRD §12): P = log a payment, E = add an expense, T = open the tray.
@@ -81,7 +79,6 @@ function Shell() {
         <button className="btn" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
-          <Link to="/settings#phase" className="phase-chip">Preview: <strong>Phase {phase.id}</strong><br />{phase.name}</Link>
         </div>
       </aside>
 
@@ -89,7 +86,6 @@ function Shell() {
         <div className="mobile-top">
           <Link to="/today" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
           <div className="btn-row">
-            <Link to="/settings#phase" className="pill">Phase {phase.id}</Link>
             <Link to="/paperwork" className="btn ghost" aria-label="Paperwork"><Icon name="paper" /></Link>
             <Link to="/settings" className="btn ghost" aria-label="Settings"><Icon name="settings" /></Link>
           </div>

@@ -4,6 +4,8 @@ import { useStore } from '../data/store';
 import { DoorPlate } from '../components/domain';
 import { PropertyForm, TenancyForm, UnitForm } from '../components/forms';
 import { Empty } from '../components/ui';
+import { LevelBadge } from '../components/levels';
+import { propertyLevel } from '../lib/levels';
 import { Icon } from '../components/Icon';
 
 export function Rent() {
@@ -34,7 +36,7 @@ export function Rent() {
             <div className="section-title">
               <Link to={`/rent/property/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 <span className="serif" style={{ fontSize: 'var(--t-20)', textTransform: 'none', letterSpacing: 0, color: 'var(--ink)' }}>{p.nickname}</span>
-                <span style={{ marginLeft: 12 }}>{p.address}</span>
+                <span style={{ marginLeft: 12 }}>{p.address}</span> <LevelBadge level={propertyLevel(state, p)} />
               </Link>
               <span className="btn-row">
                 <Link className="btn small" to={`/rent/property/${p.id}`}>Property details</Link>

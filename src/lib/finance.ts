@@ -1,9 +1,10 @@
 import type {
   AppState, Cents, Comparable, Expense, ISODate, Lease, Mortgage, MortgageFrequency, Payment, Period,
-  Phase, Property, Valuation,
+  Property, Valuation,
 } from '../data/types';
 import { addDays, addMonths, daysBetween, dueDate, periodOf, periodRange, yearsBetween } from './dates';
 import { CATEGORIES, CCA_CLASSES, RETURN_PRESETS, regionData } from './jurisdiction';
+import { hasGold } from './levels';
 
 // =====================================================================================
 // Rental share (PS-5, PS-6)
@@ -163,9 +164,11 @@ export interface Picture {
   keptPer1000: number;
   expenseRatio: number;
   hasMortgageData: boolean;
+  /** True when a Silver property's rough monthly payment was used (no interest/principal split). */
+  mortgageIsRough: boolean;
 }
 
-export function picture(state: AppState, from: ISODate, to: ISODate, opts: { propertyId?: string; phase: Phase }): Picture {
+export function picture(state: AppState, from: ISODate, to: ISODate, opts: { propertyId?: string } = {}): Picture {
   const props = state.properties.filter((p) => !p.archived && (!opts.propertyId || p.id === opts.propertyId));
   const propIds = new Set(props.map((p) => p.id));
   const units = state.units.filter((u) => propIds.has(u.propertyId));
@@ -205,22 +208,18 @@ export function picture(state: AppState, from: ISODate, to: ISODate, opts: { pro
     if (e.kind === 'capital') capital += portion; else opex += portion;
   }
 
-  let mortgageInterest = 0, mortgagePrincipal = 0, hasMortgageData = false;
-  if (opts.phase >= 3) {
-    for (const m of state.mortgages) {
-      const prop = props.find((p) => p.id === m.propertyId);
-      if (!prop) continue;
+  // Mortgage: the full record when there is one (Gold), else the rough monthly payment (Silver), else nothing.
+  let mortgageInterest = 0, mortgagePrincipal = 0, hasMortgageData = false, mortgageIsRough = false;
+  const months = Math.max(0, periodRange(periodOf(from), periodOf(to)).length);
+  for (const prop of props) {
+    const m = state.mortgages.find((x) => x.propertyId === prop.id);
+    if (m) {
       hasMortgageData = true;
       const paid = mortgagePaidBetween(m, from, to);
       mortgageInterest += Math.round((paid.interest * prop.rentalSharePct) / 100);
       mortgagePrincipal += Math.round((paid.principal * prop.rentalSharePct) / 100);
-    }
-  } else if (opts.phase === 2) {
-    // Phase 2 has only an approximate monthly payment; treat it as one combined figure.
-    const months = Math.max(0, periodRange(periodOf(from), periodOf(to)).length);
-    for (const prop of props) {
-      if (!prop.approxMortgagePayment) continue;
-      hasMortgageData = true;
+    } else if (prop.approxMortgagePayment) {
+      hasMortgageData = true; mortgageIsRough = true;
       mortgageInterest += Math.round((prop.approxMortgagePayment * months * prop.rentalSharePct) / 100);
     }
   }
@@ -229,14 +228,14 @@ export function picture(state: AppState, from: ISODate, to: ISODate, opts: { pro
   const kept = noi - mortgageInterest - mortgagePrincipal - capital;
   return {
     from, to, rentCollected, rentExpected, arrearsLoss, vacancyLoss, opex, noi,
-    mortgageInterest, mortgagePrincipal, capital, kept, hasMortgageData,
+    mortgageInterest, mortgagePrincipal, capital, kept, hasMortgageData, mortgageIsRough,
     keptPer1000: rentCollected > 0 ? Math.round((kept / rentCollected) * 1000) : 0,
     expenseRatio: rentCollected > 0 ? (opex / rentCollected) * 100 : 0,
   };
 }
 
 // =====================================================================================
-// Valuation (Phase 2) — never a falsely precise number (VA-3)
+// Valuation (Silver) — never a falsely precise number (VA-3)
 // =====================================================================================
 
 /** Estimate value from the purchase price and a regional price index (open data). */
@@ -307,62 +306,93 @@ export function blendedValue(vals: Valuation[], today: ISODate): { low: Cents; l
 // Worth-It reading (FP-3) — total return on the owner's equity, rental share only (PS-8)
 // =====================================================================================
 
+export type ValueBasis = 'valuation' | 'purchase' | 'rent';
+
+/**
+ * Value to use for a property, best source first: recorded valuations, then the purchase price grown by
+ * the local price trend, then (Bronze) an estimate from the rent using the local rent-to-price ratio.
+ * Rent-based estimates are already the rented part only.
+ */
+export function propertyValue(state: AppState, prop: Property, today: ISODate): { value: Cents; basis: ValueBasis } {
+  const vals = state.valuations.filter((v) => v.propertyId === prop.id);
+  const idx = indexEstimate(prop, today);
+  const hasOwnValues = vals.some((v) => v.source !== 'purchase');
+  if (hasOwnValues) {
+    const blend = blendedValue([...vals, ...(idx ? [{ ...idx, id: 'idx', propertyId: prop.id }] : [])], today);
+    if (blend) return { value: blend.likely, basis: 'valuation' };
+  }
+  if (idx) return { value: idx.likely, basis: 'purchase' };
+  return { value: rentBasedValue(state, prop), basis: 'rent' };
+}
+
+/** Bronze estimate: yearly rent ÷ the area's typical gross yield. */
+export function rentBasedValue(state: AppState, prop: Property): Cents {
+  const yearlyRent = state.units.filter((u) => u.propertyId === prop.id).reduce((a, u) => a + u.rent * 12, 0);
+  const y = regionData(prop.province, prop.city).grossYield.typical / 100;
+  return y > 0 ? Math.round(yearlyRent / y) : 0;
+}
+
 export interface WorthIt {
   value: Cents; debt: Cents; equity: Cents;
   cashFlow: Cents; principalPaid: Cents; appreciation: Cents;
   total: Cents;
+  /** Return on the owner's money. Null unless every property has at least Silver data (we need what is owed). */
   returnPct: number | null;
   benchmarkPct: number;
   diffPts: number | null;
   appreciationEstimated: boolean;
+  /** Properties whose value is only estimated from rent (Bronze). */
+  roughValue: string[];
   missing: string[];
 }
 
-export function worthIt(state: AppState, today: ISODate, opts: { propertyId?: string; phase: Phase }): WorthIt {
+export function worthIt(state: AppState, today: ISODate, opts: { propertyId?: string } = {}): WorthIt {
   const from = addDays(addMonths(today, -12), 1);
   const props = state.properties.filter((p) => !p.archived && (!opts.propertyId || p.id === opts.propertyId));
   const missing: string[] = [];
+  const roughValue: string[] = [];
   let value = 0, debt = 0, principalPaid = 0, appreciation = 0, cashFlow = 0;
   let appreciationEstimated = false;
 
   for (const prop of props) {
-    const share = (prop.rentalSharePct / 100) * (prop.ownershipPct / 100);
-    const vals = state.valuations.filter((v) => v.propertyId === prop.id);
-    const blend = blendedValue(vals, today);
-    const v = blend?.likely ?? prop.purchasePrice ?? 0;
-    if (!v) missing.push(`a value for ${prop.nickname}`);
-    value += Math.round(v * share);
+    const own = prop.ownershipPct / 100;
+    const pv = propertyValue(state, prop, today);
+    // Rent-based values already describe only the rented part; other values are for the whole property.
+    const share = pv.basis === 'rent' ? own : (prop.rentalSharePct / 100) * own;
+    if (pv.basis === 'rent') { roughValue.push(prop.nickname); missing.push(prop.nickname); }
+    value += Math.round(pv.value * share);
 
+    const debtShare = (prop.rentalSharePct / 100) * own;
     const m = state.mortgages.find((x) => x.propertyId === prop.id);
-    if (opts.phase >= 3 && m) {
+    if (m) {
       const rows = amortization(m);
-      debt += Math.round(mortgageBalanceAt(m, today, rows) * share);
-      principalPaid += Math.round(mortgagePaidBetween(m, from, today, rows).principal * share);
+      debt += Math.round(mortgageBalanceAt(m, today, rows) * debtShare);
+      principalPaid += Math.round(mortgagePaidBetween(m, from, today, rows).principal * debtShare);
     } else if (prop.approxMortgageBalance) {
-      debt += Math.round(prop.approxMortgageBalance * share);
+      debt += Math.round(prop.approxMortgageBalance * debtShare);
     }
 
-    // Appreciation: from valuation history when it spans ~a year, otherwise the regional 5-year rate.
-    const year = [...vals].filter((x) => x.date <= from).sort((a, b) => b.date.localeCompare(a.date))[0];
-    if (blend && year) appreciation += Math.round((blend.likely - year.likely) * share);
-    else { appreciation += Math.round(v * share * (regionData(prop.province, prop.city).priceGrowth.y5 / 100)); appreciationEstimated = true; }
+    // Value growth for one year: today's value × the area's long-run price trend (5-year average).
+    // Always an estimate; single-year moves are too noisy for a small landlord's decision.
+    appreciation += Math.round(pv.value * share * (regionData(prop.province, prop.city).priceGrowth.y5 / 100));
+    appreciationEstimated = true;
 
-    cashFlow += Math.round(picture(state, from, today, { propertyId: prop.id, phase: opts.phase }).kept * (prop.ownershipPct / 100));
+    cashFlow += Math.round(picture(state, from, today, { propertyId: prop.id }).kept * own);
   }
 
   const equity = value - debt;
   const total = cashFlow + principalPaid + appreciation;
-  const returnPct = equity > 0 ? (total / equity) * 100 : null;
+  const returnPct = roughValue.length === 0 && equity > 0 ? (total / equity) * 100 : null;
   return {
     value, debt, equity, cashFlow, principalPaid, appreciation, total, returnPct,
     benchmarkPct: RETURN_PRESETS.typical,
     diffPts: returnPct === null ? null : returnPct - RETURN_PRESETS.typical,
-    appreciationEstimated, missing,
+    appreciationEstimated, roughValue, missing,
   };
 }
 
 export function verdict(w: WorthIt): string {
-  if (w.returnPct === null) return 'Add what the property is worth to see this.';
+  if (w.returnPct === null) return 'Add what you paid to compare with a GIC.';
   return `Your property earned ${w.returnPct.toFixed(1)}% this year. A 5-year GIC would have paid ${w.benchmarkPct.toFixed(1)}%.`;
 }
 
@@ -375,7 +405,7 @@ export function verdictTag(w: WorthIt): { text: string; tone: 'good' | 'even' | 
 }
 
 // =====================================================================================
-// Tax Pack (Phase 3) — T776-structured summary, CCA schedule, pre-flight
+// Tax Pack (basic at Bronze, full at Gold) — T776-structured summary, CCA schedule, pre-flight
 // =====================================================================================
 
 export interface CCARow { cls: string; label: string; ratePct: number; opening: Cents; additions: Cents; base: Cents; maxCCA: Cents; claimed: Cents; closing: Cents }
@@ -443,7 +473,7 @@ export function ccaSchedule(state: AppState, prop: Property, year: number, netBe
   return relevant;
 }
 
-export function taxPack(state: AppState, prop: Property, year: number, phase: Phase): TaxPack {
+export function taxPack(state: AppState, prop: Property, year: number): TaxPack {
   const from = `${year}-01-01`, to = `${year}-12-31`;
   const units = state.units.filter((u) => u.propertyId === prop.id).map((u) => u.id);
   const leaseIds = new Set(state.leases.filter((l) => units.includes(l.unitId)).map((l) => l.id));
@@ -460,7 +490,7 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
     byLine.set(cat.t776, line);
   }
   const m = state.mortgages.find((x) => x.propertyId === prop.id);
-  if (phase >= 3 && m) {
+  if (m) {
     const interest = Math.round((mortgagePaidBetween(m, from, to).interest * prop.rentalSharePct) / 100);
     const line = byLine.get('8710') ?? { t776: '8710', label: '', craLabel: 'Interest and bank charges', amount: 0, count: 0 };
     line.amount += interest;
@@ -470,7 +500,8 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
   const lines = [...byLine.values()].sort((a, b) => a.t776.localeCompare(b.t776));
   const totalExpenses = lines.reduce((a, l) => a + l.amount, 0);
   const netBeforeCCA = grossRents - totalExpenses;
-  const cca = ccaSchedule(state, prop, year, netBeforeCCA);
+  // Depreciation needs the full purchase picture (Gold).
+  const cca = hasGold(state, prop) ? ccaSchedule(state, prop, year, netBeforeCCA) : [];
   const ccaClaimed = cca.reduce((a, r) => a + r.claimed, 0);
   const netIncome = netBeforeCCA - ccaClaimed;
 
@@ -484,8 +515,7 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
   if (other.length) preflight.push({ id: 'other', text: `${other.length} expense${other.length > 1 ? 's are' : ' is'} marked "Something else". Pick a type.`, severity: 'check' });
   if (!exps.some((e) => e.category === 'property-tax')) preflight.push({ id: 'ptax', text: 'No property tax added this year', severity: 'check' });
   if (!exps.some((e) => e.category === 'insurance')) preflight.push({ id: 'ins', text: 'No insurance added this year', severity: 'check' });
-  if (phase >= 3 && !m) preflight.push({ id: 'mortgage', text: 'No mortgage added. Skip this if it is paid off.', severity: 'check' });
-  if (phase >= 3 && m) preflight.push({ id: 'mstatement', text: "Check the interest matches your bank's yearly mortgage statement", severity: 'check' });
+  if (m) preflight.push({ id: 'mstatement', text: "Check the interest matches your bank's yearly mortgage statement", severity: 'check' });
   // Unusual amounts: more than 3x the median of their category.
   for (const cat of new Set(exps.map((e) => e.category))) {
     const amts = exps.filter((e) => e.category === cat).map((e) => e.amount).sort((a, b) => a - b);

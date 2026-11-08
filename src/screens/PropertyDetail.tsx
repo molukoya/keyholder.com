@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import { usePhase, useStore } from '../data/store';
-import { enabled } from '../data/phases';
+import { useStore } from '../data/store';
+import { propertyLevel, atLeast } from '../lib/levels';
+import { LevelBadge, LevelInvite, NextStepCard } from '../components/levels';
 import { addDays, daysBetween, fmtDate, todayISO, yearOf } from '../lib/dates';
 import {
-  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, picture,
+  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, picture, rentBasedValue,
 } from '../lib/finance';
 import { province, regionData } from '../lib/jurisdiction';
 import { fmt, fmt0, fmtShort, pct } from '../lib/money';
 import { DoorPlate, RentRoll } from '../components/domain';
 import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm, UnitForm } from '../components/forms';
-import { Empty, Figure, PhaseLocked } from '../components/ui';
+import { Empty, Figure } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function PropertyDetail() {
   const { id, tab = 'overview' } = useParams();
   const { state } = useStore();
-  const phase = usePhase();
   const [edit, setEdit] = useState(false);
   const p = state.properties.find((x) => x.id === id);
   if (!p) return <div className="page"><Empty title="That property isn't here." action={<Link to="/rent" className="btn">Back to Rent</Link>} /></div>;
@@ -27,19 +27,21 @@ export function PropertyDetail() {
       <div className="page-head">
         <div>
           <div className="eyebrow">{p.type} · {province(p.province).name}{p.ownerOccupied ? ' · you live here' : ''}</div>
-          <h1>{p.nickname}</h1>
+          <h1>{p.nickname} <LevelBadge level={propertyLevel(state, p)} /></h1>
           <div className="soft">{p.address}, {p.city}</div>
         </div>
         <button className="btn" onClick={() => setEdit(true)}><Icon name="edit" size={16} />Edit details</button>
       </div>
       <nav className="tabs" aria-label="Property sections">
         <NavLink end to={`/rent/property/${p.id}`} className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
-        {phase >= 2 && <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>}
-        {phase >= 3 && <NavLink to={`/rent/property/${p.id}/mortgage`}>Mortgage</NavLink>}
+        <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>
+        <NavLink to={`/rent/property/${p.id}/mortgage`}>Mortgage</NavLink>
       </nav>
       {tab === 'overview' && <Overview id={p.id} />}
-      {tab === 'value' && (enabled('valuation', phase) ? <ValueTab id={p.id} /> : <PhaseLocked phase={2} what="Property value" />)}
-      {tab === 'mortgage' && (enabled('mortgage', phase) ? <MortgageTab id={p.id} /> : <PhaseLocked phase={3} what="Purchase details and the mortgage" />)}
+      {tab === 'value' && <ValueTab id={p.id} />}
+      {tab === 'mortgage' && (atLeast(propertyLevel(state, p), 'gold') ? <MortgageTab id={p.id} /> : (
+        <LevelInvite property={p} to="gold" title="Track your mortgage" points={['See what you still owe and what you paid off this year', 'Get mortgage interest into your taxes', 'Full tax numbers with depreciation', 'Your gain if you sold']} />
+      ))}
       {edit && <PropertyForm property={p} onClose={() => setEdit(false)} />}
     </div>
   );
@@ -47,16 +49,16 @@ export function PropertyDetail() {
 
 function Overview({ id }: { id: string }) {
   const { state, today } = useStore();
-  const phase = usePhase();
   const [unitEdit, setUnitEdit] = useState<string | 'new' | null>(null);
   const p = state.properties.find((x) => x.id === id)!;
   const units = state.units.filter((u) => u.propertyId === id);
-  const yr = useMemo(() => picture(state, addDays(today, -364), today, { propertyId: id, phase }), [state, today, id, phase]);
+  const yr = useMemo(() => picture(state, addDays(today, -364), today, { propertyId: id }), [state, today, id]);
   return (
     <>
+      <NextStepCard propertyId={id} />
       <section className="section">
         <h2 className="section-title">Units <button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button></h2>
-        {units.length ? <div className="plates">{units.map((u) => <div key={u.id}><DoorPlate unit={u} /><button className="btn small ghost" onClick={() => setUnitEdit(u.id)} style={{ marginTop: 4 }}>Edit unit {u.label}</button></div>)}</div>
+        {units.length ? <div className="plates">{units.map((u) => <div key={u.id} className="plate-wrap"><DoorPlate unit={u} /><button className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button></div>)}</div>
           : <div className="sheet"><Empty title="No units yet." action={<button className="btn" onClick={() => setUnitEdit('new')}>Add a unit</button>} /></div>}
       </section>
       {units.length > 0 && <section className="section"><h2 className="section-title">Rent roll</h2><div className="sheet"><RentRoll propertyId={id} /></div></section>}
@@ -66,7 +68,7 @@ function Overview({ id }: { id: string }) {
           <div><div className="label">Rent in</div><Figure cents={yr.rentCollected} size="sm" className="in" /></div>
           <div><div className="label">Expenses</div><Figure cents={yr.opex} size="sm" /></div>
           <div><div className="label">Before mortgage</div><Figure cents={yr.noi} size="sm" /></div>
-          <div><div className="label">Kept</div><Figure cents={yr.kept} size="sm" className={yr.kept < 0 ? 'urgent' : ''} /></div>
+          <div><div className="label">Left over</div><Figure cents={yr.kept} size="sm" className={yr.kept < 0 ? 'urgent' : ''} /></div>
         </div>
         {p.rentalSharePct < 100 && <p className="small soft" style={{ marginTop: 8 }}>Shared costs counted at your {p.rentalSharePct}% rental share.</p>}
       </section>
@@ -76,26 +78,37 @@ function Overview({ id }: { id: string }) {
 }
 
 // ---------------------------------------------------------------------------------
-// Phase 2 — Value: purchase price, open-data index, comparables, owner estimates
+// Value: rough from rent (Bronze), then purchase price, price trend, nearby sales, own estimates (Silver)
 // ---------------------------------------------------------------------------------
 function ValueTab({ id }: { id: string }) {
   const { state, today, act } = useStore();
-  const phase = usePhase();
   const [form, setForm] = useState<'owner' | 'comp' | null>(null);
   const p = state.properties.find((x) => x.id === id)!;
   const vals = state.valuations.filter((v) => v.propertyId === id).sort((a, b) => b.date.localeCompare(a.date));
   const comps = state.comparables.filter((c) => c.propertyId === id);
   const idx = indexEstimate(p, today);
   const cmp = comparablesEstimate(comps, today);
-  const blend = blendedValue(vals, today);
+  const blend = blendedValue([...vals, ...(idx ? [{ ...idx, id: 'idx', propertyId: id }] : [])], today);
   const region = regionData(p.province, p.city);
   const m = state.mortgages.find((x) => x.propertyId === id);
-  const debt = phase >= 3 && m ? mortgageBalanceAt(m, today) : p.approxMortgageBalance ?? 0;
+  const debt = m ? mortgageBalanceAt(m, today) : p.approxMortgageBalance ?? 0;
   const value = blend?.likely ?? p.purchasePrice ?? 0;
   const equity = value - debt;
 
   if (!p.purchasePrice || !p.purchaseDate) {
-    return <div className="sheet"><Empty title="Start with what you paid." action={<p>Tap <strong>Edit details</strong> and add the purchase date and price.</p>} /></div>;
+    const rough = rentBasedValue(state, p);
+    return (
+      <>
+        {rough > 0 && (
+          <div className="sheet">
+            <div className="small soft">{p.rentalSharePct < 100 ? 'The part you rent out is worth roughly' : 'Worth roughly'}</div>
+            <div className="figure" style={{ margin: '4px 0 8px' }}>{fmtShort(Math.round(rough * 0.8))} – {fmtShort(Math.round(rough * 1.2))}</div>
+            <p className="small soft" style={{ margin: 0 }}>A rough guess from the rent and what homes rent for near {p.city}.</p>
+          </div>
+        )}
+        <LevelInvite property={p} to="silver" title="Get a better estimate" points={['A value range based on what you paid and local prices', "What's yours after the mortgage", 'How it compares with a GIC']} />
+      </>
+    );
   }
   const change = ((value - p.purchasePrice) / p.purchasePrice) * 100;
 
@@ -178,7 +191,7 @@ function ValueChart({ vals }: { vals: { date: string; low: number; likely: numbe
 }
 
 // ---------------------------------------------------------------------------------
-// Phase 3 — Purchase details, mortgage and amortization
+// Gold — mortgage, payment schedule, cost base
 // ---------------------------------------------------------------------------------
 function MortgageTab({ id }: { id: string }) {
   const { state, today } = useStore();

@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { Icon } from './Icon';
 import { fmt, parseMoney, toInput } from '../lib/money';
-import type { Cents, Phase } from '../data/types';
-import { FEATURES, type Feature } from '../data/phases';
-import { usePhase } from '../data/store';
+import type { Cents } from '../data/types';
 
 /** True inside the Claude artifact preview, where printing and file downloads are blocked by the frame. */
 export const embedded = typeof window !== 'undefined' && !!(window as unknown as { __KH_EMBED?: boolean }).__KH_EMBED;
@@ -86,22 +83,6 @@ export function Seg<T extends string | number>({ value, options, onChange, label
 // ---------- Term: dotted underline reveals a one-line definition ----------
 export function Term({ children, def }: { children: ReactNode; def: string }) {
   return <abbr className="term" title={def}>{children}</abbr>;
-}
-
-// ---------- Phase gating ----------
-export function PhaseGate({ feature, children, fallback }: { feature: Feature; children: ReactNode; fallback?: ReactNode }) {
-  const phase = usePhase();
-  return <>{FEATURES[feature].phase <= phase ? children : fallback ?? null}</>;
-}
-
-export function PhaseLocked({ phase, what }: { phase: Phase; what: string }) {
-  return (
-    <div className="sheet empty">
-      <div className="serif">{what} arrives in phase {phase}.</div>
-      <p>Switch phases in Settings to preview it now.</p>
-      <Link className="btn" to="/settings#phase">Open phase settings</Link>
-    </div>
-  );
 }
 
 // ---------- Empty state: a written invitation with one action ----------

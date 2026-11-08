@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { usePhase, useStore } from '../data/store';
-import { enabled } from '../data/phases';
+import { useStore } from '../data/store';
 import { daysBetween, fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
-import { activeLease, leaseLedger, picture, verdict, worthIt } from '../lib/finance';
-import { fmt } from '../lib/money';
+import { activeLease, leaseLedger, picture, verdict, verdictTag, worthIt } from '../lib/finance';
+import { fmt, fmt0 } from '../lib/money';
+import { NextStepCard } from '../components/levels';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
@@ -12,17 +12,15 @@ import { Figure } from '../components/ui';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 import { Icon } from '../components/Icon';
-import { BenchmarkRuler } from './Money';
 
 // Today answers one question: "Am I okay?" — who has paid, what is left over, and what needs me.
 
 export function Today({ onCapture }: { onPay: () => void; onCapture: () => void }) {
   const { state, today } = useStore();
-  const phase = usePhase();
   const [payLease, setPayLease] = useState<string | null>(null);
   const p = periodOf(today);
   const monthStart = `${p}-01`;
-  const now = useMemo(() => picture(state, monthStart, today, { phase }), [state, monthStart, today, phase]);
+  const now = useMemo(() => picture(state, monthStart, today), [state, monthStart, today]);
   const todo = useMemo(() => trayItems(state, today), [state, today]);
   const pending = new Set(todo.flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
   const units = state.units.filter((u) => state.properties.some((x) => x.id === u.propertyId && !x.archived));
@@ -62,7 +60,7 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
   else if (!late.length) headline = <><em>All rent is in.</em> You're all set.</>;
   else headline = <>{paid} of {occupied.length} paid. <span className="bad">{late.length === 1 ? `${firstName(late[0])} is late.` : `${late.length} tenants are late.`}</span></>;
 
-  const renewals = enabled('mortgage-alerts', phase) ? state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; }) : [];
+  const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; });
   const out = now.opex + now.capital + now.mortgageInterest + now.mortgagePrincipal;
 
   return (
@@ -143,7 +141,8 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
         </div>
       </section>
 
-      {enabled('worth-it', phase) && <WorthItCard />}
+      <EarningsCard />
+      <NextStepCard />
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
     </div>
@@ -164,19 +163,30 @@ function todoSummary(kinds: string[]) {
   return parts.join(' · ');
 }
 
-function WorthItCard() {
+// What the rentals earned: rent left over, plus estimated value growth, plus mortgage paid off.
+function EarningsCard() {
   const { state, today } = useStore();
-  const phase = usePhase();
-  const w = useMemo(() => worthIt(state, today, { phase }), [state, today, phase]);
+  const w = useMemo(() => worthIt(state, today), [state, today]);
+  const tag = verdictTag(w);
+  if (!state.properties.length) return null;
   return (
     <section className="section">
-      <h2 className="section-title">Is it worth it?</h2>
+      <h2 className="section-title">Last 12 months</h2>
       <div className="sheet">
-        <p className="serif" style={{ fontSize: 'var(--t-20)', lineHeight: 1.35, margin: 0 }}>{verdict(w)}</p>
-        {w.returnPct !== null && <BenchmarkRuler value={w.returnPct} unit="%" compact />}
+        <div className="small soft">You earned about</div>
+        <Figure cents={w.total} className={w.total < 0 ? 'urgent' : 'in'} />
+        <ul className="earn-parts">
+          <li><span>Rent left over after costs</span><span className="mono">{fmt0(w.cashFlow)}</span></li>
+          <li><span>Value growth{w.appreciationEstimated ? ' (estimated)' : ''}</span><span className="mono">{fmt0(w.appreciation)}</span></li>
+          {w.principalPaid > 0 && <li><span>Mortgage paid off</span><span className="mono">{fmt0(w.principalPaid)}</span></li>}
+        </ul>
+        {w.returnPct !== null ? (
+          <p style={{ margin: '12px 0 0' }}>{tag && <span className={`status ${tag.tone === 'good' ? 'paid' : tag.tone === 'bad' ? 'late' : 'due'}`} style={{ marginRight: 8 }}>{tag.text}</span>}{verdict(w)}</p>
+        ) : (
+          <p className="small soft" style={{ margin: '12px 0 0' }}>Value for {w.roughValue.join(' and ')} is a rough guess from the rent. Add what you paid for a better number.</p>
+        )}
         <Link to="/money/worth-it">See how it's worked out</Link>
       </div>
     </section>
   );
 }
-

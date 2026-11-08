@@ -1,6 +1,20 @@
 # Keyholder build plan
 
-## Phases (what the product does) × Stages (how we build it)
+## Levels: what users see
+
+Each property earns a level as the owner adds detail. Nothing beyond Bronze is required.
+Rules live in `src/lib/levels.ts`; the app shows a level badge on each property and one
+"next step" card suggesting what to add.
+
+| Level | Owner adds | Unlocks |
+|---|---|---|
+| **Bronze** | Property, tenants, rent | Rent tracking, receipts, reminders, expenses, Summary, basic tax summary, earnings with value growth estimated from rent (value ≈ yearly rent ÷ local gross yield) |
+| **Silver** | Purchase price and date (optional rough mortgage owed / payment) | Value range (price trend + nearby sales + own estimates), equity, Worth it vs a GIC, local comparison |
+| **Gold** | Closing costs, land transfer tax, and mortgage details (or "paid off") | Mortgage tab, interest vs principal, full taxes with depreciation, cost base and gain if sold |
+
+Earnings always include estimated value growth: today's value × the area's 5-year price trend.
+
+## Release phases (how we build it) — Phase 1 = Bronze, Phase 2 = Silver, Phase 3 = Gold
 
 | | Stage 1 — front end on sample data | Stage 2 — backend, real data |
 |---|---|---|

@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export function defaultProfile(): Profile {
   return {
@@ -26,7 +26,7 @@ export function defaultProfile(): Profile {
     approvedUnchanged: 0,
     autoSendOffered: false,
     forwardingAddress: `rent-${Math.random().toString(36).slice(2, 8)}@in.keyholder.ca`,
-    phase: 1,
+    phase: 3,
     theme: 'system',
     paperGrain: true,
   };
@@ -57,10 +57,8 @@ export function seedState(profile?: Profile): AppState {
     },
     {
       id: 'p-birch', nickname: 'Home + basement suite', address: '17 Birchmount Rd', city: 'Toronto', province: 'ON', type: 'house',
-      rentalSharePct: 35, ownerOccupied: true, ownershipPct: 100,
-      purchaseDate: '2021-09-01', purchasePrice: 108_000_000, approxMortgageBalance: 76_800_000, approxMortgagePayment: 445_000,
-      closingCosts: 420_000, landTransferTax: 3_247_500, landValuePct: 55,
-      annualPropertyTax: 740_000, annualInsurance: 288_000, claimCCA: false,
+      rentalSharePct: 35, ownerOccupied: true, ownershipPct: 100, claimCCA: false,
+      // Bronze on purpose: only rent is known, so its value is estimated from the rent.
     },
   ];
 
@@ -153,7 +151,6 @@ export function seedState(profile?: Profile): AppState {
   s.valuations = [
     { id: 'v-1', propertyId: 'p-maple', date: '2019-06-14', source: 'purchase', low: 61_500_000, likely: 61_500_000, high: 61_500_000, confidence: 'high', note: 'Purchase price' },
     { id: 'v-2', propertyId: 'p-maple', date: addMonths(today, -13), source: 'owner', low: 69_000_000, likely: 72_000_000, high: 75_000_000, confidence: 'medium', note: 'My estimate after a neighbour sold' },
-    { id: 'v-3', propertyId: 'p-birch', date: '2021-09-01', source: 'purchase', low: 108_000_000, likely: 108_000_000, high: 108_000_000, confidence: 'high', note: 'Purchase price' },
   ];
   s.comparables = [
     { id: 'c-1', propertyId: 'p-maple', address: '61 Maple Ave', saleDate: addMonths(today, -4), price: 70_500_000, bedrooms: 3, similarity: 'similar' },
@@ -163,7 +160,6 @@ export function seedState(profile?: Profile): AppState {
   // Phase 3
   s.mortgages = [
     { id: 'm-maple', propertyId: 'p-maple', lender: 'RBC Royal Bank', principal: 49_200_000, startDate: '2019-07-01', ratePct: 2.89, amortYears: 25, termEnd: addDays(today, 110), frequency: 'monthly' },
-    { id: 'm-birch', propertyId: 'p-birch', lender: 'TD Canada Trust', principal: 80_500_000, startDate: '2024-10-01', ratePct: 4.39, amortYears: 22, termEnd: '2029-10-01', frequency: 'monthly' },
   ];
 
   s.audit = [{ id: 'a-0', at: now, action: 'Sample data loaded', detail: 'Two properties, three tenants, a year of history' }];

@@ -1,12 +1,12 @@
 import type { Phase } from './types';
 
-// Single source of truth for what ships in which phase. The UI reads `enabled(feature, phase)`
-// so each phase is a complete app on its own, and moving a feature is a one-line change here.
+// Release plan for Stage 2: which backend work belongs to which level. In the app itself, features
+// unlock per property from the data the owner has added (src/lib/levels.ts), not from this file.
 
 export const PHASES: { id: Phase; name: string; promise: string }[] = [
-  { id: 1, name: 'Run the rental', promise: 'Properties, tenants, rent, receipts and expenses — with your bank or by hand.' },
-  { id: 2, name: 'Know what it is worth', promise: 'Property value from your purchase price, local price data and comparable sales, plus the Worth-It reading.' },
-  { id: 3, name: 'Mortgage, tax and capital', promise: 'Mortgage and purchase details, capital investments, CCA and a tax-ready pack.' },
+  { id: 1, name: 'Bronze', promise: 'Properties, tenants, rent, receipts, expenses, a tax summary, and earnings with value growth estimated from rent.' },
+  { id: 2, name: 'Silver', promise: 'Value from what you paid, local price trends and nearby sales; equity; comparison with a GIC.' },
+  { id: 3, name: 'Gold', promise: 'Mortgage tracking, purchase costs, depreciation, full taxes and gain if sold.' },
 ];
 
 export type Feature =

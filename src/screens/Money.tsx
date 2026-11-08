@@ -1,27 +1,27 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import type { BankName, Expense } from '../data/types';
-import { usePhase, useStore } from '../data/store';
-import { enabled } from '../data/phases';
+import { useStore } from '../data/store';
+import { propertyLevel } from '../lib/levels';
+import { LevelBadge, LevelInvite } from '../components/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, rentalPortion, taxPack, verdict, verdictTag, worthIt } from '../lib/finance';
 import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
 import { fmt, fmt0, pct } from '../lib/money';
 import { ExpenseForm } from '../components/forms';
-import { Drawer, Empty, Field, Figure, PhaseLocked, Seg, Term, embedded } from '../components/ui';
+import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
 import { BankStatus } from '../components/domain';
 import { Icon } from '../components/Icon';
 
 export function Money() {
   const { tab = 'expenses' } = useParams();
-  const phase = usePhase();
   const tabs = [
-    { id: 'expenses', label: 'Expenses', phase: 1 },
-    { id: 'bank', label: 'Rent tracking', phase: 1 },
-    { id: 'summary', label: 'Summary', phase: 1 },
-    { id: 'worth-it', label: 'Worth it?', phase: 2 },
-    { id: 'tax', label: 'Taxes', phase: 3 },
-  ].filter((t) => t.phase <= phase);
+    { id: 'expenses', label: 'Expenses' },
+    { id: 'bank', label: 'Rent tracking' },
+    { id: 'summary', label: 'Summary' },
+    { id: 'worth-it', label: 'Worth it?' },
+    { id: 'tax', label: 'Taxes' },
+  ];
   return (
     <div className="page">
       <div className="page-head"><div><h1>{tabs.find((t) => t.id === tab)?.label ?? 'Money'}</h1></div></div>
@@ -31,8 +31,8 @@ export function Money() {
       {tab === 'expenses' && <Expenses />}
       {tab === 'bank' && <Bank />}
       {(tab === 'summary' || tab === 'picture') && <ThePicture />}
-      {tab === 'worth-it' && (enabled('worth-it', phase) ? <WorthItPage /> : <PhaseLocked phase={2} what="The Worth-It reading" />)}
-      {tab === 'tax' && (enabled('tax-pack', phase) ? <TaxPackPage /> : <PhaseLocked phase={3} what="The Tax Pack" />)}
+      {tab === 'worth-it' && <WorthItPage />}
+      {tab === 'tax' && <TaxPackPage />}
     </div>
   );
 }
@@ -40,7 +40,6 @@ export function Money() {
 // =====================================================================================
 function Expenses() {
   const { state } = useStore();
-  const phase = usePhase();
   const [form, setForm] = useState<Expense | 'new' | null>(null);
   const [prop, setProp] = useState('all');
   const [kind, setKind] = useState<'all' | 'current' | 'capital'>('all');
@@ -57,7 +56,7 @@ function Expenses() {
             <option value="all">All properties</option>
             {state.properties.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{p.nickname}</option>)}
           </select>
-          {enabled('repair-or-improvement', phase) && <Seg label="Kind" value={kind} onChange={setKind} options={[{ id: 'all', label: 'All' }, { id: 'current', label: 'Running costs' }, { id: 'capital', label: 'Improvements' }]} />}
+          {<Seg label="Kind" value={kind} onChange={setKind} options={[{ id: 'all', label: 'All' }, { id: 'current', label: 'Running costs' }, { id: 'capital', label: 'Improvements' }]} />}
         </div>
         <button className="btn primary" onClick={() => setForm('new')}><Icon name="camera" size={16} />Snap a receipt</button>
       </div>
@@ -176,15 +175,14 @@ function ConnectBank({ onClose }: { onClose: () => void }) {
 // =====================================================================================
 function ThePicture() {
   const { state, today } = useStore();
-  const phase = usePhase();
   const [range, setRange] = useState<'month' | 'ytd' | 't12'>('t12');
   const [prop, setProp] = useState<string>('all');
   const from = range === 'month' ? `${periodOf(today)}-01` : range === 'ytd' ? `${today.slice(0, 4)}-01-01` : addDays(today, -364);
-  const pic = useMemo(() => picture(state, from, today, { phase, propertyId: prop === 'all' ? undefined : prop }), [state, from, today, phase, prop]);
+  const pic = useMemo(() => picture(state, from, today, { propertyId: prop === 'all' ? undefined : prop }), [state, from, today, prop]);
   const months = Array.from({ length: 12 }, (_, i) => addPeriods(periodOf(today), i - 11));
   const monthly = months.map((m) => {
     const end = m === periodOf(today) ? today : addDays(`${addPeriods(m, 1)}-01`, -1);
-    return { m, p: picture(state, `${m}-01`, end, { phase, propertyId: prop === 'all' ? undefined : prop }) };
+    return { m, p: picture(state, `${m}-01`, end, { propertyId: prop === 'all' ? undefined : prop }) };
   });
   const max = Math.max(1, ...monthly.map((x) => Math.max(x.p.rentCollected, x.p.opex + x.p.capital + x.p.mortgageInterest + x.p.mortgagePrincipal)));
 
@@ -236,17 +234,17 @@ function ThePicture() {
             {pic.vacancyLoss > 0 && row('Lost to vacancy', pic.vacancyLoss)}
             {row('Running costs', pic.opex, { neg: true, note: 'Repairs, utilities, property tax, insurance' })}
             {row('Left before the mortgage', pic.noi, { strong: true })}
-            {phase >= 3 && pic.hasMortgageData && row('Mortgage interest', pic.mortgageInterest, { neg: true, note: 'Deductible' })}
-            {phase >= 3 && pic.hasMortgageData && row('Mortgage paid off', pic.mortgagePrincipal, { neg: true, note: 'This builds what you own' })}
-            {phase === 2 && pic.hasMortgageData && row('Mortgage payments (approx.)', pic.mortgageInterest, { neg: true })}
+            {pic.hasMortgageData && !pic.mortgageIsRough && row('Mortgage interest', pic.mortgageInterest, { neg: true, note: 'Deductible' })}
+            {pic.hasMortgageData && !pic.mortgageIsRough && row('Mortgage paid off', pic.mortgagePrincipal, { neg: true, note: 'This builds what you own' })}
+            {pic.mortgageIsRough && row('Mortgage payments (rough)', pic.mortgageInterest + pic.mortgagePrincipal, { neg: true })}
             {pic.capital > 0 && row('Upgrades', pic.capital, { neg: true })}
             {row('Left over', pic.kept, { strong: true })}
           </tbody></table>
           <ul className="plain-facts">
             {pic.rentCollected > 0 && <li>Running costs take <strong>{pic.expenseRatio.toFixed(0)}%</strong> of the rent.</li>}
-            {phase >= 3 && pic.hasMortgageData && pic.mortgageInterest + pic.mortgagePrincipal > 0 && <li>Rent covers the mortgage <strong>{(pic.noi / (pic.mortgageInterest + pic.mortgagePrincipal)).toFixed(1)} times</strong>. Banks like to see 1.2 or more.</li>}
+            {pic.hasMortgageData && !pic.mortgageIsRough && pic.mortgageInterest + pic.mortgagePrincipal > 0 && <li>Rent covers the mortgage <strong>{(pic.noi / (pic.mortgageInterest + pic.mortgagePrincipal)).toFixed(1)} times</strong>. Banks like to see 1.2 or more.</li>}
           </ul>
-          {phase < 3 && <p className="tiny soft" style={{ marginTop: 12 }}>{phase === 1 ? 'Before mortgage. ' : ''}The full mortgage split into interest and principal arrives in phase 3.</p>}
+          {!pic.hasMortgageData && <p className="tiny soft" style={{ marginTop: 12 }}>No mortgage included. Add it on the property's Mortgage tab.</p>}
         </div>
       </div>
     </>
@@ -282,18 +280,18 @@ export function BenchmarkRuler({ value, band, unit = '%', compact, labels, highe
 
 function WorthItPage() {
   const { state, today } = useStore();
-  const phase = usePhase();
   const [prop, setProp] = useState<string>('all');
-  const w = useMemo(() => worthIt(state, today, { phase, propertyId: prop === 'all' ? undefined : prop }), [state, today, phase, prop]);
+  const w = useMemo(() => worthIt(state, today, { propertyId: prop === 'all' ? undefined : prop }), [state, today, prop]);
   const tag = verdictTag(w);
   const p = state.properties.find((x) => x.id === prop) ?? state.properties[0];
   const region = p ? regionData(p.province, p.city) : null;
-  const pic = picture(state, addDays(today, -364), today, { phase, propertyId: prop === 'all' ? undefined : prop });
+  const pic = picture(state, addDays(today, -364), today, { propertyId: prop === 'all' ? undefined : prop });
   const units = state.units.filter((u) => prop === 'all' || u.propertyId === prop);
   const potential = units.reduce((a, u) => a + u.rent * 12, 0);
   const vacancy = potential ? ((pic.vacancyLoss + pic.arrearsLoss) / potential) * 100 : 0;
   const grossYield = w.value ? (pic.rentCollected / (w.value || 1)) * 100 : 0;
   const props = state.properties.filter((x) => !x.archived);
+  const bronze = props.find((x) => (prop === 'all' || x.id === prop) && propertyLevel(state, x) === 'bronze');
 
   return (
     <>
@@ -307,17 +305,23 @@ function WorthItPage() {
       )}
       <div className="sheet">
         {tag && <span className={`status ${tag.tone === 'good' ? 'paid' : tag.tone === 'bad' ? 'late' : 'due'}`} style={{ marginBottom: 12 }}>{tag.text}</span>}
-        <p className="pulse" style={{ fontSize: 'clamp(1.4rem, 3vw, 2rem)', margin: '0 0 8px' }}>{verdict(w)}</p>
-        {w.returnPct !== null && <BenchmarkRuler value={w.returnPct} compact />}
-        {w.missing.length > 0 && <div className="callout warn">Add what {w.missing.join(' and ').replace(/a value for /g, '')} is worth on its Value tab.</div>}
+        <div className="small soft">Last 12 months you earned about</div>
+        <Figure cents={w.total} className={w.total < 0 ? 'urgent' : 'in'} />
+        {w.returnPct !== null ? (
+          <>
+            <p className="serif" style={{ fontSize: 'var(--t-20)', margin: '12px 0 0' }}>{verdict(w)}</p>
+            <BenchmarkRuler value={w.returnPct} compact />
+          </>
+        ) : <p className="small soft" style={{ margin: '12px 0 0' }}>Includes a rough guess at value growth for {w.roughValue.join(' and ')}. Add what you paid to compare with a GIC.</p>}
       </div>
+      {bronze && <LevelInvite property={bronze} to="silver" title="Compare with a GIC" points={[`A better value estimate for ${bronze.nickname}`, 'Your return as a percentage', 'How it compares with a GIC and your area']} />}
 
       <details className="more">
         <summary>See how</summary>
         <div className="more-body">
           <table className="ledger"><tbody>
             <tr><td>Rent left over after costs</td><td className="num">{fmt0(w.cashFlow)}</td></tr>
-            {phase >= 3 && <tr><td>Mortgage paid off</td><td className="num">{fmt0(w.principalPaid)}</td></tr>}
+            {w.principalPaid > 0 && <tr><td>Mortgage paid off</td><td className="num">{fmt0(w.principalPaid)}</td></tr>}
             <tr><td>Change in value{w.appreciationEstimated ? ' (estimated)' : ''}</td><td className="num">{fmt0(w.appreciation)}</td></tr>
             <tr><td><strong>Total gain this year</strong></td><td className="num"><strong>{fmt0(w.total)}</strong></td></tr>
             <tr><td>Your money in the property<div className="tiny soft">Worth {fmt0(w.value)}, less {fmt0(w.debt)} owed</div></td><td className="num">{fmt0(w.equity)}</td></tr>
@@ -347,13 +351,12 @@ function WorthItPage() {
 // =====================================================================================
 function TaxPackPage() {
   const { state, today } = useStore();
-  const phase = usePhase();
   const props = state.properties.filter((p) => !p.archived);
   const [pid, setPid] = useState(props[0]?.id ?? '');
   const thisYear = Number(today.slice(0, 4));
   const [year, setYear] = useState(Number(today.slice(5, 7)) <= 4 ? thisYear - 1 : thisYear);
   const p = props.find((x) => x.id === pid);
-  const pack = useMemo(() => (p ? taxPack(state, p, year, phase) : null), [state, p, year, phase]);
+  const pack = useMemo(() => (p ? taxPack(state, p, year) : null), [state, p, year]);
   if (!p || !pack) return <div className="sheet"><Empty title="Add a property to build a Tax Pack." /></div>;
   const fixes = pack.preflight.filter((x) => x.severity === 'fix').length;
 
@@ -397,13 +400,13 @@ function TaxPackPage() {
       </div>
 
       <div className="sheet print-me">
-        <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname}</h2>
+        <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname} <LevelBadge level={propertyLevel(state, p)} /></h2>
         <p className="small soft" style={{ marginTop: 0 }}>Line numbers are for your accountant (CRA form T776).</p>
         <table className="ledger tax-totals">
           <tbody>
             <tr><td>Rent received</td><td className="line">8141</td><td className="num">{fmt(pack.grossRents)}</td></tr>
             <tr><td>Expenses</td><td className="line" /><td className="num">−{fmt(pack.totalExpenses)}</td></tr>
-            <tr><td><Term def="Capital Cost Allowance: a yearly deduction for wear on the building and appliances">Depreciation (CCA)</Term>{!p.claimCCA && <span className="tiny soft"> · not claimed</span>}</td><td className="line">9936</td><td className="num">−{fmt(pack.ccaClaimed)}</td></tr>
+            {propertyLevel(state, p) === 'gold' && <tr><td><Term def="Capital Cost Allowance: a yearly deduction for wear on the building and appliances">Depreciation (CCA)</Term>{!p.claimCCA && <span className="tiny soft"> · not claimed</span>}</td><td className="line">9936</td><td className="num">−{fmt(pack.ccaClaimed)}</td></tr>}
           </tbody>
           <tfoot><tr><td>Taxable rental income{p.ownershipPct < 100 && <span className="tiny soft"> · your {p.ownershipPct}%: {fmt(pack.ownerShare)}</span>}</td><td className="line" /><td className={`num ${pack.netIncome < 0 ? 'urgent' : ''}`}>{fmt(pack.netIncome)}</td></tr></tfoot>
         </table>
@@ -418,7 +421,7 @@ function TaxPackPage() {
           </div>
         </details>
 
-        {pack.cca.length > 0 && (
+        {pack.cca.length > 0 && propertyLevel(state, p) === 'gold' && (
           <details className="more">
             <summary>Depreciation details</summary>
             <div className="more-body table-scroll">
@@ -430,6 +433,7 @@ function TaxPackPage() {
             </div>
           </details>
         )}
+        {propertyLevel(state, p) !== 'gold' && <p className="small" style={{ marginTop: 16 }}><strong>Missing mortgage interest and depreciation.</strong> <Link to={`/rent/property/${p.id}/mortgage`}>Reach Gold for {p.nickname}</Link> to include them. They usually lower your tax.</p>}
         <p className="tiny soft" style={{ marginTop: 16 }}>Keyholder prepares the numbers. It doesn't file your return or give tax advice.</p>
       </div>
     </>
