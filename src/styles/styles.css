@@ -82,11 +82,10 @@ h1, h2 { font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: lining
 /* ---------------------------------------------------------------- Brand lockups (custom wordmarks) */
 .brand-lockup { display: inline-flex; align-items: center; gap: calc(var(--bs) * .34); color: var(--ink); line-height: 1; font-family: var(--font-display); }
 .brand-lockup .keymark { flex: none; border-radius: 9px; box-shadow: 0 4px 14px -4px rgba(79,70,229,.55); }
-.wm { display: inline-flex; align-items: baseline; font-family: 'Raleway', sans-serif; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: lining-nums; font-size: calc(var(--bs) * .86); white-space: nowrap; }
-.wm-a { font-size: calc(var(--bs) * .98); align-items: flex-end; }
-.wm-a .wm-k { height: .7em; width: auto; margin-right: .02em; margin-bottom: .02em; overflow: visible; color: var(--primary); }
-.wm-b { font-weight: 700; letter-spacing: -0.04em; align-items: center; }
-.wm-b .wm-o { height: .62em; width: .62em; margin: 0 .015em; transform: translateY(.07em); }
-.wm-c { font-weight: 700; letter-spacing: .16em; font-size: calc(var(--bs) * .6); }
+.wm { display: inline-flex; align-items: center; font-family: 'Raleway', sans-serif; font-weight: 700; letter-spacing: -0.025em; font-size: calc(var(--bs) * .9); white-space: nowrap; font-variant-numeric: lining-nums; }
+.wm-c { font-weight: 800; letter-spacing: -0.02em; }
+.wm-d { font-weight: 800; font-size: calc(var(--bs) * 1.02); letter-spacing: -0.03em; }
+.wm-d .wm-o { height: .64em; width: .64em; margin: 0 .02em; transform: translateY(.06em); }
+.brand-lockup .keymark.km-c { border-radius: 50%; }
 .brand .brand-lockup { --bs: 28px; }
 .brand { text-decoration: none; }

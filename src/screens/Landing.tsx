@@ -460,13 +460,14 @@ function LogoOptions() {
   const cur = useWordmark();
   return (
     <>
-      <PageHead kicker="Logo options" title={<>Pick your <em>Keyholder</em> logo.</>}>Three versions drawn for Keyholder. Tap one to use it across the site and the app, then tell me which you chose.</PageHead>
+      <PageHead kicker="Logo options" title={<>Pick your <em>Keyholder</em> logo.</>}>Four new versions drawn for Keyholder. Tap one to use it across the site and the app, then tell me which you chose.</PageHead>
       <section className="lp-sec lp-sec-tight">
         <div className="lp-wrap lp-logos">
           {WORDMARKS.map((w, i) => (
             <button key={w.id} className={`lp-logo-card reveal${cur === w.id ? ' on' : ''}`} aria-pressed={cur === w.id} onClick={() => setWordmark(w.id)} style={{ transitionDelay: `${i * 90}ms` }}>
               <span className="lp-logo-stage light"><Brand size={44} variant={w.id} /></span>
               <span className="lp-logo-stage dark"><Brand size={44} variant={w.id} /></span>
+              <span className="lp-logo-stage icon-row">{[56, 40, 28, 20].map((n) => <KeyMark key={n} size={n} variant={w.id} />)}</span>
               <span className="lp-logo-meta"><b>{String.fromCharCode(65 + i)} · {w.name}</b><span>{w.note}</span><em>{cur === w.id ? 'In use' : 'Use this one'}</em></span>
             </button>
           ))}
