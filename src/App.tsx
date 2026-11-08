@@ -64,8 +64,8 @@ function Shell() {
 
   const nav = [
     { to: '/today', label: 'Home', icon: 'home', badge: true },
-    { to: '/rentals', label: 'Rentals', icon: 'rent' },
     { to: '/portfolio', label: 'Portfolio', icon: 'chart' },
+    { to: '/rentals', label: 'Rentals', icon: 'rent' },
     { to: '/taxes', label: 'Taxes', icon: 'print' },
     { to: '/paperwork', label: 'Paperwork', icon: 'paper' },
   ];
@@ -118,9 +118,9 @@ function Shell() {
 
       <nav className="bottombar" aria-label="Main">
         <NavLink to="/today"><Icon name="home" />Home{count > 0 && <span className="badge">{count}</span>}</NavLink>
-        <NavLink to="/rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
-        <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
         <NavLink to="/portfolio"><Icon name="chart" />Portfolio</NavLink>
+        <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
+        <NavLink to="/rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
         <NavLink to="/more" className={['/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
 

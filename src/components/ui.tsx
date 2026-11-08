@@ -110,7 +110,7 @@ export function SlideToConfirm({ label, onConfirm }: { label: string; onConfirm:
       <div className="txt">{label}</div>
       <div className="knob" role="button" tabIndex={0} aria-label={`${label} (press Enter to confirm)`} style={{ transform: `translateX(${x}px)` }}
         onPointerDown={(e) => { drag.current = { start: e.clientX - x }; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); }}
-        onKeyDown={(e) => { if (e.key === 'Enter') onConfirm(); }}>
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onConfirm(); } }}>
         <Icon name="next" />
       </div>
     </div>

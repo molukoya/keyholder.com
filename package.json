@@ -3,14 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Keyholder — a personal assistant for the self-managing Canadian landlord (Stage 1: frontend on mock data)",
+  "description": "Keyholder \u2014 a personal assistant for the self-managing Canadian landlord (Stage 1: frontend on mock data)",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
-    "preview:claude": "vite build && node scripts/build-artifact.mjs"
+    "preview:claude": "vite build && node scripts/build-artifact.mjs",
+    "test:ux": "node scripts/ux-flow-test.cjs"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

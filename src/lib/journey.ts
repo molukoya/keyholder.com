@@ -149,6 +149,17 @@ function mortgageCard(state: AppState, m: Mortgage, today: ISODate): JourneyCard
   return { id: `mortgage-${m.id}`, stepKey: `renew-${m.termEnd}`, title: 'Mortgage renewal', subtitle: prop?.nickname ?? '', stage: null, text: `Renews in ${n} days with ${m.lender}`, detail: 'Compare rates, then enter the new rate and term', priority: 6, step: { kind: 'mortgage', mortgage: m } };
 }
 
+/** The current step for one unit: its tenant's journey step, or the empty unit's step. Stages are internal only. */
+export function unitStep(state: AppState, unit: Unit, today: ISODate): JourneyCard | null {
+  const l = activeLease(state, unit.id, today) ?? state.leases.find((x) => x.unitId === unit.id && x.end && x.end >= addDays(today, -30) && x.end <= addDays(today, 60));
+  return (l ? tenantCard(state, l, today) : null) ?? unitCard(state, unit, today);
+}
+
+/** Property-level steps (mortgage renewal), shown as short lines under the rent list. */
+export function propertySteps(state: AppState, today: ISODate): JourneyCard[] {
+  return state.mortgages.map((m) => mortgageCard(state, m, today)).filter((c): c is JourneyCard => !!c);
+}
+
 /** Every journey card, in the owner's preferred order, before Hide/Ignore. */
 export function allJourneyCards(state: AppState, today: ISODate): JourneyCard[] {
   const cards: JourneyCard[] = [];

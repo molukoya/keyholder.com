@@ -391,7 +391,7 @@ input[type=range] { accent-color: var(--brass); width: 100%; }
 @media (max-width: 640px) {
   .rent-row { grid-template-columns: 1fr auto; padding: var(--s-4); }
   .rent-row .who-link, .rent-row > div:first-child { grid-column: 1 / -1; }
-  .rent-row .btn { width: 100%; grid-column: 1 / -1; }
+  .rent-row .btn { grid-column: auto; }
   .rent-row .status { justify-self: start; }
 }
 .track-line { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; font-size: var(--t-14); color: var(--ink-soft); }
@@ -645,3 +645,19 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
 .bars-h li.you i { background: var(--pine); }
 .bars-h li.you { font-weight: 600; }
 .bars-h strong { font-family: var(--font-mono); font-weight: 500; min-width: 48px; text-align: right; }
+
+/* ---------- Home rows: one action each ---------- */
+.row-act { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.row-menu { position: relative; display: inline-flex; }
+.row-menu .dots { min-width: 40px; font-size: 20px; line-height: 1; color: var(--ink-soft); }
+.row-menu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; display: flex; flex-direction: column; min-width: 200px; background: var(--paper-raised); border: 1px solid var(--rule-strong); box-shadow: var(--shadow-lift); }
+.row-menu-pop button { all: unset; cursor: pointer; padding: 12px 16px; font-size: var(--t-16); color: var(--ink); }
+.row-menu-pop button:hover, .row-menu-pop button:focus-visible { background: var(--paper-sunk); }
+.prop-line { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-5); border-top: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-sunk) 50%, transparent); flex-wrap: wrap; }
+.prop-line > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 640px) {
+  .rent-row .row-act { grid-column: 1 / -1; width: 100%; }
+  .rent-row .row-act > .btn, .rent-row .row-act > .paid-on { flex: 1; }
+  .prop-line { padding: var(--s-4); }
+  .prop-line .row-act { width: 100%; } .prop-line .row-act > .btn { flex: 1; }
+}

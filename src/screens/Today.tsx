@@ -1,17 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
+import { fmtDate, fmtDay, fmtWeekday, periodOf } from '../lib/dates';
 import { activeLease, leaseLedger } from '../lib/finance';
-import { fmt } from '../lib/money';
 import { ScoreChip } from '../components/levels';
-import { NeedsYouNow, ScoreNext } from '../components/Journey';
+import { RentRows, ScoreList } from '../components/Journey';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
-import { Icon } from '../components/Icon';
 
 // Today answers one question: "Am I okay?" — who has paid, what is left over, and what needs me.
 
@@ -65,56 +63,13 @@ export function Today() {
       <p className="pulse">{headline}</p>
       <div className="track-top"><BankStatus /></div>
 
-      <section className="section">
-        <h2 className="section-title">Rent for {fmtPeriod(p)}</h2>
-        <div className="sheet tight">
-          <ul className="rent-list">
-            {rows.map((r) => r.vacant ? (
-              <li key={r.unit.id} className="rent-row">
-                <div><div className="who">Unit {r.unit.label}</div><div className="where">{propName(r.unit.propertyId)}</div></div>
-                <span className="status vacant">Empty</span>
-                <Link className="btn" to={`/rent/property/${r.unit.propertyId}/find`}>Find a tenant</Link>
-              </li>
-            ) : (
-              pending.has(r.lease.id) && r.line.state !== 'paid' ? (
-              <li key={r.unit.id} className="rent-row due">
-                <Link to={`/rent/tenant/${r.tenant.id}`} className="who-link">
-                  <div className="who">{r.tenant.names.join(' & ')}</div>
-                  <div className="where">{propName(r.unit.propertyId)} · Unit {r.unit.label} · {fmt(r.line.charge)}</div>
-                </Link>
-                <span className="status due">Payment found</span>
-                <Link className="btn primary" to="/today">Confirm</Link>
-              </li>
-              ) :
-              <li key={r.unit.id} className={`rent-row ${r.line.state}`}>
-                <Link to={`/rent/tenant/${r.tenant.id}`} className="who-link">
-                  <div className="who">{r.tenant.names.join(' & ')}</div>
-                  <div className="where">{propName(r.unit.propertyId)} · Unit {r.unit.label} · {fmt(r.line.charge)}</div>
-                </Link>
-                <span className={`status ${r.line.state}`}>
-                  {r.line.state === 'paid' && <><Icon name="check" size={18} />Paid</>}
-                  {r.line.state === 'late' && <>Late · {r.line.daysLate} day{r.line.daysLate === 1 ? '' : 's'}</>}
-                  {r.line.state === 'partial' && <>{fmt(r.line.charge - r.line.paid)} still owed</>}
-                  {r.line.state === 'due' && <>Due today</>}
-                  {r.line.state === 'upcoming' && <>Due {fmtDay(r.line.due)}</>}
-                </span>
-                {r.line.state === 'paid'
-                  ? <span className="paid-on">{fmtDay(r.line.payments[r.line.payments.length - 1].date)}</span>
-                  : <button className="btn primary" onClick={() => setPayLease(r.lease.id)}>Mark paid</button>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <NeedsYouNow />
-      <ScoreNext />
+      <RentRows />
+      <ScoreList />
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
     </div>
   );
 
-  function propName(id: string) { return state.properties.find((x) => x.id === id)?.nickname ?? ''; }
 }
 
 function firstName(r: { tenant?: { names: string[] } }) { return r.tenant?.names[0].split(' ')[0] ?? 'A tenant'; }
