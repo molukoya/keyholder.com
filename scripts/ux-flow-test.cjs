@@ -194,9 +194,9 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     });
     ok(tag, 'B/C errors', errsB.length === 0, errsB.slice(0, 3).join(' | '));
   }
-  for (const r of results) console.log();
+  for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;
-  console.log();
+  console.log(`\n${results.length - failed} of ${results.length} passed`);
   process.exitCode = failed ? 1 : 0;
   await b.close();
 })();
