@@ -5,6 +5,7 @@ import { useStore } from '../data/store';
 import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
 import { keyholderScore } from '../lib/score';
 import { portfolio } from '../lib/finance';
+import { monthChange } from '../lib/silver';
 import { fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
 import { MortgageFields, newMortgage } from './forms';
@@ -56,6 +57,7 @@ export function PropertyCard({ property, active, banner }: { property: Property;
   const onLeave = () => { ref.current?.style.setProperty('--rx', '0deg'); ref.current?.style.setProperty('--ry', '0deg'); };
   if (!row) return null;
   const rough = row.valueInfo.basis === 'rent';
+  const month = monthChange(state, property, today);
 
   return (
     <div ref={ref} className={`pcard ${level}${active ? ' active' : ''}${upgraded ? ' upgraded' : ''}${banner ? ' banner' : ''}`}
@@ -71,7 +73,7 @@ export function PropertyCard({ property, active, banner }: { property: Property;
         <div><span>Yours</span><strong>{row.owedKnown ? fmtShort(row.yours) : '—'}</strong></div>
         <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong></div>
       </div>
-      <div className="pcard-source">{row.valueInfo.source}</div>
+      <div className="pcard-source">{month !== null && level !== 'bronze' ? <><strong>{month >= 0 ? '+' : '−'}{fmtShort(Math.abs(month))} this month</strong> · </> : null}{row.valueInfo.source}</div>
     </div>
   );
 }

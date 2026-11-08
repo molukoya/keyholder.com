@@ -7,7 +7,7 @@ export type Level = 'bronze' | 'silver' | 'gold';
 
 export const LEVELS: { id: Level; name: string; rank: 1 | 2 | 3; needs: string; gives: string }[] = [
   { id: 'bronze', name: 'Bronze', rank: 1, needs: 'The property, your tenants and their rent', gives: 'Rent tracking, receipts, expenses, a tax summary and a rough idea of what you earn' },
-  { id: 'silver', name: 'Silver', rank: 2, needs: 'What you paid and when', gives: "What it's worth, what's yours after the mortgage, and how it compares with a GIC" },
+  { id: 'silver', name: 'Silver', rank: 2, needs: 'What you paid and when', gives: "Your gain since buying, return vs savings and a GIC, rent vs the area, room to borrow, a monthly value check and a rough sale figure" },
   { id: 'gold', name: 'Gold', rank: 3, needs: 'Your mortgage and purchase costs', gives: 'Mortgage tracking, full taxes with depreciation, and your gain if you sold' },
 ];
 
@@ -33,7 +33,7 @@ export const atLeast = (have: Level, need: Level) => levelInfo(have).rank >= lev
 /** The single next thing to suggest for a property, in plain words. Null when it is Gold. */
 export function nextStep(state: AppState, p: Property): { to: Level; title: string; why: string; action: string } | null {
   const l = propertyLevel(state, p);
-  if (l === 'bronze') return { to: 'silver', title: `Add what you paid for ${p.nickname}`, why: "See what it's worth and how it compares with a GIC.", action: 'Add what I paid' };
+  if (l === 'bronze') return { to: 'silver', title: `Add what you paid for ${p.nickname}`, why: "See your gain since buying, rent vs the area and room to borrow.", action: 'Add what I paid' };
   if (l === 'silver') return { to: 'gold', title: `Add the mortgage for ${p.nickname}`, why: 'Track the mortgage and get full tax numbers with depreciation.', action: 'Add mortgage details' };
   return null;
 }

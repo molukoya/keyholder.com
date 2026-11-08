@@ -10,6 +10,7 @@ import {
   adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, rentBasedValue, propertyValue,
 } from '../lib/finance';
 import { regionData } from '../lib/jurisdiction';
+import { LENDER_MAX_LTV, SELLING_COST_PCT, borrowingRoom, gainSincePurchase, monthChange, rentVsMarket, returnComparison, roughSale, valueHistory } from '../lib/silver';
 import { fmt, fmt0, fmtShort, pct } from '../lib/money';
 import { RentRoll } from '../components/domain';
 import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm } from '../components/forms';
@@ -89,29 +90,19 @@ function ValueTab({ id }: { id: string }) {
             <CheckYourself p={p} />
           </div>
         )}
-        <LevelInvite property={p} to="silver" title="Get a better estimate" points={['A value range based on what you paid and local prices', "What's yours after the mortgage", 'How it compares with a GIC']} />
+        <LevelInvite property={p} to="silver" title="See what this property is doing for you" points={["How much you've gained since you bought it", 'What your money earns compared with savings, a GIC and stocks', 'Whether your rent is below what similar units rent for', 'How much you could borrow against it', 'A monthly check on its value', 'Roughly what you would walk away with if you sold']} />
       </>
     );
   }
-  const change = ((value - p.purchasePrice) / p.purchasePrice) * 100;
 
   return (
     <>
-      <div className="sheet">
-        <div className="small soft">Worth about</div>
-        <div className="figure" style={{ margin: '4px 0 8px' }}>{blend ? `${fmtShort(blend.low)} – ${fmtShort(blend.high)}` : fmtShort(value)}</div>
-        <p style={{ margin: 0 }}>Bought for {fmt0(p.purchasePrice)} in {yearOf(p.purchaseDate)}. <span className={change >= 0 ? 'in' : 'urgent'}>{change >= 0 ? 'Up' : 'Down'} {Math.abs(change).toFixed(0)}%.</span></p>
-        <p className="tiny soft" style={{ margin: '6px 0 0' }}>Source: {propertyValue(state, p, today).source} · {fmtDate(today)}</p>
-        <CheckYourself p={p} />
-        <hr className="hr" style={{ margin: '16px 0' }} />
-        <div className="spread">
-          <div><div className="small soft">Yours after the mortgage</div><Figure cents={equity} size="sm" /></div>
-          <div className="btn-row">
-            <button className="btn" onClick={() => setForm('comp')}><Icon name="plus" size={16} />Add a nearby sale</button>
-            <button className="btn" onClick={() => setForm('owner')}><Icon name="edit" size={16} />Add my own estimate</button>
-          </div>
-        </div>
+      <GainStory p={p} range={blend ? [blend.low, blend.high] : null} equity={equity} owedKnown={!!m || p.approxMortgageBalance !== undefined || !!p.mortgageFree} />
+      <div className="btn-row" style={{ margin: '-8px 0 24px' }}>
+        <button className="btn" onClick={() => setForm('comp')}><Icon name="plus" size={16} />Add a nearby sale</button>
+        <button className="btn" onClick={() => setForm('owner')}><Icon name="edit" size={16} />Add my own estimate</button>
       </div>
+      <SilverInsights p={p} />
 
       <details className="more">
         <summary>How we worked this out</summary>
@@ -273,5 +264,107 @@ function CheckYourself({ p }: { p: Property }) {
     <p className="small" style={{ margin: '10px 0 0' }}>
       Check it yourself for {p.address}: <a href="https://housesigma.com" target="_blank" rel="noopener noreferrer">HouseSigma</a> · <a href="https://wowa.ca" target="_blank" rel="noopener noreferrer">wowa.ca</a>. Then add your own estimate.
     </p>
+  );
+}
+
+// ---------------------------------------------------------------------------------
+// Silver: what it's worth and what it could do for you
+// ---------------------------------------------------------------------------------
+function GainStory({ p, range, equity, owedKnown }: { p: Property; range: [number, number] | null; equity: number; owedKnown: boolean }) {
+  const { state, today } = useStore();
+  const g = gainSincePurchase(state, p, today)!;
+  const hist = valueHistory(state, p, today);
+  const month = monthChange(state, p, today);
+  const up = g.gain >= 0;
+  return (
+    <div className="sheet gain">
+      <div className="gain-grid">
+        <div>
+          <div className="small soft">Bought for {fmt0(g.paid)} in {yearOf(p.purchaseDate!)} · worth about</div>
+          <div className="figure" style={{ margin: '4px 0' }}>{range ? `${fmtShort(range[0])} – ${fmtShort(range[1])}` : fmtShort(g.value)}</div>
+          <p className={`gain-line ${up ? 'in' : 'urgent'}`}>You've {up ? 'gained' : 'lost'} about <strong>{fmt0(Math.abs(g.gain))}</strong> ({up ? '+' : '−'}{Math.abs(g.pct).toFixed(0)}%) since you bought it.</p>
+          {month !== null && <p className="small" style={{ margin: '4px 0 0' }}>This month: <strong className={month >= 0 ? 'in' : 'urgent'}>{month >= 0 ? '+' : '−'}{fmt0(Math.abs(month))}</strong> <span className="soft">(monthly value check)</span></p>}
+          {owedKnown && <p className="small" style={{ margin: '4px 0 0' }}>Yours after the mortgage: <strong className="mono">{fmt0(equity)}</strong></p>}
+        </div>
+        <Spark points={hist} />
+      </div>
+      <p className="tiny soft" style={{ margin: '8px 0 0' }}>Source: {propertyValue(state, p, today).source} · {fmtDate(today)}</p>
+      <CheckYourself p={p} />
+    </div>
+  );
+}
+
+function Spark({ points }: { points: { date: string; value: number }[] }) {
+  if (points.length < 2) return null;
+  const W = 260, H = 90, P = 6;
+  const vs = points.map((x) => x.value), lo = Math.min(...vs) * 0.98, hi = Math.max(...vs) * 1.02;
+  const t0 = Date.parse(points[0].date), t1 = Date.parse(points[points.length - 1].date);
+  const x = (d: string) => P + ((Date.parse(d) - t0) / (t1 - t0 || 1)) * (W - 2 * P);
+  const y = (v: number) => H - P - ((v - lo) / (hi - lo || 1)) * (H - 2 * P);
+  const d = points.map((pt, i) => `${i ? 'L' : 'M'}${x(pt.date).toFixed(1)},${y(pt.value).toFixed(1)}`).join(' ');
+  const last = points[points.length - 1];
+  return (
+    <figure className="spark" aria-label={`Value from ${fmtShort(points[0].value)} to ${fmtShort(last.value)}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img">
+        <path d={`${d} L${x(last.date)},${H - P} L${x(points[0].date)},${H - P} Z`} fill="var(--pine-tint)" />
+        <path d={d} fill="none" stroke="var(--pine)" strokeWidth="2.5" />
+        <circle cx={x(last.date)} cy={y(last.value)} r="4" fill="var(--pine)" />
+      </svg>
+      <figcaption className="tiny soft"><span>{yearOf(points[0].date)}</span><span>Today</span></figcaption>
+    </figure>
+  );
+}
+
+function SilverInsights({ p }: { p: Property }) {
+  const { state, today } = useStore();
+  const ret = returnComparison(state, p, today);
+  const units = state.units.filter((u) => u.propertyId === p.id);
+  const room = borrowingRoom(state, p, today);
+  const sale = roughSale(state, p, today);
+  const max = Math.max(ret.yours ?? 0, ...ret.rows.map((r) => r.pct), 1);
+  return (
+    <div className="silver-grid">
+      <section className="sheet">
+        <h3>Your money is earning</h3>
+        {ret.yours === null ? <p className="small soft">Add what is owed on the mortgage to see this.</p> : (
+          <ul className="bars-h">
+            <li className="you"><span>This property</span><i style={{ width: `${(Math.max(0, ret.yours) / max) * 100}%` }} /><strong>{ret.yours.toFixed(1)}%</strong></li>
+            {ret.rows.map((r) => <li key={r.label}><span>{r.label}</span><i style={{ width: `${(r.pct / max) * 100}%` }} /><strong>{r.pct.toFixed(1)}%</strong></li>)}
+          </ul>
+        )}
+        <p className="tiny soft">A year of rent left over, mortgage paid off and value growth, divided by your money in it. Comparison rates are placeholders.</p>
+      </section>
+
+      <section className="sheet">
+        <h3>Rent compared with the area</h3>
+        <ul className="rows">{units.map((u) => {
+          const r = rentVsMarket(p, u);
+          return (
+            <li key={u.id} className="row" style={{ gridTemplateColumns: '64px 1fr auto' }}>
+              <span className="margin">Unit {u.label}</span>
+              <span><span className="title">{fmt0(u.rent)} now · about {fmt0(r.market)} nearby</span><span className="sub" style={{ display: 'block' }}>{u.bedrooms}-bedroom{r.fallback ? ' · Canada-wide average' : ''}</span></span>
+              <span className={r.gap > 5000 ? 'in' : 'soft'}>{r.gap > 5000 ? `${fmt0(r.gap)} below` : r.gap < -5000 ? `${fmt0(-r.gap)} above` : 'About right'}</span>
+            </li>
+          );
+        })}</ul>
+        <p className="tiny soft">Rent increases are limited by the law in many provinces. Keyholder suggests the allowed amount when a renewal comes up.</p>
+      </section>
+
+      <section className="sheet">
+        <h3>Room to borrow</h3>
+        {room === null ? <p className="small soft">Add what is owed on the mortgage to see this.</p> : <>
+          <div className="figure sm">{fmt0(room)}</div>
+          <p className="small soft">About how much a lender might let you borrow against it ({LENDER_MAX_LTV}% of value, minus what you owe). Useful for a renovation or the next property. An estimate, not an offer.</p>
+        </>}
+      </section>
+
+      <section className="sheet">
+        <h3>If you sold today</h3>
+        {sale === null ? <p className="small soft">Add what is owed on the mortgage to see this.</p> : <>
+          <div className="figure sm">{fmt0(sale.net)}</div>
+          <p className="small soft">Worth {fmt0(sale.value)} − selling costs about {fmt0(sale.costs)} ({SELLING_COST_PCT}%) − mortgage {fmt0(sale.owed)}. Before tax. Gold works out the exact figure, with tax.</p>
+        </>}
+      </section>
+    </div>
   );
 }

@@ -4,6 +4,9 @@ import { activeLease } from './finance';
 import { formById, formsFor } from './forms';
 import { arrears, earliestIncrease, nextNotice, propertyOf } from './notices';
 import { trayItems } from './tray';
+import { rentVsMarket } from './silver';
+import { hasSilver } from './levels';
+import { province } from './jurisdiction';
 import type { LedgerLine } from './finance';
 
 // The tenant journey: one card per tenant, empty unit or property, showing only the current step.
@@ -116,7 +119,10 @@ function tenantCard(state: AppState, lease: Lease, today: ISODate): JourneyCard 
   const effective = earliestIncrease(state, lease, today, inc);
   const noticeBy = addDays(effective, -(inc.noticeDays ?? 90));
   if (daysBetween(today, noticeBy) <= 30 && daysBetween(today, noticeBy) >= 0) {
-    return { ...base, stepKey: `increase-${effective}`, stage: 'renewal', text: `You can raise ${who}'s rent from ${fmtDate(effective)}`, detail: `Give notice by ${fmtDate(noticeBy)}`, priority: 5, step: { kind: 'form', lease, formId: inc.id, text: `Prepare ${inc.code}` } };
+    const mk = rentVsMarket(prop, unit);
+    const guide = province(prop.province).rentIncreaseGuidelinePct;
+    const market = hasSilver(prop) ? ` · similar units rent for about ${(mk.market / 100).toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })}${guide ? `; the ${guide}% guideline allows ${(Math.round(lease.rent * (1 + guide / 100)) / 100).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })}` : ''}` : '';
+    return { ...base, stepKey: `increase-${effective}`, stage: 'renewal', text: `You can raise ${who}'s rent from ${fmtDate(effective)}`, detail: `Give notice by ${fmtDate(noticeBy)}${market}`, priority: 5, step: { kind: 'form', lease, formId: inc.id, text: `Prepare ${inc.code}` } };
   }
   return null;
 }

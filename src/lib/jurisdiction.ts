@@ -78,6 +78,8 @@ export interface RegionData {
   /** Annual price change, %, over 1 / 5 / 10 years. Used by the open-data index estimate. */
   priceGrowth: { y1: number; y5: number; y10: number; source: string; asOf: string };
   vacancyDirection: 'up' | 'down' | 'flat';
+  /** Typical asking rent by bedrooms (cents). Placeholder — CMHC / Rentals.ca in Stage 2. */
+  marketRent: { 0: number; 1: number; 2: number; 3: number; source: string; asOf: string };
 }
 
 const REGION_DEFAULT: RegionData = {
@@ -87,6 +89,7 @@ const REGION_DEFAULT: RegionData = {
   rentGrowth: { low: -3, typical: 1.5, high: 4, source: 'Placeholder — Rentals.ca / CMHC', asOf: '2026-05' },
   priceGrowth: { y1: -1.5, y5: 3.2, y10: 5.8, source: 'Placeholder — CREA MLS® HPI / Teranet–National Bank HPI', asOf: '2026-09' },
   vacancyDirection: 'up',
+  marketRent: { 0: 115_000, 1: 140_000, 2: 170_000, 3: 205_000, source: 'Placeholder — Rentals.ca national averages', asOf: '2026-10' },
 };
 
 export const REGIONS: Record<string, Partial<RegionData>> = {
@@ -94,6 +97,7 @@ export const REGIONS: Record<string, Partial<RegionData>> = {
     vacancy: { low: 2.5, typical: 3.0, high: 4.0, source: 'Placeholder — CMHC 2026 Mid-Year Rental Market Update', asOf: '2025' },
     grossYield: { low: 3.0, typical: 3.9, high: 4.8, source: 'Placeholder', asOf: '2026-Q2' },
     priceGrowth: { y1: -3.8, y5: 2.1, y10: 5.4, source: 'Placeholder — CREA MLS® HPI, Toronto', asOf: '2026-09' },
+    marketRent: { 0: 205_000, 1: 245_000, 2: 320_000, 3: 390_000, source: 'Placeholder — Rentals.ca, Toronto', asOf: '2026-10' },
   },
   'ON:Ottawa': {
     vacancy: { low: 2.0, typical: 3.0, high: 4.0, source: 'Placeholder — CMHC 2026 Mid-Year Rental Market Update', asOf: '2025' },
@@ -103,6 +107,7 @@ export const REGIONS: Record<string, Partial<RegionData>> = {
     vacancy: { low: 2.2, typical: 3.4, high: 4.6, source: 'Placeholder — CMHC', asOf: '2025' },
     grossYield: { low: 4.0, typical: 5.0, high: 6.2, source: 'Placeholder', asOf: '2026-Q2' },
     priceGrowth: { y1: -2.4, y5: 3.0, y10: 6.6, source: 'Placeholder — CREA MLS® HPI, Hamilton-Burlington', asOf: '2026-09' },
+    marketRent: { 0: 135_000, 1: 165_000, 2: 195_000, 3: 235_000, source: 'Placeholder — Rentals.ca, Hamilton', asOf: '2026-10' },
   },
   'BC:Vancouver': {
     vacancy: { low: 1.0, typical: 1.6, high: 2.5, source: 'Placeholder — CMHC', asOf: '2025' },

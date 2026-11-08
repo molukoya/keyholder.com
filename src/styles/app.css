@@ -628,3 +628,20 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
 .assess-top > div { display: flex; flex-direction: column; }
 .assess-top strong { font-family: var(--font-display); font-size: var(--t-20); font-weight: 500; }
 .assess-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 var(--s-4); margin-bottom: var(--s-3); }
+
+/* ---------- Silver insights ---------- */
+.gain-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 280px); gap: var(--s-5); align-items: center; }
+@media (max-width: 640px) { .gain-grid { grid-template-columns: 1fr; } }
+.gain-line { font-size: var(--t-16); margin: 4px 0 0; }
+.spark { margin: 0; }
+.spark figcaption { display: flex; justify-content: space-between; font-family: var(--font-mono); }
+.silver-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); margin-bottom: var(--s-5); }
+.silver-grid .sheet { margin: 0; }
+.silver-grid h3 { margin-bottom: var(--s-3); }
+@media (max-width: 860px) { .silver-grid { grid-template-columns: 1fr; } }
+.bars-h { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bars-h li { display: grid; grid-template-columns: minmax(110px, 40%) 1fr auto; gap: var(--s-3); align-items: center; font-size: var(--t-14); }
+.bars-h i { display: block; height: 12px; border-radius: 6px; background: var(--rule-strong); min-width: 2px; }
+.bars-h li.you i { background: var(--pine); }
+.bars-h li.you { font-weight: 600; }
+.bars-h strong { font-family: var(--font-mono); font-weight: 500; min-width: 48px; text-align: right; }
