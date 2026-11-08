@@ -313,16 +313,81 @@ export type ValueBasis = 'valuation' | 'purchase' | 'rent';
  * the local price trend, then (Bronze) an estimate from the rent using the local rent-to-price ratio.
  * Rent-based estimates are already the rented part only.
  */
-export function propertyValue(state: AppState, prop: Property, today: ISODate): { value: Cents; basis: ValueBasis } {
+/**
+ * Automated valuation model. Stage 1 is a PLACEHOLDER: it grows the purchase price by the local price index,
+ * or (no purchase price) divides yearly rent by the local gross yield. Stage 2 swaps in a licensed Canadian
+ * AVM (e.g. Opta/SCM iClarify, Teranet Purview, Altus) behind this same function and label.
+ */
+export const AVM_PROVIDER = 'Sample AVM (placeholder)';
+
+export interface ValueInfo { value: Cents; basis: ValueBasis; source: string; asOf: ISODate }
+
+export function propertyValue(state: AppState, prop: Property, today: ISODate): ValueInfo {
   const vals = state.valuations.filter((v) => v.propertyId === prop.id);
   const idx = indexEstimate(prop, today);
-  const hasOwnValues = vals.some((v) => v.source !== 'purchase');
-  if (hasOwnValues) {
+  const own = vals.filter((v) => v.source !== 'purchase').sort((a, b) => b.date.localeCompare(a.date));
+  if (own.length) {
     const blend = blendedValue([...vals, ...(idx ? [{ ...idx, id: 'idx', propertyId: prop.id }] : [])], today);
-    if (blend) return { value: blend.likely, basis: 'valuation' };
+    if (blend) return { value: blend.likely, basis: 'valuation', source: `Automated valuation blended with ${own.length === 1 ? 'your estimate' : 'your estimates and nearby sales'}`, asOf: today };
   }
-  if (idx) return { value: idx.likely, basis: 'purchase' };
-  return { value: rentBasedValue(state, prop), basis: 'rent' };
+  if (idx) return { value: idx.likely, basis: 'purchase', source: `Automated valuation · ${AVM_PROVIDER}`, asOf: today };
+  return { value: rentBasedValue(state, prop), basis: 'rent', source: `Automated valuation from rent · ${AVM_PROVIDER}`, asOf: today };
+}
+
+// =====================================================================================
+// Portfolio: net worth (whole property × your ownership) and its history
+// =====================================================================================
+export interface PortfolioRow { property: Property; value: Cents; owed: Cents; yours: Cents; earned: Cents; returnPct: number | null; valueInfo: ValueInfo; owedKnown: boolean }
+
+/** What is owed on a date. A rough balance (Silver) only counts for today. */
+export function owedAt(state: AppState, prop: Property, date: ISODate, today: ISODate = date): { owed: Cents; known: boolean } {
+  if (prop.mortgageFree) return { owed: 0, known: true };
+  const m = state.mortgages.find((x) => x.propertyId === prop.id);
+  if (m) return date >= m.startDate ? { owed: mortgageBalanceAt(m, date), known: true } : { owed: 0, known: false };
+  if (prop.approxMortgageBalance !== undefined) return { owed: prop.approxMortgageBalance, known: date === today };
+  return { owed: 0, known: false };
+}
+
+export function portfolio(state: AppState, today: ISODate) {
+  const rows: PortfolioRow[] = state.properties.filter((p) => !p.archived).map((p) => {
+    const own = p.ownershipPct / 100;
+    const vi = propertyValue(state, p, today);
+    // A rent-based value covers only the rented part; scale up to the whole property for net worth.
+    const whole = vi.basis === 'rent' && p.rentalSharePct > 0 ? Math.round(vi.value / (p.rentalSharePct / 100)) : vi.value;
+    const o = owedAt(state, p, today);
+    const w = worthIt(state, today, { propertyId: p.id });
+    return { property: p, value: Math.round(whole * own), owed: Math.round(o.owed * own), yours: Math.round((whole - o.owed) * own), earned: w.total, returnPct: w.returnPct, valueInfo: { ...vi, value: whole }, owedKnown: o.known };
+  }).sort((a, b) => b.value - a.value);
+  // Net worth only counts properties whose mortgage is known (or paid off); others are listed, not guessed.
+  const counted = rows.filter((r) => r.owedKnown);
+  const total = (k: 'value' | 'owed' | 'yours') => counted.reduce((a, r) => a + r[k], 0);
+  return { rows, value: total('value'), owed: total('owed'), yours: total('yours'), estimates: rows.filter((r) => r.valueInfo.basis !== 'valuation').length, notCounted: rows.filter((r) => !r.owedKnown).map((r) => r.property) };
+}
+
+/**
+ * Net worth over time: one point at each year end since the first purchase, plus today.
+ * Uses real data (purchase prices, mortgage balances from the amortization schedule); only value is estimated.
+ * A property joins the line once both its value and its mortgage are known at that date.
+ */
+export function netWorthHistory(state: AppState, today: ISODate): { date: ISODate; yours: Cents; value: Cents; owed: Cents }[] {
+  const props = state.properties.filter((p) => !p.archived && p.purchaseDate && p.purchasePrice);
+  if (!props.length) return [];
+  const first = props.map((p) => p.purchaseDate!).sort()[0];
+  const dates: ISODate[] = [];
+  for (let y = Number(first.slice(0, 4)); y < Number(today.slice(0, 4)); y++) dates.push(`${y}-12-31`);
+  dates.push(today);
+  return dates.map((d) => {
+    let value = 0, owed = 0;
+    for (const p of props) {
+      if (p.purchaseDate! > d) continue;
+      const o = owedAt(state, p, d, today);
+      if (!o.known && d !== today) continue;
+      const own = p.ownershipPct / 100;
+      const v = d === today ? propertyValue(state, p, today).value : indexEstimate(p, d)?.likely ?? p.purchasePrice!;
+      value += Math.round(v * own); owed += Math.round(o.owed * own);
+    }
+    return { date: d, value, owed, yours: value - owed };
+  }).filter((x) => x.value > 0);
 }
 
 /** Bronze estimate: yearly rent ÷ the area's typical gross yield. */

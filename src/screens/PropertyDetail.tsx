@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
+import type { Property } from '../data/types';
 import { propertyLevel, atLeast } from '../lib/levels';
 import { LevelInvite, PropertyCard } from '../components/levels';
-import { addDays, daysBetween, fmtDate, todayISO, yearOf } from '../lib/dates';
+import { daysBetween, fmtDate, todayISO, yearOf } from '../lib/dates';
 import {
-  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, picture, rentBasedValue,
+  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, rentBasedValue, propertyValue,
 } from '../lib/finance';
-import { province, regionData } from '../lib/jurisdiction';
+import { regionData } from '../lib/jurisdiction';
 import { fmt, fmt0, fmtShort, pct } from '../lib/money';
 import { DoorPlate, RentRoll } from '../components/domain';
-import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm, UnitForm } from '../components/forms';
+import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm, TenancyForm, UnitForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
 import { Icon } from '../components/Icon';
 
@@ -23,16 +24,12 @@ export function PropertyDetail() {
 
   return (
     <div className="page">
-      <Link to="/rent" className="crumb"><Icon name="back" size={16} />Rent</Link>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">{p.type} · {province(p.province).name}{p.ownerOccupied ? ' · you live here' : ''}</div>
-          <h1>{p.nickname}</h1>
-          <div className="soft">{p.address}, {p.city}</div>
-        </div>
+      <Link to="/portfolio" className="crumb"><Icon name="back" size={16} />Portfolio</Link>
+      <h1 className="sr-only">{p.nickname}</h1>
+      <div className="prop-head">
+        <PropertyCard property={p} active banner />
         <button className="btn" onClick={() => setEdit(true)}><Icon name="edit" size={16} />Edit details</button>
       </div>
-      <div className="pcard-solo"><PropertyCard property={p} active /></div>
       <nav className="tabs" aria-label="Property sections">
         <NavLink end to={`/rent/property/${p.id}`} className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>
@@ -51,27 +48,18 @@ export function PropertyDetail() {
 function Overview({ id }: { id: string }) {
   const { state, today } = useStore();
   const [unitEdit, setUnitEdit] = useState<string | 'new' | null>(null);
-  const p = state.properties.find((x) => x.id === id)!;
+  const [addTenant, setAddTenant] = useState(false);
   const units = state.units.filter((u) => u.propertyId === id);
-  const yr = useMemo(() => picture(state, addDays(today, -364), today, { propertyId: id }), [state, today, id]);
   return (
     <>
       <section className="section">
-        <h2 className="section-title">Units <button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button></h2>
+        <h2 className="section-title">Units and tenants <span className="btn-row"><button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button>{units.length > 0 && <button className="btn small" onClick={() => setAddTenant(true)}><Icon name="plus" size={14} />Add tenant</button>}</span></h2>
         {units.length ? <div className="plates">{units.map((u) => <div key={u.id} className="plate-wrap"><DoorPlate unit={u} /><button className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button></div>)}</div>
           : <div className="sheet"><Empty title="No units yet." action={<button className="btn" onClick={() => setUnitEdit('new')}>Add a unit</button>} /></div>}
       </section>
       {units.length > 0 && <section className="section"><h2 className="section-title">Rent roll</h2><div className="sheet"><RentRoll propertyId={id} /></div></section>}
-      <section className="section">
-        <h2 className="section-title">Last 12 months</h2>
-        <div className="figures four">
-          <div><div className="label">Rent in</div><Figure cents={yr.rentCollected} size="sm" className="in" /></div>
-          <div><div className="label">Expenses</div><Figure cents={yr.opex} size="sm" /></div>
-          <div><div className="label">Before mortgage</div><Figure cents={yr.noi} size="sm" /></div>
-          <div><div className="label">Left over</div><Figure cents={yr.kept} size="sm" className={yr.kept < 0 ? 'urgent' : ''} /></div>
-        </div>
-        {p.rentalSharePct < 100 && <p className="small soft" style={{ marginTop: 8 }}>Shared costs counted at your {p.rentalSharePct}% rental share.</p>}
-      </section>
+      <p className="small"><Link to="/money/cash-flow">See this property's cash flow</Link></p>
+      {addTenant && <TenancyForm unitId={units.find((u) => !state.leases.some((l) => l.unitId === u.id && (!l.end || l.end >= today)))?.id} onClose={() => setAddTenant(false)} />}
       {unitEdit && <UnitForm propertyId={id} unit={unitEdit === 'new' ? undefined : state.units.find((u) => u.id === unitEdit)} onClose={() => setUnitEdit(null)} />}
     </>
   );
@@ -104,6 +92,8 @@ function ValueTab({ id }: { id: string }) {
             <div className="small soft">{p.rentalSharePct < 100 ? 'The part you rent out is worth roughly' : 'Worth roughly'}</div>
             <div className="figure" style={{ margin: '4px 0 8px' }}>{fmtShort(Math.round(rough * 0.8))} – {fmtShort(Math.round(rough * 1.2))}</div>
             <p className="small soft" style={{ margin: 0 }}>A rough guess from the rent and what homes rent for near {p.city}.</p>
+            <p className="tiny soft" style={{ margin: '6px 0 0' }}>Source: {propertyValue(state, p, today).source} · {fmtDate(today)}</p>
+            <CheckYourself p={p} />
           </div>
         )}
         <LevelInvite property={p} to="silver" title="Get a better estimate" points={['A value range based on what you paid and local prices', "What's yours after the mortgage", 'How it compares with a GIC']} />
@@ -118,6 +108,8 @@ function ValueTab({ id }: { id: string }) {
         <div className="small soft">Worth about</div>
         <div className="figure" style={{ margin: '4px 0 8px' }}>{blend ? `${fmtShort(blend.low)} – ${fmtShort(blend.high)}` : fmtShort(value)}</div>
         <p style={{ margin: 0 }}>Bought for {fmt0(p.purchasePrice)} in {yearOf(p.purchaseDate)}. <span className={change >= 0 ? 'in' : 'urgent'}>{change >= 0 ? 'Up' : 'Down'} {Math.abs(change).toFixed(0)}%.</span></p>
+        <p className="tiny soft" style={{ margin: '6px 0 0' }}>Source: {propertyValue(state, p, today).source} · {fmtDate(today)}</p>
+        <CheckYourself p={p} />
         <hr className="hr" style={{ margin: '16px 0' }} />
         <div className="spread">
           <div><div className="small soft">Yours after the mortgage</div><Figure cents={equity} size="sm" /></div>
@@ -279,5 +271,14 @@ function MortgageTab({ id }: { id: string }) {
       </details>
       {edit && <MortgageForm propertyId={id} mortgage={edit === 'new' ? undefined : m} onClose={() => setEdit(null)} />}
     </>
+  );
+}
+
+/** Links to public estimate sites so the owner can compare and enter their own number. We never copy data from them. */
+function CheckYourself({ p }: { p: Property }) {
+  return (
+    <p className="small" style={{ margin: '10px 0 0' }}>
+      Check it yourself for {p.address}: <a href="https://housesigma.com" target="_blank" rel="noopener noreferrer">HouseSigma</a> · <a href="https://wowa.ca" target="_blank" rel="noopener noreferrer">wowa.ca</a>. Then add your own estimate.
+    </p>
   );
 }

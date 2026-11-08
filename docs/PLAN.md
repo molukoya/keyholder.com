@@ -1,5 +1,27 @@
 # Keyholder build plan
 
+## App structure (after the UX overhaul)
+
+| Tab | Job | Contents |
+|---|---|---|
+| Home | Is this month okay? | Headline, rent this month with Mark paid / Confirm, top 3 to-dos, Keyholder score chip |
+| Portfolio | What do I own and is it working? | Net worth, 12-month earnings and return vs a GIC, split of where it came from, net worth over time, property cards or comparison table |
+| Money | Where did the money go? | Expenses, Cash flow |
+| Taxes | Tax time | Per property and year: checklist, totals with T776 lines, export |
+| Paperwork | Records | Receipts, messages, leases, history |
+| To do | The only task list | Needs you now (receipts, reminders, payments, renewals) and Raise your Keyholder score |
+
+Phones: Home, Portfolio, camera, To do, More (Money, Taxes, Paperwork, Settings). Rent tracking setup is in Settings.
+
+Colour meanings: pine = money in, good, main buttons; rust = needs attention; brass = Keyholder score only;
+bronze/silver/gold metal = property stage, on property cards only; ink blue = links.
+
+**Values and sources.** Property value is the only estimate. Every value shows its source and date. Stage 1 uses
+a labelled placeholder AVM (price index from purchase price, or rent ÷ local yield). Stage 2: license a Canadian
+AVM (Opta/SCM iClarify, Teranet Purview/GeoWarehouse or Altus). HouseSigma, wowa.ca and property.ca have no public
+API and forbid scraping, so the app only links to them ("Check it yourself") and lets the owner enter their own estimate.
+Net worth counts only properties whose mortgage is known; others are listed as "not counted yet".
+
 ## Levels: what users see
 
 Each property earns a level as the owner adds detail. Nothing beyond Bronze is required.

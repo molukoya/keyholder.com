@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import type { Mortgage, MortgageFrequency, Property } from '../data/types';
 import { uid, useStore } from '../data/store';
 import { addMonths } from '../lib/dates';
-import { hasSilver, levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
-import { byValue, keyholderScore, propertyCompletion } from '../lib/score';
-import { mortgagePayment, propertyValue, worthIt } from '../lib/finance';
+import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
+import { keyholderScore } from '../lib/score';
+import { mortgagePayment, portfolio } from '../lib/finance';
 import { fmt, fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
 
@@ -20,33 +20,15 @@ export function LevelBadge({ level, plain }: { level: Level; plain?: boolean }) 
   );
 }
 
-// ---------- % ring ----------
-function Ring({ pct, size = 52 }: { pct: number; size?: number }) {
-  const r = size / 2 - 4, c = 2 * Math.PI * r;
-  return (
-    <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${pct}% complete`}>
-      <circle cx={size / 2} cy={size / 2} r={r} className="ring-track" />
-      <circle cx={size / 2} cy={size / 2} r={r} className="ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle">{pct}%</text>
-    </svg>
-  );
-}
-
 // Remember each card's last stage across renders so an upgrade can play its glow once.
 const seenStage = new Map<string, Level>();
 
-// ---------- The living property card: metal changes with its stage ----------
-export function PropertyCard({ property, suggested, active, compact }: { property: Property; suggested?: boolean; active?: boolean; compact?: boolean }) {
+// ---------- The living property card: its metal shows the property's stage ----------
+export function PropertyCard({ property, active, banner }: { property: Property; active?: boolean; banner?: boolean }) {
   const { state, today } = useStore();
   const nav = useNavigate();
-  const [open, setOpen] = useState(false);
   const level = propertyLevel(state, property);
-  const pct = propertyCompletion(state, property, today);
-  const pv = propertyValue(state, property, today);
-  const earned = worthIt(state, today, { propertyId: property.id }).total;
-  // This property's biggest missing item (same list as the Keyholder score).
-  const item = keyholderScore(state, today).todo.find((i) => i.propertyId === property.id);
-  const formTo: Level | null = item?.levelUp ? (item.levelUp === 'gold' && !hasSilver(property) ? 'silver' : item.levelUp) : null;
+  const row = useMemo(() => portfolio(state, today).rows.find((r) => r.property.id === property.id), [state, today, property.id]);
   const ref = useRef<HTMLDivElement>(null);
   const [upgraded, setUpgraded] = useState(false);
 
@@ -65,58 +47,40 @@ export function PropertyCard({ property, suggested, active, compact }: { propert
     if (e.pointerType === 'touch' || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-    ref.current.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
-    ref.current.style.setProperty('--rx', `${(0.5 - y) * 10}deg`);
+    const k = banner ? 0.35 : 1;
+    ref.current.style.setProperty('--ry', `${(x - 0.5) * 12 * k}deg`);
+    ref.current.style.setProperty('--rx', `${(0.5 - y) * 10 * k}deg`);
     ref.current.style.setProperty('--mx', `${x * 100}%`);
     ref.current.style.setProperty('--my', `${y * 100}%`);
   };
   const onLeave = () => { ref.current?.style.setProperty('--rx', '0deg'); ref.current?.style.setProperty('--ry', '0deg'); };
+  if (!row) return null;
+  const rough = row.valueInfo.basis === 'rent';
 
   return (
-    <>
-      <div ref={ref} className={`pcard ${level}${suggested ? ' suggested' : ''}${active ? ' active' : ''}${upgraded ? ' upgraded' : ''}${compact ? ' compact' : ''}`}
-        onPointerMove={onMove} onPointerLeave={onLeave}>
-        <div className="pcard-light" aria-hidden />
-        <div className="pcard-top">
-          <button className="pcard-name" onClick={() => nav(`/rent/property/${property.id}`)}>
-            <span className="pcard-stage">{levelInfo(level).name}{suggested ? ' · Suggested next' : ''}</span>
-            <span className="pcard-title">{property.nickname}</span>
-            <span className="pcard-addr">{property.address}, {property.city}</span>
-          </button>
-          <Ring pct={pct} />
-        </div>
-        <div className="pcard-figs">
-          <div><span>Worth about</span><strong>{pv.basis === 'rent' ? '~' : ''}{fmtShort(pv.value)}</strong></div>
-          <div><span>Earned, 12 months</span><strong>{fmtShort(earned)}</strong></div>
-        </div>
-        {item && !compact && (
-          <div className="pcard-next">
-            <span>{item.text.replace(` for ${property.nickname}`, '').replace(` at ${property.nickname}`, '')} <em>+{item.points - item.earned} points</em></span>
-            <button className="btn small" onClick={() => (formTo ? setOpen(true) : nav(item.to))}>Add</button>
-          </div>
-        )}
-        {!item && !compact && <div className="pcard-next done"><span>Every detail added. Nice work.</span></div>}
+    <div ref={ref} className={`pcard ${level}${active ? ' active' : ''}${upgraded ? ' upgraded' : ''}${banner ? ' banner' : ''}`}
+      onPointerMove={onMove} onPointerLeave={onLeave}>
+      <div className="pcard-light" aria-hidden />
+      <button className="pcard-name" onClick={() => !banner && nav(`/rent/property/${property.id}`)} tabIndex={banner ? -1 : 0}>
+        <span className="pcard-stage">{levelInfo(level).name}</span>
+        <span className="pcard-title">{property.nickname}</span>
+        <span className="pcard-addr">{property.address}, {property.city}</span>
+      </button>
+      <div className="pcard-figs">
+        <div><span>Worth about</span><strong>{rough ? '~' : ''}{fmtShort(row.value)}</strong></div>
+        <div><span>Yours</span><strong>{row.owedKnown ? fmtShort(row.yours) : '—'}</strong></div>
+        <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong></div>
       </div>
-      {open && formTo && <LevelUpForm property={property} to={formTo} onClose={() => setOpen(false)} />}
-    </>
+      <div className="pcard-source">{row.valueInfo.source}</div>
+    </div>
   );
 }
 
-/** Property cards, most valuable first; the first one still missing details is marked "Suggested next". */
-export function PropertyCards() {
-  const { state, today } = useStore();
-  const props = byValue(state, today);
-  const todo = keyholderScore(state, today).todo;
-  const suggested = props.find((p) => todo.some((i) => i.propertyId === p.id));
-  if (!props.length) return null;
-  return <div className="pcards">{props.map((p) => <PropertyCard key={p.id} property={p} suggested={p.id === suggested?.id} />)}</div>;
-}
-
-// ---------- Keyholder score: small chip, opens what to do next ----------
+// ---------- Keyholder score chip: the only score in the app. Opens To do. ----------
 export function ScoreChip() {
   const { state, today } = useStore();
+  const nav = useNavigate();
   const { score, todo } = useMemo(() => keyholderScore(state, today), [state, today]);
-  const [open, setOpen] = useState(false);
   const shown = useCountUp(score);
   const prev = useRef(score);
   const [bump, setBump] = useState(false);
@@ -126,15 +90,16 @@ export function ScoreChip() {
   }, [score]);
   const next = todo[0];
   return (
-    <>
-      <button className={`score-chip${bump ? ' bump' : ''}`} onClick={() => setOpen(true)} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
-        <span className="score-ring" style={{ ['--p' as string]: `${score}` }}><span>{shown}</span></span>
-        <span className="score-label">Keyholder score</span>
-        {next && <span className="score-next">+{next.points - next.earned} next</span>}
-      </button>
-      {open && <ScoreDrawer onClose={() => setOpen(false)} />}
-    </>
+    <button className={`score-chip${bump ? ' bump' : ''}`} onClick={() => nav('/todo')} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
+      <ScoreRing score={shown} />
+      <span className="score-label">Keyholder score</span>
+      {next && <span className="score-next">+{next.points - next.earned} next</span>}
+    </button>
   );
+}
+
+export function ScoreRing({ score, big }: { score: number; big?: boolean }) {
+  return <span className={`score-ring${big ? ' big' : ''}`} style={{ ['--p' as string]: `${score}` }}><span>{score}</span></span>;
 }
 
 function useCountUp(target: number) {
@@ -151,38 +116,12 @@ function useCountUp(target: number) {
   return v;
 }
 
-function ScoreDrawer({ onClose }: { onClose: () => void }) {
-  const { state, today } = useStore();
-  const nav = useNavigate();
-  const { score, todo } = keyholderScore(state, today);
-  const [form, setForm] = useState<{ p: Property; to: Level } | null>(null);
-  return (
-    <Drawer title="Keyholder score" onClose={onClose}>
-      <div className="score-hero"><span className="score-ring big" style={{ ['--p' as string]: `${score}` }}><span>{score}</span></span>
-        <p style={{ margin: 0 }}>{score >= 100 ? 'Everything is complete.' : 'Complete these to raise your score. Bigger wins first.'}</p></div>
-      <ul className="rows">{todo.slice(0, 12).map((i) => (
-        <li key={i.id} className="row" style={{ gridTemplateColumns: '56px 1fr auto' }}>
-          <span className="pts">+{i.points - i.earned}</span>
-          <span className="title">{i.text}</span>
-          <button className="btn small" onClick={() => {
-            const p = state.properties.find((x) => x.id === i.propertyId);
-            if (i.levelUp && p) setForm({ p, to: i.levelUp === 'gold' && !hasSilver(p) ? 'silver' : i.levelUp });
-            else { onClose(); nav(i.to); }
-          }}>Do it</button>
-        </li>
-      ))}</ul>
-      {form && <LevelUpForm property={form.p} to={form.to} onClose={() => setForm(null)} />}
-    </Drawer>
-  );
-}
-
 // ---------- A locked tab, shown as an invitation ----------
 export function LevelInvite({ property, to, title, points }: { property: Property; to: Level; title: string; points: string[] }) {
   const [open, setOpen] = useState(false);
   const step = nextStep(useStore().state, property);
   return (
     <div className="sheet invite">
-      <LevelBadge level={to} />
       <h2>{title}</h2>
       <ul>{points.map((x) => <li key={x}>{x}</li>)}</ul>
       <button className="btn primary" onClick={() => setOpen(true)}>{step?.to === to ? step.action : to === 'gold' ? 'Add what I paid first' : 'Add details'}</button>

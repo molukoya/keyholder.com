@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { Link } from 'react-router-dom';
-import { LEVELS, propertyLevel } from '../lib/levels';
+
+import { LEVELS } from '../lib/levels';
 import { LevelBadge } from '../components/levels';
+import { RentTracking } from './Money';
 import { PACK_VERIFIED, PACK_VERSION, PROVINCES, province } from '../lib/jurisdiction';
 import { fmtDate } from '../lib/dates';
 import { TONES } from '../lib/templates';
@@ -20,19 +21,13 @@ export function Settings() {
       <div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1></div></div>
 
       <section className="section" id="levels">
-        <h2 className="section-title">Levels</h2>
+        <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
         <div className="sheet">
-          <p className="soft" style={{ marginTop: 0 }}>Each property earns a level as you add more about it. Nothing beyond Bronze is required.</p>
+          <p className="soft" style={{ marginTop: 0 }}>A property's card changes colour as you add more about it. Nothing beyond Bronze is required.</p>
           <ul className="rows">{LEVELS.map((l) => (
             <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
               <LevelBadge level={l.id} />
               <span><span className="title">{l.gives}</span><span className="sub" style={{ display: 'block' }}>Add: {l.needs.toLowerCase()}</span></span>
-            </li>
-          ))}</ul>
-          <h3 style={{ margin: '16px 0 8px' }}>Your properties</h3>
-          <ul className="rows">{state.properties.filter((x) => !x.archived).map((x) => (
-            <li key={x.id} className="row" style={{ gridTemplateColumns: '1fr auto' }}>
-              <Link to={`/rent/property/${x.id}`} className="title">{x.nickname}</Link><LevelBadge level={propertyLevel(state, x)} />
             </li>
           ))}</ul>
         </div>
@@ -50,6 +45,11 @@ export function Settings() {
             <Field label="City" htmlFor="st-c"><select id="st-c" className="input" value={p.city} onChange={(e) => act.setProfile({ city: e.target.value })}>{province(p.province).cities.map((c) => <option key={c}>{c}</option>)}</select></Field>
           </div>
         </div>
+      </section>
+
+      <section className="section" id="rent-tracking">
+        <h2 className="section-title">Rent tracking</h2>
+        <RentTracking />
       </section>
 
       <section className="section">

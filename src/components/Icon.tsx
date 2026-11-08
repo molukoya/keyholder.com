@@ -27,6 +27,7 @@ const P: Record<string, string> = {
   trash: 'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',
   info: 'M12 8v.01M11 12h1v5h1M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
   alert: 'M12 4l9 16H3zM12 10v4M12 17v.01',
+  menu: 'M4 7h16M4 12h16M4 17h16',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
 };
 

@@ -192,3 +192,18 @@ describe('levels and rent-based value (Bronze)', () => {
     expect(worthIt(state(s), '2026-11-08').returnPct).not.toBeNull();
   });
 });
+
+describe('portfolio and net worth history', () => {
+  it('sums worth, owed and yours; history starts when value and mortgage are both known', async () => {
+    const { seedState } = await import('../data/seed');
+    const { portfolio, netWorthHistory } = await import('./finance');
+    const s = seedState();
+    const pf = portfolio(s, '2026-11-08');
+    expect(pf.yours).toBe(pf.value - pf.owed);
+    expect(pf.rows[0].value).toBeGreaterThanOrEqual(pf.rows[1].value);
+    const h = netWorthHistory(s, '2026-11-08');
+    expect(h[0].date).toBe('2019-12-31'); // Maple duplex: bought June 2019, mortgage from July 2019
+    expect(h[h.length - 1].date).toBe('2026-11-08');
+    expect(h.every((x) => x.yours === x.value - x.owed)).toBe(true);
+  });
+});

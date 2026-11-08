@@ -3,14 +3,15 @@ import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLo
 import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
 import { trayItems } from './lib/tray';
+import { daysBetween } from './lib/dates';
 import { Icon, KeyMark } from './components/Icon';
 import { ExpenseForm, PaymentForm } from './components/forms';
 import { Onboarding } from './screens/Onboarding';
 import { Today } from './screens/Today';
-import { Rent } from './screens/Rent';
+import { Portfolio } from './screens/Portfolio';
 import { PropertyDetail } from './screens/PropertyDetail';
 import { TenantDetail } from './screens/TenantDetail';
-import { Money } from './screens/Money';
+import { Money, Taxes } from './screens/Money';
 import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
 import { Tray } from './screens/Tray';
@@ -45,7 +46,8 @@ function Shell() {
   const [pay, setPay] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
-  const count = useMemo(() => trayItems(state, today).length, [state, today]);
+  // Badge = everything under "Needs you now" on To do (renewals included).
+  const count = useMemo(() => trayItems(state, today).length + state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; }).length, [state, today]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
   // Desktop keyboard shortcuts (PRD §12): P = log a payment, E = add an expense, T = open the tray.
@@ -62,9 +64,10 @@ function Shell() {
   }, [navigate]);
 
   const nav = [
-    { to: '/today', label: 'Today', icon: 'today' },
-    { to: '/rent', label: 'Rent', icon: 'rent' },
+    { to: '/today', label: 'Home', icon: 'home' },
+    { to: '/portfolio', label: 'Portfolio', icon: 'chart' },
     { to: '/money', label: 'Money', icon: 'money' },
+    { to: '/taxes', label: 'Taxes', icon: 'print' },
     { to: '/paperwork', label: 'Paperwork', icon: 'paper' },
   ];
 
@@ -75,8 +78,7 @@ function Shell() {
         {nav.map((n) => <NavLink key={n.to} to={n.to} className="nav-link"><Icon name={n.icon} />{n.label}</NavLink>)}
         <NavLink to="/todo" className="nav-link"><Icon name="tray" />To do{count > 0 && <span className="badge" aria-label={`${count} items`}>{count}</span>}</NavLink>
         <div style={{ height: 16 }} />
-        <button className="btn primary" onClick={() => setPay(true)}><Icon name="check" size={18} />Mark rent paid</button>
-        <button className="btn" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
+        <button className="btn primary" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
         </div>
@@ -85,16 +87,18 @@ function Shell() {
       <div className="main">
         <div className="mobile-top">
           <Link to="/today" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
-          <div className="btn-row">
-            <Link to="/paperwork" className="btn ghost" aria-label="Paperwork"><Icon name="paper" /></Link>
-            <Link to="/settings" className="btn ghost" aria-label="Settings"><Icon name="settings" /></Link>
-          </div>
         </div>
         <main>
           <Routes>
             <Route path="/" element={<Navigate to="/today" replace />} />
-            <Route path="/today" element={<Today onPay={() => setPay(true)} onCapture={() => setCapture(true)} />} />
-            <Route path="/rent" element={<Rent />} />
+            <Route path="/today" element={<Today />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/rent" element={<Navigate to="/portfolio" replace />} />
+            <Route path="/taxes" element={<Taxes />} />
+            <Route path="/money/tax" element={<Navigate to="/taxes" replace />} />
+            <Route path="/money/worth-it" element={<Navigate to="/portfolio" replace />} />
+            <Route path="/money/bank" element={<Navigate to="/settings#rent-tracking" replace />} />
+            <Route path="/more" element={<More />} />
             <Route path="/rent/property/:id" element={<PropertyDetail />} />
             <Route path="/rent/property/:id/:tab" element={<PropertyDetail />} />
             <Route path="/rent/tenant/:id" element={<TenantDetail />} />
@@ -111,16 +115,34 @@ function Shell() {
       </div>
 
       <nav className="bottombar" aria-label="Main">
-        <NavLink to="/today"><Icon name="today" />Today</NavLink>
-        <NavLink to="/rent"><Icon name="rent" />Rent</NavLink>
+        <NavLink to="/today"><Icon name="home" />Home</NavLink>
+        <NavLink to="/portfolio"><Icon name="chart" />Portfolio</NavLink>
         <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
-        <NavLink to="/money"><Icon name="money" />Money</NavLink>
         <NavLink to="/todo"><Icon name="tray" />To do{count > 0 && <span className="badge">{count}</span>}</NavLink>
+        <NavLink to="/more" className={['/money', '/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
 
       {capture && <ExpenseForm onClose={() => setCapture(false)} />}
       {pay && <PaymentForm onClose={() => setPay(false)} />}
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div className="toast" key={t.id}>{t.text}</div>)}</div>
+    </div>
+  );
+}
+
+/** Phone "More" menu: big, plain buttons for the less frequent tabs. */
+function More() {
+  const items = [
+    { to: '/money', icon: 'money', label: 'Money', sub: 'Expenses and cash flow' },
+    { to: '/taxes', icon: 'print', label: 'Taxes', sub: 'Your tax summary for the year' },
+    { to: '/paperwork', icon: 'paper', label: 'Paperwork', sub: 'Receipts, messages and leases' },
+    { to: '/settings', icon: 'settings', label: 'Settings', sub: 'You, rent tracking, reminders' },
+  ];
+  return (
+    <div className="page">
+      <div className="page-head"><h1>More</h1></div>
+      <div className="more-list">{items.map((i) => (
+        <Link key={i.to} to={i.to} className="more-item"><Icon name={i.icon} size={26} /><span><strong>{i.label}</strong><span>{i.sub}</span></span><Icon name="next" /></Link>
+      ))}</div>
     </div>
   );
 }

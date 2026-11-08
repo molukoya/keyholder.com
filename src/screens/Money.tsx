@@ -3,11 +3,10 @@ import { Link, NavLink, useParams } from 'react-router-dom';
 import type { BankName, Expense } from '../data/types';
 import { useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
-import { LevelBadge, LevelInvite } from '../components/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
-import { picture, rentalPortion, taxPack, verdict, verdictTag, worthIt } from '../lib/finance';
-import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
-import { fmt, fmt0, pct } from '../lib/money';
+import { picture, rentalPortion, taxPack } from '../lib/finance';
+import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
+import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
 import { BankStatus } from '../components/domain';
@@ -15,24 +14,25 @@ import { Icon } from '../components/Icon';
 
 export function Money() {
   const { tab = 'expenses' } = useParams();
-  const tabs = [
-    { id: 'expenses', label: 'Expenses' },
-    { id: 'bank', label: 'Rent tracking' },
-    { id: 'summary', label: 'Summary' },
-    { id: 'worth-it', label: 'Worth it?' },
-    { id: 'tax', label: 'Taxes' },
-  ];
+  const tabs = [{ id: 'expenses', label: 'Expenses' }, { id: 'cash-flow', label: 'Cash flow' }];
+  const cur = tab === 'summary' || tab === 'picture' ? 'cash-flow' : tab;
   return (
     <div className="page">
-      <div className="page-head"><div><h1>{tabs.find((t) => t.id === tab)?.label ?? 'Money'}</h1></div></div>
+      <div className="page-head"><h1>Money</h1></div>
       <nav className="tabs" aria-label="Money sections">
-        {tabs.map((t) => <NavLink key={t.id} to={`/money/${t.id}`} className={tab === t.id ? 'active' : ''}>{t.label}</NavLink>)}
+        {tabs.map((t) => <NavLink key={t.id} to={`/money/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}
       </nav>
-      {tab === 'expenses' && <Expenses />}
-      {tab === 'bank' && <Bank />}
-      {(tab === 'summary' || tab === 'picture') && <ThePicture />}
-      {tab === 'worth-it' && <WorthItPage />}
-      {tab === 'tax' && <TaxPackPage />}
+      {cur === 'cash-flow' ? <ThePicture /> : <Expenses />}
+    </div>
+  );
+}
+
+/** Taxes: its own tab. */
+export function Taxes() {
+  return (
+    <div className="page">
+      <div className="page-head"><h1>Taxes</h1></div>
+      <TaxPackPage />
     </div>
   );
 }
@@ -95,7 +95,8 @@ function Expenses() {
 // =====================================================================================
 // How rent is tracked: two choices only — mark it yourself, or connect a bank that is checked every 4 hours.
 // =====================================================================================
-function Bank() {
+/** How rent is tracked (shown in Settings). */
+export function RentTracking() {
   const { state, act } = useStore();
   const [connect, setConnect] = useState(false);
   const deposits = state.txns.filter((t) => t.amount > 0 && t.status !== 'ignored').slice(0, 20);
@@ -278,74 +279,6 @@ export function BenchmarkRuler({ value, band, unit = '%', compact, labels, highe
   );
 }
 
-function WorthItPage() {
-  const { state, today } = useStore();
-  const [prop, setProp] = useState<string>('all');
-  const w = useMemo(() => worthIt(state, today, { propertyId: prop === 'all' ? undefined : prop }), [state, today, prop]);
-  const tag = verdictTag(w);
-  const p = state.properties.find((x) => x.id === prop) ?? state.properties[0];
-  const region = p ? regionData(p.province, p.city) : null;
-  const pic = picture(state, addDays(today, -364), today, { propertyId: prop === 'all' ? undefined : prop });
-  const units = state.units.filter((u) => prop === 'all' || u.propertyId === prop);
-  const potential = units.reduce((a, u) => a + u.rent * 12, 0);
-  const vacancy = potential ? ((pic.vacancyLoss + pic.arrearsLoss) / potential) * 100 : 0;
-  const grossYield = w.value ? (pic.rentCollected / (w.value || 1)) * 100 : 0;
-  const props = state.properties.filter((x) => !x.archived);
-  const bronze = props.find((x) => (prop === 'all' || x.id === prop) && propertyLevel(state, x) === 'bronze');
-
-  return (
-    <>
-      {props.length > 1 && (
-        <div className="btn-row" style={{ marginBottom: 16 }}>
-          <select className="input" style={{ width: 'auto' }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
-            <option value="all">All properties</option>
-            {props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}
-          </select>
-        </div>
-      )}
-      <div className="sheet">
-        {tag && <span className={`status ${tag.tone === 'good' ? 'paid' : tag.tone === 'bad' ? 'late' : 'due'}`} style={{ marginBottom: 12 }}>{tag.text}</span>}
-        <div className="small soft">Last 12 months you earned about</div>
-        <Figure cents={w.total} className={w.total < 0 ? 'urgent' : 'in'} />
-        {w.returnPct !== null ? (
-          <>
-            <p className="serif" style={{ fontSize: 'var(--t-20)', margin: '12px 0 0' }}>{verdict(w)}</p>
-            <BenchmarkRuler value={w.returnPct} compact />
-          </>
-        ) : <p className="small soft" style={{ margin: '12px 0 0' }}>Includes a rough guess at value growth for {w.roughValue.join(' and ')}. Add what you paid to compare with a GIC.</p>}
-      </div>
-      {bronze && <LevelInvite property={bronze} to="silver" title="Compare with a GIC" points={[`A better value estimate for ${bronze.nickname}`, 'Your return as a percentage', 'How it compares with a GIC and your area']} />}
-
-      <details className="more">
-        <summary>See how</summary>
-        <div className="more-body">
-          <table className="ledger"><tbody>
-            <tr><td>Rent left over after costs</td><td className="num">{fmt0(w.cashFlow)}</td></tr>
-            {w.principalPaid > 0 && <tr><td>Mortgage paid off</td><td className="num">{fmt0(w.principalPaid)}</td></tr>}
-            <tr><td>Change in value{w.appreciationEstimated ? ' (estimated)' : ''}</td><td className="num">{fmt0(w.appreciation)}</td></tr>
-            <tr><td><strong>Total gain this year</strong></td><td className="num"><strong>{fmt0(w.total)}</strong></td></tr>
-            <tr><td>Your money in the property<div className="tiny soft">Worth {fmt0(w.value)}, less {fmt0(w.debt)} owed</div></td><td className="num">{fmt0(w.equity)}</td></tr>
-            <tr><td><strong>Gain ÷ your money</strong></td><td className="num"><strong>{w.returnPct === null ? '—' : pct(w.returnPct)}</strong></td></tr>
-          </tbody></table>
-          {state.properties.some((x) => x.ownerOccupied) && <p className="tiny soft" style={{ marginTop: 8 }}>For a home you live in, only the rented part counts.</p>}
-        </div>
-      </details>
-
-      {region && (
-        <details className="more">
-          <summary>Compare with {region.fallback ? 'Canada' : p.city}</summary>
-          <div className="more-body">
-            <BenchmarkRuler title="Empty or unpaid rent" value={vacancy} band={region.vacancy} higherIsBetter={false} compact />
-            <BenchmarkRuler title="Yearly rent ÷ value" value={grossYield} band={region.grossYield} compact />
-            <BenchmarkRuler title="Costs as a share of rent" value={pic.expenseRatio} band={region.expenseRatio} higherIsBetter={false} compact />
-            <p className="tiny soft">Sample figures for now. Real local figures come from CMHC and CREA later.</p>
-          </div>
-        </details>
-      )}
-    </>
-  );
-}
-
 // =====================================================================================
 // Phase 3 — Tax Pack (T776)
 // =====================================================================================
@@ -400,7 +333,7 @@ function TaxPackPage() {
       </div>
 
       <div className="sheet print-me">
-        <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname} <LevelBadge level={propertyLevel(state, p)} /></h2>
+        <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname}</h2>
         <p className="small soft" style={{ marginTop: 0 }}>Line numbers are for your accountant (CRA form T776).</p>
         <table className="ledger tax-totals">
           <tbody>

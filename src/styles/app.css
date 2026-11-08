@@ -337,6 +337,7 @@ input[type=range] { accent-color: var(--brass); width: 100%; }
 /* ---------- Misc ---------- */
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s-5); align-items: start; }
 @media (max-width: 1040px) { .split { grid-template-columns: 1fr; } }
+.split > * { min-width: 0; }
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule-strong); margin-bottom: var(--s-5); overflow-x: auto; }
 .tabs a, .tabs button { font: inherit; font-size: var(--t-14); font-weight: 500; padding: var(--s-3) var(--s-4); color: var(--ink-soft); text-decoration: none; border: 0; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; white-space: nowrap; min-height: 44px; }
 .tabs a.active, .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brass); }
@@ -499,3 +500,45 @@ details.more .more-body { padding-bottom: var(--s-4); }
 .invite ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .earn-parts { list-style: none; margin: var(--s-3) 0 0; padding: 0; border-top: 1px solid var(--rule); }
 .earn-parts li { display: flex; justify-content: space-between; gap: var(--s-3); padding: 10px 0; border-bottom: 1px solid var(--rule); }
+
+/* ---------- Portfolio ---------- */
+.pf-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-5); margin-bottom: var(--s-6); }
+.pf-hero .sheet { margin: 0; }
+.pf-worth .figure.lg { display: block; margin-top: 4px; font-size: clamp(2.6rem, 6vw, var(--t-72)); }
+@media (max-width: 860px) { .pf-hero { grid-template-columns: 1fr; } }
+.split-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin-top: var(--s-4); background: var(--paper-sunk); }
+.split-bar span { display: block; height: 100%; }
+.split-bar .rent, .split-legend i.rent { background: var(--pine); }
+.split-bar .growth, .split-legend i.growth { background: color-mix(in srgb, var(--pine) 55%, var(--paper-raised)); }
+.split-bar .paid, .split-legend i.paid { background: color-mix(in srgb, var(--pine) 28%, var(--paper-raised)); }
+.split-legend { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--t-14); }
+.split-legend li { display: flex; align-items: center; gap: 8px; }
+.split-legend li .mono { margin-left: auto; }
+.split-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.pcard-figs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pcard-figs strong { font-size: var(--t-20); }
+.pcard-source { font-size: var(--t-12); color: var(--metal-soft); }
+.pcard { min-height: 0; }
+.pcard.banner { flex: 1; padding: var(--s-4) var(--s-5); }
+.prop-head { display: flex; gap: var(--s-4); align-items: flex-start; margin-bottom: var(--s-5); }
+.prop-head .pcard { max-width: 640px; }
+@media (max-width: 640px) { .prop-head { flex-direction: column-reverse; } .prop-head .btn { align-self: flex-end; } .prop-head .pcard { width: 100%; } }
+
+/* ---------- Home: To do preview ---------- */
+.todo-preview { list-style: none; margin: 0; padding: 0; background: var(--paper-raised); border: 1px solid var(--rule); box-shadow: var(--shadow-line); }
+.todo-preview li + li { border-top: 1px solid var(--rule); }
+.todo-preview a { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-5); min-height: 60px; color: var(--ink); text-decoration: none; font-size: var(--t-16); }
+.todo-preview a:hover { background: var(--paper); }
+.todo-preview a span { flex: 1; }
+.todo-preview a.urgent { box-shadow: inset 4px 0 0 var(--rust); }
+.todo-preview em { font-style: normal; font-family: var(--font-mono); color: var(--brass); font-weight: 500; }
+.pts { color: var(--brass); }
+.score-next { color: var(--brass); }
+
+/* ---------- Phone "More" menu ---------- */
+.more-list { display: grid; gap: var(--s-3); }
+.more-item { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4) var(--s-5); min-height: 76px; background: var(--paper-raised); border: 1px solid var(--rule); box-shadow: var(--shadow-line); color: var(--ink); text-decoration: none; }
+.more-item > span { flex: 1; display: flex; flex-direction: column; }
+.more-item strong { font-size: var(--t-20); font-family: var(--font-display); font-weight: 500; }
+.more-item > span > span { color: var(--ink-soft); font-size: var(--t-14); }
+.more-item svg:first-child { color: var(--pine); }

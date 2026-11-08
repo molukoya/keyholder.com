@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 export function defaultProfile(): Profile {
   return {
@@ -86,7 +86,7 @@ export function seedState(profile?: Profile): AppState {
   const receipts: Receipt[] = [];
   const messages: Message[] = [];
   let rn = 1001;
-  const from = addMonths(`${thisPeriod}-01`, -14).slice(0, 7);
+  const from = addMonths(`${thisPeriod}-01`, -36).slice(0, 7); // back to each lease's start (up to 3 years)
   const lastPeriod = addMonths(`${thisPeriod}-01`, -1).slice(0, 7);
   for (const l of leases) {
     for (const p of periodRange(from < periodOf(l.start) ? periodOf(l.start) : from, lastPeriod)) {

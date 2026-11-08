@@ -2,25 +2,24 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { daysBetween, fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
-import { activeLease, leaseLedger, picture, verdict, verdictTag, worthIt } from '../lib/finance';
-import { fmt, fmt0 } from '../lib/money';
-import { PropertyCards, ScoreChip } from '../components/levels';
+import { activeLease, leaseLedger } from '../lib/finance';
+import { fmt } from '../lib/money';
+import { ScoreChip } from '../components/levels';
+import { keyholderScore } from '../lib/score';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
-import { Figure } from '../components/ui';
+import { Empty } from '../components/ui';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 import { Icon } from '../components/Icon';
 
 // Today answers one question: "Am I okay?" — who has paid, what is left over, and what needs me.
 
-export function Today({ onCapture }: { onPay: () => void; onCapture: () => void }) {
+export function Today() {
   const { state, today } = useStore();
   const [payLease, setPayLease] = useState<string | null>(null);
   const p = periodOf(today);
-  const monthStart = `${p}-01`;
-  const now = useMemo(() => picture(state, monthStart, today), [state, monthStart, today]);
   const todo = useMemo(() => trayItems(state, today), [state, today]);
   const pending = new Set(todo.flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
   const units = state.units.filter((u) => state.properties.some((x) => x.id === u.propertyId && !x.archived));
@@ -60,8 +59,18 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
   else if (!late.length) headline = <><em>All rent is in.</em> You're all set.</>;
   else headline = <>{paid} of {occupied.length} paid. <span className="bad">{late.length === 1 ? `${firstName(late[0])} is late.` : `${late.length} tenants are late.`}</span></>;
 
+  // Top 3 from the one To do list: urgent things first, then the biggest score gains.
   const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; });
-  const out = now.opex + now.capital + now.mortgageInterest + now.mortgagePrincipal;
+  const tname = (id?: string) => state.tenants.find((x) => x.id === id)?.names[0].split(' ')[0] ?? 'a tenant';
+  const urgentItems = [
+    ...todo.map((t) => ({
+      id: t.id, urgent: true, points: 0,
+      text: t.kind === 'message' ? `Send ${tname(t.message.tenantId)} a receipt` : t.kind === 'reminder' ? `Remind ${tname(t.lease.tenantId)} about rent` : `Confirm a payment from ${t.txn.payer}`,
+    })),
+    ...renewals.map((m) => ({ id: m.id, urgent: true, points: 0, text: `Mortgage renews in ${daysBetween(today, m.termEnd)} days` })),
+  ];
+  const scoreItems = keyholderScore(state, today).todo.map((i) => ({ id: i.id, urgent: false, points: i.points - i.earned, text: i.text }));
+  const top = [...urgentItems, ...scoreItems].slice(0, 3);
 
   return (
     <div className="page">
@@ -111,40 +120,15 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
         <BankStatus compact />
       </section>
 
-      {renewals.map((m) => (
-        <div key={m.id} className="callout brass">
-          <strong>Mortgage renews in {daysBetween(today, m.termEnd)} days.</strong> <Link to={`/rent/property/${m.propertyId}/mortgage`}>See mortgage</Link>
-        </div>
-      ))}
-
-      {todo.length > 0 && (
-        <section className="section">
-          <h2 className="section-title">To do</h2>
-          <Link to="/todo" className="todo-banner">
-            <span className="badge big">{todo.length}</span>
-            <span>{todoSummary(todo.map((t) => t.kind))}</span>
-            <Icon name="next" />
-          </Link>
-        </section>
-      )}
-
       <section className="section">
-        <h2 className="section-title">{fmtPeriod(p)} so far</h2>
-        <div className="figures">
-          <div><div className="label">Money in</div><Figure cents={now.rentCollected} className="in" /></div>
-          <div><div className="label">Money out</div><Figure cents={out} /></div>
-          <div><div className="label">Left over</div><Figure cents={now.kept} className={now.kept < 0 ? 'urgent' : ''} /></div>
-        </div>
-        <div className="btn-row" style={{ marginTop: 12 }}>
-          <button className="btn" onClick={onCapture}><Icon name="camera" size={18} />Add a receipt</button>
-          <Link className="btn ghost" to="/money/summary">See details</Link>
-        </div>
-      </section>
-
-      <EarningsCard />
-      <section className="section">
-        <h2 className="section-title">Your properties</h2>
-        <PropertyCards />
+        <h2 className="section-title">To do <Link to="/todo" className="small">See all</Link></h2>
+        {top.length === 0 ? <div className="sheet"><Empty title="All done.">Nothing needs you right now.</Empty></div> : (
+          <ul className="todo-preview">
+            {top.map((t) => (
+              <li key={t.id}><Link to="/todo" className={t.urgent ? 'urgent' : ''}><span>{t.text}</span>{t.points ? <em>+{t.points}</em> : null}<Icon name="next" size={18} /></Link></li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
@@ -156,40 +140,4 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
 
 function firstName(r: { tenant?: { names: string[] } }) { return r.tenant?.names[0].split(' ')[0] ?? 'A tenant'; }
 
-function todoSummary(kinds: string[]) {
-  const n = (k: string) => kinds.filter((x) => x === k).length;
-  const parts = [
-    n('message') && `${n('message')} receipt${n('message') > 1 ? 's' : ''} to send`,
-    n('reminder') && `${n('reminder')} reminder${n('reminder') > 1 ? 's' : ''} to send`,
-    n('match') && `${n('match')} payment${n('match') > 1 ? 's' : ''} to confirm`,
-  ].filter(Boolean);
-  return parts.join(' · ');
-}
 
-// What the rentals earned: rent left over, plus estimated value growth, plus mortgage paid off.
-function EarningsCard() {
-  const { state, today } = useStore();
-  const w = useMemo(() => worthIt(state, today), [state, today]);
-  const tag = verdictTag(w);
-  if (!state.properties.length) return null;
-  return (
-    <section className="section">
-      <h2 className="section-title">Last 12 months</h2>
-      <div className="sheet">
-        <div className="small soft">You earned about</div>
-        <Figure cents={w.total} className={w.total < 0 ? 'urgent' : 'in'} />
-        <ul className="earn-parts">
-          <li><span>Rent left over after costs</span><span className="mono">{fmt0(w.cashFlow)}</span></li>
-          <li><span>Value growth{w.appreciationEstimated ? ' (estimated)' : ''}</span><span className="mono">{fmt0(w.appreciation)}</span></li>
-          {w.principalPaid > 0 && <li><span>Mortgage paid off</span><span className="mono">{fmt0(w.principalPaid)}</span></li>}
-        </ul>
-        {w.returnPct !== null ? (
-          <p style={{ margin: '12px 0 0' }}>{tag && <span className={`status ${tag.tone === 'good' ? 'paid' : tag.tone === 'bad' ? 'late' : 'due'}`} style={{ marginRight: 8 }}>{tag.text}</span>}{verdict(w)}</p>
-        ) : (
-          <p className="small soft" style={{ margin: '12px 0 0' }}>Value for {w.roughValue.join(' and ')} is a rough guess from the rent. Add what you paid for a better number.</p>
-        )}
-        <Link to="/money/worth-it">See how it's worked out</Link>
-      </div>
-    </section>
-  );
-}
