@@ -113,13 +113,20 @@ export function amortization(m: Mortgage): AmortRow[] {
   const pay = m.paymentOverride ?? mortgagePayment(m.principal, m.ratePct, m.amortYears, m.frequency);
   const rows: AmortRow[] = [];
   let bal = m.principal;
+  const extras = [...(m.prepayments ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+  let prevDate = m.startDate;
   for (let k = 1; bal > 0 && k <= m.amortYears * n + 1; k++) {
+    // Extra payments made since the last regular payment go straight to principal.
+    const date = paymentDate(m.startDate, k, m.frequency);
+    for (const x of extras) if (x.date > prevDate && x.date <= date) bal = Math.max(0, bal - x.amount);
+    prevDate = date;
+    if (bal <= 0) break;
     const interest = Math.round(bal * i);
     let principal = pay - interest;
     if (principal <= 0) break; // payment does not cover interest; schedule never ends
     if (principal > bal) principal = bal;
     bal -= principal;
-    rows.push({ n: k, date: paymentDate(m.startDate, k, m.frequency), payment: interest + principal, interest, principal, balance: bal });
+    rows.push({ n: k, date, payment: interest + principal, interest, principal, balance: bal });
   }
   return rows;
 }

@@ -60,12 +60,18 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
   return items;
 }
 
+export const scoreKey = (i: ScoreItem) => `score:${i.id}`;
+
 export function keyholderScore(state: AppState, today: string): { score: number; todo: ScoreItem[] } {
-  const items = scoreItems(state, today);
+  // Ignored items no longer count against the score; hidden ones still count but are not suggested.
+  const prefs = state.todoPrefs ?? {};
+  const all = scoreItems(state, today);
+  const items = all.filter((i) => !prefs[scoreKey(i)]?.ignored);
   const total = items.reduce((a, i) => a + i.points, 0);
   const earned = items.reduce((a, i) => a + i.earned, 0);
   // Biggest gain first; ties keep the property-value order they were built in.
-  const todo = items.filter((i) => i.earned < i.points).map((i, n) => ({ i, n })).sort((a, b) => (b.i.points - b.i.earned) - (a.i.points - a.i.earned) || a.n - b.n).map((x) => x.i);
+  const hidden = (i: ScoreItem) => { const h = prefs[scoreKey(i)]?.hiddenUntil; return !!h && h > today; };
+  const todo = items.filter((i) => i.earned < i.points && !hidden(i)).map((i, n) => ({ i, n })).sort((a, b) => (b.i.points - b.i.earned) - (a.i.points - a.i.earned) || a.n - b.n).map((x) => x.i);
   return { score: total ? Math.round((earned / total) * 100) : 0, todo };
 }
 

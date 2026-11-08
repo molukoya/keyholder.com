@@ -595,3 +595,36 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
 @media (max-width: 640px) { .form-row { grid-template-columns: minmax(0, 1fr); } .form-row .form-code { font-size: 12px; color: var(--ink-soft); } .form-row .unit-state { grid-column: 1; } }
 .checks li.warn { color: var(--brass); }
 .checks li.warn svg { flex: none; }
+
+/* ---------- Home: tenant journey cards ---------- */
+.track-top { margin: -8px 0 var(--s-5); }
+.jcards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
+.jcard { background: var(--paper-raised); border: 1px solid var(--rule); box-shadow: var(--shadow-line); padding: var(--s-4) var(--s-5); display: grid; gap: var(--s-3); border-left: 4px solid var(--pine); }
+.jcard.urgent { border-left-color: var(--rust); }
+.jcard-head { display: flex; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; font-size: var(--t-16); }
+.jcard-progress { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-soft); white-space: nowrap; }
+.jcard-step { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; }
+.jcard-text { font-family: var(--font-display); font-size: var(--t-20); line-height: 1.3; }
+.jcard-foot { display: flex; justify-content: flex-end; margin-top: -4px; }
+@media (max-width: 640px) { .jcard-step { grid-template-columns: 1fr; } .jcard-step .btn-row { justify-content: stretch; } .jcard-step .btn-row .btn { flex: 1; } .jcard { padding: var(--s-4); } }
+.journey-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.journey-track li { position: relative; padding-top: 10px; font-size: 11px; color: var(--ink-faint); text-align: center; line-height: 1.2; }
+.journey-track li::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--rule); }
+.journey-track li.done::before { background: color-mix(in srgb, var(--pine) 45%, var(--paper-raised)); }
+.journey-track li.now::before { background: var(--pine); }
+.journey-track li.now { color: var(--ink); font-weight: 600; }
+.jcard.urgent .journey-track li.now::before { background: var(--rust); }
+@media (max-width: 640px) { .journey-track li span { display: none; } .journey-track li.now span { display: inline; position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; } .journey-track { margin-bottom: 8px; } }
+.hide-choices { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.hide-choices .btn.small { min-height: 36px; color: var(--ink-soft); }
+.linkish { all: unset; cursor: pointer; color: var(--ink-blue); text-decoration: underline; text-underline-offset: 3px; }
+.linkish:focus-visible { outline: 2px solid var(--ink-blue); outline-offset: 2px; }
+.score-next-card { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4) var(--s-5); background: var(--paper-raised); border: 1px solid var(--rule); box-shadow: var(--shadow-line); flex-wrap: wrap; }
+.score-next-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; }
+.score-next-text em { font-style: normal; color: var(--brass); font-family: var(--font-mono); font-weight: 500; }
+
+/* ---------- Applicant assessment ---------- */
+.assess-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+.assess-top > div { display: flex; flex-direction: column; }
+.assess-top strong { font-family: var(--font-display); font-size: var(--t-20); font-weight: 500; }
+.assess-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 var(--s-4); margin-bottom: var(--s-3); }

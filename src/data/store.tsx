@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
-  AppState, Applicant, BankName, BankTxn, Listing, Notice, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
+  AppState, Applicant, BankName, BankTxn, Listing, Notice, TodoPref, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
 } from './types';
 import { emptyState, seedState, STATE_VERSION, defaultProfile } from './seed';
 import { addDays, dueDate, periodOf, todayISO } from '../lib/dates';
@@ -283,6 +283,15 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     removeValuation(id: string) { mut((d) => { d.valuations = d.valuations.filter((v) => v.id !== id); }); },
     saveComparable(c: Comparable) { mut((d) => { const i = d.comparables.findIndex((x) => x.id === c.id); if (i >= 0) d.comparables[i] = c; else d.comparables.push(c); }); },
     removeComparable(id: string) { mut((d) => { d.comparables = d.comparables.filter((c) => c.id !== id); }); },
+
+    // ---- To-do: hide for a while, or ignore for good ----
+    setTodoPref(key: string, pref: TodoPref | null) {
+      mut((d) => { d.todoPrefs = d.todoPrefs ?? {}; if (pref) d.todoPrefs[key] = pref; else delete d.todoPrefs[key]; });
+      if (pref?.ignored) toast('Ignored. You can bring it back at the bottom of Home.');
+      else if (pref?.hiddenUntil) toast(`Hidden until ${pref.hiddenUntil}.`);
+    },
+    markDepositReturned(leaseId: string) { mut((d) => { const l = d.leases.find((x) => x.id === leaseId); if (l) { l.depositReturned = true; audit(d, 'Deposit settled', leaseId); } }); toast('Deposit settled. The unit is ready to list.'); },
+    updateApplicant(id: string, patch: Partial<Applicant>) { mut((d) => { const a = d.applicants.find((x) => x.id === id); if (a) Object.assign(a, patch); }); },
 
     // ---- Finding a tenant ----
     saveListing(l: Listing) { mut((d) => { const i = d.listings.findIndex((x) => x.unitId === l.unitId); if (i >= 0) d.listings[i] = l; else d.listings.push(l); audit(d, 'Listing saved', l.unitId); }); toast('Listing saved.'); },

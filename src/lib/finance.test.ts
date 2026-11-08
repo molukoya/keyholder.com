@@ -225,3 +225,15 @@ describe('late-rent notices', () => {
     expect(a.periods.map((p) => p.period)).toEqual(['2026-11']);
   });
 });
+
+describe('mortgage extra payments', () => {
+  it('takes lump sums straight off the balance and pays off sooner', () => {
+    const m: Mortgage = { id: 'm', propertyId: 'p', lender: 'X', principal: 40_000_000, startDate: '2026-01-01', ratePct: 5, amortYears: 25, termEnd: '2031-01-01', frequency: 'monthly' };
+    const base = amortization(m);
+    const extra = amortization({ ...m, prepayments: [{ date: '2026-06-15', amount: 2_000_000 }] });
+    expect(extra.length).toBeLessThan(base.length);
+    const juneBase = base.find((r) => r.date === '2026-07-01')!;
+    const juneExtra = extra.find((r) => r.date === '2026-07-01')!;
+    expect(juneBase.balance - juneExtra.balance).toBeGreaterThan(2_000_000 - 1_000);
+  });
+});

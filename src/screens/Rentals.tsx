@@ -193,7 +193,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
         <Drawer title="Compare applications" onClose={() => setCompare(false)} wide>
           <div className="table-scroll"><table className="ledger">
             <tbody>
-              {([['Applicants', (a: Applicant) => a.names.join(' & ')], ['Move-in', (a: Applicant) => fmtDate(a.moveIn)], ['Monthly income', (a: Applicant) => `${fmt0(a.monthlyIncome)} (${(a.monthlyIncome / l.askingRent).toFixed(1)}× rent)`], ['Work', (a: Applicant) => a.employer], ['Current home', (a: Applicant) => `${a.currentAddress} · ${a.yearsAtAddress} yrs`], ['Reference', (a: Applicant) => a.references], ['Pets', (a: Applicant) => (a.pets ? `Yes${a.notes ? ` (${a.notes})` : ''}` : 'No')], ['Status', (a: Applicant) => a.status]] as [string, (a: Applicant) => string][]).map(([k, f]) => (
+              {([['Applicants', (a: Applicant) => a.names.join(' & ')], ['People living there', (a: Applicant) => String(a.occupants ?? '—')], ['Move-in', (a: Applicant) => fmtDate(a.moveIn)], ['Rent as % of income', (a: Applicant) => `${Math.round((l.askingRent / (a.monthlyIncome + (a.otherIncome ?? 0))) * 100)}%`], ['Work', (a: Applicant) => `${a.jobTitle ?? ''} ${a.employer} · ${a.employedYears ?? '?'} yrs`], ['Current home', (a: Applicant) => `${a.yearsAtAddress} yrs · rent ${a.currentRent ? fmt0(a.currentRent) : '—'}`], ['Why moving', (a: Applicant) => a.reasonLeaving ?? '—'], ['Landlord reference', (a: Applicant) => (a.assessment?.landlordRef ? 'Checked' : 'Not yet')], ['Employer confirmed', (a: Applicant) => (a.assessment?.employerRef ? 'Yes' : 'Not yet')], ['Credit score', (a: Applicant) => (a.assessment?.creditScore ? String(a.assessment.creditScore) : '—')], ['Documents', (a: Applicant) => a.documents?.join(', ') || 'None'], ['Pets / smoking', (a: Applicant) => `${a.pets ? 'Pets' : 'No pets'} · ${a.smoking ? 'Smokes' : 'Non-smoking'}`], ['Your rating', (a: Applicant) => (a.assessment?.rating ? `${a.assessment.rating} / 5` : '—')]] as [string, (a: Applicant) => string][]).map(([k, f]) => (
                 <tr key={k}><td className="soft">{k}</td>{live.map((a) => <td key={a.id}>{f(a)}</td>)}</tr>
               ))}
             </tbody>
@@ -232,12 +232,14 @@ function ApplicationFormPreview({ unit, listing, onClose }: { unit: Unit; listin
   const { state } = useStore();
   const p = state.properties.find((x) => x.id === unit.propertyId);
   const sections: [string, string[]][] = [
-    ['About you', ['Full name of every adult who will live there', 'Email and phone', 'Preferred move-in date']],
-    ['Where you live now', ['Current address and how long', 'Current landlord name and phone (reference)']],
-    ['Work and income', ['Employer or source of income', 'Monthly income (before tax)']],
+    ['People', ['Legal name, email and phone of every adult who will live there', 'How many people will live in the unit', 'Emergency contact']],
+    ['Where you live now', ['Address and how long', 'Rent you pay now', 'Current landlord name and phone', 'Why you are moving']],
+    ['Before that', ['Previous address and how long (going back 3 years)']],
+    ['Work and income', ['Employer, job title and how long', 'Employer contact for verification', 'Monthly income before tax', 'Other income: amount and source']],
+    ['The tenancy', ['Move-in date', 'How long you would like to stay', 'Vehicles needing parking', 'Pets: type and number', 'Smoking: yes or no']],
     ['References', ['One more reference (optional)']],
-    ['Pets', ['Do you have pets? (information only)']],
-    ['Consent', ['I agree Keyholder may share this application with the landlord and contact my references', 'Declined applications are deleted after 90 days']],
+    ['Documents', ['Photo ID', 'Proof of income: recent pay stubs or an employment letter', 'Credit report, if you have one']],
+    ['Consent', ['I agree the landlord may contact my references and employer', 'I agree to a credit check (your SIN is optional and never required)', 'Declined applications are deleted after 90 days']],
   ];
   return (
     <Drawer title="The application form" onClose={onClose} wide>
@@ -252,8 +254,8 @@ function ApplicationFormPreview({ unit, listing, onClose }: { unit: Unit; listin
 }
 
 function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant; listing: Listing; onClose: () => void }) {
-  const { act, today } = useStore();
-  const a = applicant;
+  const { state, act, today } = useStore();
+  const a = state.applicants.find((x) => x.id === applicant.id) ?? applicant; // live, so checklist ticks show at once
   const [mode, setMode] = useState<'view' | 'decline' | 'accept'>('view');
   const [reason, setReason] = useState(SAFE_DECLINE[0]);
   const [start, setStart] = useState(a.moveIn > today ? a.moveIn : addDays(today, 7));
@@ -271,18 +273,7 @@ function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant
     ) : (
       <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" disabled={!rent} onClick={() => { act.acceptApplicant(a.id, start, rent!); onClose(); }}>Make them the tenant</button></>
     )}>
-      {mode === 'view' && (
-        <div className="kv">
-          <div>Applied</div><div>{fmtDate(a.submitted)}</div>
-          <div>Wants to move in</div><div>{fmtDate(a.moveIn)}</div>
-          <div>Email / phone</div><div>{a.email}<br />{a.phone}</div>
-          <div>Monthly income</div><div>{fmt0(a.monthlyIncome)} ({(a.monthlyIncome / listing.askingRent).toFixed(1)}× rent)</div>
-          <div>Work</div><div style={{ fontFamily: 'inherit' }}>{a.employer}</div>
-          <div>Lives at</div><div style={{ fontFamily: 'inherit' }}>{a.currentAddress} · {a.yearsAtAddress} yrs</div>
-          <div>Reference</div><div style={{ fontFamily: 'inherit' }}>{a.references}</div>
-          <div>Pets</div><div>{a.pets ? `Yes${a.notes ? `, ${a.notes}` : ''}` : 'No'}</div>
-        </div>
-      )}
+      {mode === 'view' && <ApplicantDetails a={a} rent={listing.askingRent} />}
       {mode === 'decline' && (
         <>
           <Field label="Reason (only fair reasons are offered)">
@@ -388,6 +379,68 @@ export function NoticesTab({ propertyId }: { propertyId: string }) {
         </div>
       </section>
       {late && <LateRentDrawer lease={late} onClose={() => setLate(null)} />}
+    </>
+  );
+}
+
+const money = (c?: number) => (c ? fmt0(c) : '—');
+
+function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
+  const { act } = useStore();
+  const income = a.monthlyIncome + (a.otherIncome ?? 0);
+  const pct = income ? Math.round((rent / income) * 100) : 0;
+  const as = a.assessment ?? {};
+  const setA = (p: Partial<NonNullable<Applicant['assessment']>>) => act.updateApplicant(a.id, { assessment: { ...as, ...p } });
+  const checks: [keyof NonNullable<Applicant['assessment']>, string][] = [['landlordRef', 'Landlord reference checked'], ['employerRef', 'Employer confirmed income'], ['idSeen', 'Photo ID seen'], ['docsReceived', 'Proof of income received'], ['creditChecked', 'Credit checked']];
+  return (
+    <>
+      <div className="assess-top">
+        <div><span className="small soft">Rent is</span><strong className={pct > 40 ? 'urgent' : ''}>{pct}% of income</strong></div>
+        <div><span className="small soft">At current home</span><strong>{a.yearsAtAddress} yrs</strong></div>
+        <div><span className="small soft">In current job</span><strong>{a.employedYears ?? '—'} yrs</strong></div>
+      </div>
+      <h3 style={{ margin: '16px 0 6px' }}>People</h3>
+      <div className="kv">
+        <div>Adults</div><div style={{ fontFamily: 'inherit' }}>{a.names.join(', ')}</div>
+        <div>People living there</div><div>{a.occupants ?? '—'}</div>
+        <div>Email / phone</div><div>{a.email}<br />{a.phone}</div>
+        <div>Emergency contact</div><div style={{ fontFamily: 'inherit' }}>{a.emergencyContact ?? '—'}</div>
+      </div>
+      <h3 style={{ margin: '16px 0 6px' }}>Rental history</h3>
+      <div className="kv">
+        <div>Lives at</div><div style={{ fontFamily: 'inherit' }}>{a.currentAddress} · {a.yearsAtAddress} yrs</div>
+        <div>Rent there</div><div>{money(a.currentRent)}</div>
+        <div>Landlord</div><div style={{ fontFamily: 'inherit' }}>{a.landlordName ? `${a.landlordName}, ${a.landlordPhone ?? ''}` : a.references}</div>
+        <div>Why moving</div><div style={{ fontFamily: 'inherit' }}>{a.reasonLeaving ?? '—'}</div>
+        <div>Before that</div><div style={{ fontFamily: 'inherit' }}>{a.previousAddress ? `${a.previousAddress} · ${a.previousYears ?? '?'} yrs` : '—'}</div>
+      </div>
+      <h3 style={{ margin: '16px 0 6px' }}>Work and income</h3>
+      <div className="kv">
+        <div>Work</div><div style={{ fontFamily: 'inherit' }}>{a.jobTitle ? `${a.jobTitle} · ` : ''}{a.employer}</div>
+        <div>How long</div><div>{a.employedYears ? `${a.employedYears} yrs` : '—'}</div>
+        <div>Employer contact</div><div style={{ fontFamily: 'inherit' }}>{a.employerContact ?? '—'}</div>
+        <div>Monthly income</div><div>{fmt0(a.monthlyIncome)}{a.otherIncome ? ` + ${fmt0(a.otherIncome)} (${a.otherIncomeSource})` : ''}</div>
+      </div>
+      <h3 style={{ margin: '16px 0 6px' }}>The tenancy</h3>
+      <div className="kv">
+        <div>Move in</div><div>{fmtDate(a.moveIn)}</div>
+        <div>Wants to stay</div><div style={{ fontFamily: 'inherit' }}>{a.leaseTerm ?? '—'}</div>
+        <div>Vehicles</div><div>{a.vehicles ?? '—'}</div>
+        <div>Pets / smoking</div><div>{a.pets ? `Yes${a.notes ? ` (${a.notes})` : ''}` : 'No pets'} · {a.smoking ? 'Smokes' : 'Non-smoking'}</div>
+        <div>Other reference</div><div style={{ fontFamily: 'inherit' }}>{a.references}</div>
+        <div>Documents</div><div style={{ fontFamily: 'inherit' }}>{a.documents?.join(', ') || 'None yet'}</div>
+        <div>Credit check</div><div>{a.creditConsent ? 'Consent given' : 'No consent'}</div>
+      </div>
+      <h3 style={{ margin: '20px 0 6px' }}>Your assessment</h3>
+      <div className="assess-checks">{checks.map(([k, label]) => (
+        <label key={k} className="check"><input type="checkbox" checked={!!as[k]} onChange={(e) => setA({ [k]: e.target.checked })} />{label}</label>
+      ))}</div>
+      <div className="grid2">
+        <Field label="Credit score" htmlFor={`cs-${a.id}`}><input id={`cs-${a.id}`} className="input" inputMode="numeric" value={as.creditScore ?? ''} onChange={(e) => setA({ creditScore: e.target.value ? Number(e.target.value) : undefined })} placeholder="e.g. 720" /></Field>
+        <div className="field"><span className="label">Your rating</span><div className="btn-row">{[1, 2, 3, 4, 5].map((n) => <button key={n} className={`btn small${(as.rating ?? 0) >= n ? ' primary' : ''}`} onClick={() => setA({ rating: n })} aria-label={`${n} out of 5`}>{n}</button>)}</div></div>
+      </div>
+      <Field label="Your notes" htmlFor={`an-${a.id}`}><textarea id={`an-${a.id}`} className="input" style={{ minHeight: 70 }} value={as.notes ?? ''} onChange={(e) => setA({ notes: e.target.value })} placeholder="Called the landlord: always paid on time" /></Field>
+      <p className="tiny soft">Look at the whole picture: rental history, references and income together. Income alone can't be the reason to say no.</p>
     </>
   );
 }

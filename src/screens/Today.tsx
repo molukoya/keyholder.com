@@ -5,7 +5,7 @@ import { fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
 import { activeLease, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { ScoreChip } from '../components/levels';
-import { TodoSections } from './Tray';
+import { NeedsYouNow, ScoreNext } from '../components/Journey';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
@@ -62,6 +62,7 @@ export function Today() {
     <div className="page">
       <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
       <p className="pulse">{headline}</p>
+      <div className="track-top"><BankStatus /></div>
 
       <section className="section">
         <h2 className="section-title">Rent for {fmtPeriod(p)}</h2>
@@ -103,10 +104,10 @@ export function Today() {
             ))}
           </ul>
         </div>
-        <BankStatus compact />
       </section>
 
-      <TodoSections />
+      <NeedsYouNow />
+      <ScoreNext />
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
     </div>

@@ -412,9 +412,7 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
 // =====================================================================================
 export function MortgageForm({ propertyId, mortgage, onClose }: { propertyId: string; mortgage?: Mortgage; onClose: () => void }) {
   const { act, today } = useStore();
-  const [m, setM] = useState<Mortgage>(() => mortgage ?? { id: uid('m'), propertyId, lender: '', principal: 0, startDate: today, ratePct: 4.5, amortYears: 25, termEnd: addMonths(today, 60), frequency: 'monthly' });
-  const set = (x: Partial<Mortgage>) => setM((o) => ({ ...o, ...x }));
-  const computed = m.principal > 0 ? mortgagePayment(m.principal, m.ratePct, m.amortYears, m.frequency) : 0;
+  const [m, setM] = useState<Mortgage>(() => mortgage ?? newMortgage(propertyId, today));
   return (
     <Drawer title={mortgage ? 'Edit mortgage' : 'Add a mortgage'} onClose={onClose}
       footer={<>
@@ -422,24 +420,82 @@ export function MortgageForm({ propertyId, mortgage, onClose }: { propertyId: st
         <button className="btn ghost" onClick={onClose}>Cancel</button>
         <button className="btn primary" disabled={!m.lender || !m.principal} onClick={() => { act.saveMortgage(m); onClose(); }}>Save mortgage</button>
       </>}>
-      <div className="callout">Enter the figures from the start of your <strong>current term</strong> (your last renewal, or purchase if you have not renewed). Keyholder works out each payment's principal and interest.</div>
-      <Field label="Lender" htmlFor="mf-l"><input id="mf-l" className="input" value={m.lender} onChange={(e) => set({ lender: e.target.value })} placeholder="RBC, TD, a credit union…" /></Field>
+      <MortgageFields m={m} onChange={setM} isNew={!mortgage} />
+    </Drawer>
+  );
+}
+
+export function newMortgage(propertyId: string, today: string, balance = 0): Mortgage {
+  return { id: uid('m'), propertyId, lender: '', principal: balance, startDate: today, ratePct: 4.5, amortYears: 25, termEnd: addMonths(today, 60), frequency: 'monthly', rateType: 'fixed', termYears: 5, prepayments: [] };
+}
+
+const FREQS: { id: string; label: string; freq: MortgageFrequency; accelerated: boolean }[] = [
+  { id: 'monthly', label: 'Every month', freq: 'monthly', accelerated: false },
+  { id: 'semi-monthly', label: 'Twice a month', freq: 'semi-monthly', accelerated: false },
+  { id: 'biweekly', label: 'Every two weeks', freq: 'biweekly', accelerated: false },
+  { id: 'acc-biweekly', label: 'Every two weeks, accelerated', freq: 'biweekly', accelerated: true },
+  { id: 'weekly', label: 'Every week', freq: 'weekly', accelerated: false },
+  { id: 'acc-weekly', label: 'Every week, accelerated', freq: 'weekly', accelerated: true },
+];
+
+/** Shared mortgage fields (Mortgage tab and the Gold step). Plain choices, worked-out dates and payments. */
+export function MortgageFields({ m, onChange, isNew }: { m: Mortgage; onChange: (m: Mortgage) => void; isNew?: boolean }) {
+  const { today } = useStore();
+  const [mode, setMode] = useState<'today' | 'renewal'>(isNew ? 'today' : 'renewal');
+  const set = (x: Partial<Mortgage>) => {
+    const next = { ...m, ...x };
+    if (mode === 'renewal' && (x.startDate || x.termYears)) next.termEnd = addMonths(next.startDate, 12 * (next.termYears ?? 5));
+    // Accelerated payments are a share of the monthly payment.
+    if (next.accelerated) next.paymentOverride = Math.round(mortgagePayment(next.principal, next.ratePct, next.amortYears, 'monthly') / (next.frequency === 'weekly' ? 4 : 2));
+    else if ('accelerated' in x || 'frequency' in x) next.paymentOverride = undefined;
+    onChange(next);
+  };
+  const freqId = FREQS.find((f) => f.freq === m.frequency && f.accelerated === !!m.accelerated)?.id ?? 'monthly';
+  const computed = m.principal > 0 ? (m.paymentOverride ?? mortgagePayment(m.principal, m.ratePct, m.amortYears, m.frequency)) : 0;
+  const extras = m.prepayments ?? [];
+  return (
+    <>
+      <Field label="Which do you know?">
+        <Seg label="Starting point" value={mode} onChange={(v) => { setMode(v); if (v === 'today') onChange({ ...m, startDate: today }); }} options={[{ id: 'today', label: 'What I owe today' }, { id: 'renewal', label: 'What I owed at my last renewal' }]} />
+      </Field>
+      <Field label="Bank or lender" htmlFor="mf-l"><input id="mf-l" className="input" value={m.lender} onChange={(e) => set({ lender: e.target.value })} placeholder="RBC, TD, a credit union…" /></Field>
       <div className="grid2">
-        <Field label="Balance at term start" htmlFor="mf-p"><MoneyInput id="mf-p" value={m.principal || undefined} onChange={(c) => set({ principal: c ?? 0 })} /></Field>
-        <Field label="Term start" htmlFor="mf-s"><input id="mf-s" type="date" className="input" value={m.startDate} onChange={(e) => set({ startDate: e.target.value })} /></Field>
-        <Field label="Interest rate (%)" htmlFor="mf-r" hint="Fixed-rate, compounded semi-annually"><input id="mf-r" type="number" step="0.01" className="input mono" value={m.ratePct} onChange={(e) => set({ ratePct: Number(e.target.value) })} /></Field>
-        <Field label="Years left to pay (amortization)" htmlFor="mf-a"><input id="mf-a" type="number" min={1} max={40} className="input" value={m.amortYears} onChange={(e) => set({ amortYears: Number(e.target.value) || 25 })} /></Field>
-        <Field label="Term ends (renewal)" htmlFor="mf-t"><input id="mf-t" type="date" className="input" value={m.termEnd} onChange={(e) => set({ termEnd: e.target.value })} /></Field>
-        <Field label="Payment frequency" htmlFor="mf-f">
-          <select id="mf-f" className="input" value={m.frequency} onChange={(e) => set({ frequency: e.target.value as MortgageFrequency })}>
-            <option value="monthly">Monthly</option><option value="semi-monthly">Twice a month</option><option value="biweekly">Every two weeks</option><option value="weekly">Weekly</option>
+        <Field label={mode === 'today' ? 'Amount owed today' : 'Amount owed at renewal'} htmlFor="mf-p" hint="On your mortgage statement or banking app"><MoneyInput id="mf-p" value={m.principal || undefined} onChange={(c) => set({ principal: c ?? 0 })} /></Field>
+        {mode === 'renewal'
+          ? <Field label="Renewal date" htmlFor="mf-s"><input id="mf-s" type="date" className="input" value={m.startDate} max={today} onChange={(e) => set({ startDate: e.target.value })} /></Field>
+          : <Field label="Years left to pay it off" htmlFor="mf-a" hint="Your amortization"><input id="mf-a" type="number" min={1} max={40} className="input" value={m.amortYears} onChange={(e) => set({ amortYears: Number(e.target.value) || 25 })} /></Field>}
+        <Field label="Interest rate (%)" htmlFor="mf-r"><input id="mf-r" type="number" step="0.01" className="input mono" value={m.ratePct} onChange={(e) => set({ ratePct: Number(e.target.value) })} /></Field>
+        <Field label="Rate type"><Seg label="Rate type" value={m.rateType ?? 'fixed'} onChange={(rateType) => set({ rateType })} options={[{ id: 'fixed', label: 'Fixed' }, { id: 'variable', label: 'Variable' }]} /></Field>
+        {mode === 'renewal' && <Field label="Years left to pay it off (at renewal)" htmlFor="mf-a2"><input id="mf-a2" type="number" min={1} max={40} className="input" value={m.amortYears} onChange={(e) => set({ amortYears: Number(e.target.value) || 25 })} /></Field>}
+        <Field label="Term length" htmlFor="mf-tl"><select id="mf-tl" className="input" value={m.termYears ?? 5} onChange={(e) => set({ termYears: Number(e.target.value) })}>{[1, 2, 3, 4, 5, 7, 10].map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}</select></Field>
+        <Field label="Next renewal date" htmlFor="mf-t" hint={mode === 'renewal' ? 'Worked out from the term; change it if different' : undefined}><input id="mf-t" type="date" className="input" value={m.termEnd} onChange={(e) => onChange({ ...m, termEnd: e.target.value })} /></Field>
+        <Field label="Payments" htmlFor="mf-f">
+          <select id="mf-f" className="input" value={freqId} onChange={(e) => { const f = FREQS.find((x) => x.id === e.target.value)!; set({ frequency: f.freq, accelerated: f.accelerated }); }}>
+            {FREQS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
           </select>
         </Field>
       </div>
-      <Field label="Payment amount" htmlFor="mf-pay" hint={computed ? `Calculated: ${fmt(computed)}. Override only if your statement differs.` : undefined}>
-        <MoneyInput id="mf-pay" value={m.paymentOverride ?? (computed || undefined)} onChange={(c) => set({ paymentOverride: c && c !== computed ? c : undefined })} />
-      </Field>
-    </Drawer>
+      {computed > 0 && <p className="small">Each payment: <strong className="mono">{fmt(computed)}</strong>{m.accelerated ? ' (accelerated pays it off years sooner)' : ''}. <button className="linkish" onClick={() => onChange({ ...m, paymentOverride: computed })}>My bank's amount is different</button></p>}
+      {m.paymentOverride !== undefined && !m.accelerated && <Field label="Payment from your statement" htmlFor="mf-pay"><MoneyInput id="mf-pay" value={m.paymentOverride} onChange={(c) => onChange({ ...m, paymentOverride: c })} /></Field>}
+
+      <h3 style={{ margin: '16px 0 8px' }}>Extra payments</h3>
+      <p className="small soft" style={{ marginTop: 0 }}>Lump sums go straight to what you owe.</p>
+      {extras.map((x, i) => (
+        <div key={i} className="grid3" style={{ alignItems: 'end' }}>
+          <Field label="Date" htmlFor={`px-d-${i}`}><input id={`px-d-${i}`} type="date" className="input" value={x.date} onChange={(e) => onChange({ ...m, prepayments: extras.map((y, j) => (j === i ? { ...y, date: e.target.value } : y)) })} /></Field>
+          <Field label="Amount" htmlFor={`px-a-${i}`}><MoneyInput id={`px-a-${i}`} value={x.amount || undefined} onChange={(c) => onChange({ ...m, prepayments: extras.map((y, j) => (j === i ? { ...y, amount: c ?? 0 } : y)) })} /></Field>
+          <div className="field"><button className="btn ghost" onClick={() => onChange({ ...m, prepayments: extras.filter((_, j) => j !== i) })}>Remove</button></div>
+        </div>
+      ))}
+      <button className="btn small" onClick={() => onChange({ ...m, prepayments: [...extras, { date: today, amount: 0 }] })}><Icon name="plus" size={14} />Add an extra payment</button>
+
+      <h3 style={{ margin: '20px 0 8px' }}>Background <span className="small soft">(optional)</span></h3>
+      <div className="grid3">
+        <Field label="Original amount borrowed" htmlFor="mf-oa"><MoneyInput id="mf-oa" value={m.originalAmount} onChange={(c) => onChange({ ...m, originalAmount: c })} /></Field>
+        <Field label="When you first got it" htmlFor="mf-od"><input id="mf-od" type="date" className="input" value={m.originalDate ?? ''} onChange={(e) => onChange({ ...m, originalDate: e.target.value || undefined })} /></Field>
+        <Field label="Mortgage insurance" htmlFor="mf-ins"><select id="mf-ins" className="input" value={m.insurer ?? 'None'} onChange={(e) => onChange({ ...m, insurer: e.target.value })}>{['None', 'CMHC', 'Sagen', 'Canada Guaranty'].map((x) => <option key={x}>{x}</option>)}</select></Field>
+      </div>
+    </>
   );
 }
 

@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 export function defaultProfile(): Profile {
   return {
@@ -37,7 +37,7 @@ export function emptyState(profile?: Profile): AppState {
     version: STATE_VERSION,
     profile: profile ?? defaultProfile(),
     properties: [], units: [], tenants: [], leases: [], payments: [], receipts: [], messages: [],
-    txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], listings: [], applicants: [], notices: [], audit: [],
+    txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], listings: [], applicants: [], notices: [], todoPrefs: {}, audit: [],
   };
 }
 
@@ -207,9 +207,15 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
   s.listings = [{ unitId: 'u-c', askingRent: 155_000, available: addDays(today, 7), notes: 'Freshly painted 2-bedroom on the top floor. Laundry in the basement.', vacantSince, slug: 'maple-c' }];
   s.applicants = [
     { id: 'ap-1', unitId: 'u-c', names: ['Daniel Osei'], email: 'd.osei@example.com', phone: '905-555-0191', submitted: addDays(today, -4), moveIn: addDays(today, 14),
-      currentAddress: '210 King St E, Hamilton', yearsAtAddress: 3, employer: 'McMaster University (lab technician)', monthlyIncome: 520_000, references: 'Current landlord: R. Fischer, 905-555-0110', pets: false, notes: '', status: 'new' },
+      currentAddress: '210 King St E, Hamilton', yearsAtAddress: 3, employer: 'McMaster University (lab technician)', monthlyIncome: 520_000, references: 'Former employer reference: Dr. K. Singh', pets: false, notes: '', status: 'new',
+      occupants: 1, emergencyContact: 'Ama Osei (sister), 905-555-0122', currentRent: 135_000, landlordName: 'R. Fischer', landlordPhone: '905-555-0110', reasonLeaving: 'Building is being sold',
+      previousAddress: '88 Bay St N, Hamilton', previousYears: 2, jobTitle: 'Lab technician', employedYears: 4, employerContact: 'HR, 905-555-0100', otherIncome: 0, leaseTerm: '1 year, then month to month',
+      vehicles: 1, smoking: false, creditConsent: true, documents: ['Photo ID', 'Employment letter', 'Credit report'] },
     { id: 'ap-2', unitId: 'u-c', names: ['Lena Novak', 'Tom Novak'], email: 'lena.novak@example.com', phone: '289-555-0163', submitted: addDays(today, -2), moveIn: addDays(today, 24),
-      currentAddress: '15 James St S, Hamilton', yearsAtAddress: 5, employer: 'City of Hamilton; Novak Plumbing', monthlyIncome: 780_000, references: 'Current landlord: Sandra Lee, 905-555-0175', pets: true, notes: 'One cat', status: 'new' },
+      currentAddress: '15 James St S, Hamilton', yearsAtAddress: 5, employer: 'City of Hamilton; Novak Plumbing', monthlyIncome: 780_000, references: 'Personal: Mark Chen, 289-555-0140', pets: true, notes: 'One cat', status: 'new',
+      occupants: 2, emergencyContact: 'Eva Novak (mother), 289-555-0199', currentRent: 160_000, landlordName: 'Sandra Lee', landlordPhone: '905-555-0175', reasonLeaving: 'Want a second bedroom',
+      previousAddress: '402 Main St E, Hamilton', previousYears: 3, jobTitle: 'Planner; plumber (self-employed)', employedYears: 6, employerContact: 'City HR, 905-555-0150', otherIncome: 40_000, otherIncomeSource: 'Rental parking spot',
+      leaseTerm: '2 years', vehicles: 2, smoking: false, creditConsent: true, documents: ['Photo ID', 'Pay stubs'] },
   ];
 
   s.audit = [{ id: 'a-0', at: now, action: 'Sample data loaded', detail: 'Two properties, three tenants, a year of history' }];

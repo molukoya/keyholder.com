@@ -116,6 +116,7 @@ export interface Lease {
   dueDay: number;
   paymentMethod: PayMethod;
   lmrDeposit: Cents;
+  depositReturned?: boolean;
   utilities: string;
   parking: boolean;
   pets: boolean;
@@ -258,6 +259,16 @@ export interface Mortgage {
   frequency: MortgageFrequency;
   /** Optional override when the lender's payment differs from the computed one. */
   paymentOverride?: Cents;
+  rateType?: 'fixed' | 'variable';
+  /** Accelerated bi-weekly/weekly: half or a quarter of the monthly payment. */
+  accelerated?: boolean;
+  termYears?: number;
+  /** The mortgage when first taken out (history only). */
+  originalAmount?: Cents;
+  originalDate?: ISODate;
+  insurer?: string; // CMHC, Sagen, Canada Guaranty, none
+  /** Extra payments that go straight to principal. */
+  prepayments?: { date: ISODate; amount: Cents }[];
 }
 
 // ---- Finding a tenant (RA-1 – RA-9) ----
@@ -289,7 +300,31 @@ export interface Applicant {
   pets: boolean;
   notes: string;
   status: ApplicantStatus;
+  // Fuller application (all optional so older records still load)
+  occupants?: number;
+  emergencyContact?: string;
+  currentRent?: Cents;
+  landlordName?: string;
+  landlordPhone?: string;
+  reasonLeaving?: string;
+  previousAddress?: string;
+  previousYears?: number;
+  jobTitle?: string;
+  employedYears?: number;
+  employerContact?: string;
+  otherIncome?: Cents;
+  otherIncomeSource?: string;
+  leaseTerm?: string;
+  vehicles?: number;
+  smoking?: boolean;
+  creditConsent?: boolean;
+  documents?: string[];
+  /** The owner's own assessment. */
+  assessment?: { landlordRef?: boolean; employerRef?: boolean; idSeen?: boolean; creditChecked?: boolean; creditScore?: number; docsReceived?: boolean; rating?: number; notes?: string };
 }
+
+/** Hide or ignore a to-do. Key = card id + step id, so the next step still appears. */
+export interface TodoPref { hiddenUntil?: ISODate; ignored?: boolean }
 
 // ---- Forms and notices (any province) ----
 export type NoticeStatus = 'served' | 'voided-by-payment' | 'filed' | 'signed';
@@ -340,5 +375,6 @@ export interface AppState {
   listings: Listing[];
   applicants: Applicant[];
   notices: Notice[];
+  todoPrefs: Record<string, TodoPref>;
   audit: AuditEntry[];
 }

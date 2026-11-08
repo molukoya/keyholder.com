@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Mortgage, MortgageFrequency, Property } from '../data/types';
-import { uid, useStore } from '../data/store';
-import { addMonths } from '../lib/dates';
+import type { Mortgage, Property } from '../data/types';
+import { useStore } from '../data/store';
 import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
 import { keyholderScore } from '../lib/score';
-import { mortgagePayment, portfolio } from '../lib/finance';
-import { fmt, fmtShort } from '../lib/money';
+import { portfolio } from '../lib/finance';
+import { fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
+import { MortgageFields, newMortgage } from './forms';
 
 // ---------- Stage chip: a small metal swatch with the stage name ----------
 export function LevelBadge({ level, plain }: { level: Level; plain?: boolean }) {
@@ -165,11 +165,7 @@ function GoldForm({ property, onClose }: { property: Property; onClose: () => vo
   const [closing, setClosing] = useState(property.closingCosts);
   const [ltt, setLtt] = useState(property.landTransferTax);
   const [has, setHas] = useState<'yes' | 'no'>(property.mortgageFree ? 'no' : 'yes');
-  const [m, setM] = useState<Mortgage>(() => existing ?? {
-    id: uid('m'), propertyId: property.id, lender: '', principal: property.approxMortgageBalance ?? 0, startDate: today,
-    ratePct: 4.5, amortYears: 25, termEnd: addMonths(today, 60), frequency: 'monthly',
-  });
-  const set = (x: Partial<Mortgage>) => setM((o) => ({ ...o, ...x }));
+  const [m, setM] = useState<Mortgage>(() => existing ?? newMortgage(property.id, today, property.approxMortgageBalance ?? 0));
   const ok = closing !== undefined && ltt !== undefined && (has === 'no' || (!!m.lender && m.principal > 0));
   const save = () => {
     act.saveProperty({ ...property, closingCosts: closing, landTransferTax: ltt, mortgageFree: has === 'no' });
@@ -186,25 +182,7 @@ function GoldForm({ property, onClose }: { property: Property; onClose: () => vo
         <Field label="Land transfer tax" htmlFor="gd-ltt"><MoneyInput id="gd-ltt" value={ltt} onChange={setLtt} /></Field>
       </div>
       <Field label="Is there a mortgage?"><Seg label="Mortgage" value={has} onChange={setHas} options={[{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No, it is paid off' }]} /></Field>
-      {has === 'yes' && (
-        <>
-          <p className="small soft" style={{ marginTop: 0 }}>From your latest mortgage statement or renewal letter.</p>
-          <Field label="Bank or lender" htmlFor="gd-l"><input id="gd-l" className="input" value={m.lender} onChange={(e) => set({ lender: e.target.value })} /></Field>
-          <div className="grid2">
-            <Field label="Amount owed at your last renewal" htmlFor="gd-p"><MoneyInput id="gd-p" value={m.principal || undefined} onChange={(c) => set({ principal: c ?? 0 })} /></Field>
-            <Field label="Renewal date" htmlFor="gd-s"><input id="gd-s" type="date" className="input" value={m.startDate} onChange={(e) => set({ startDate: e.target.value })} /></Field>
-            <Field label="Interest rate (%)" htmlFor="gd-r"><input id="gd-r" type="number" step="0.01" className="input" value={m.ratePct} onChange={(e) => set({ ratePct: Number(e.target.value) })} /></Field>
-            <Field label="Years left to pay" htmlFor="gd-a"><input id="gd-a" type="number" min={1} max={40} className="input" value={m.amortYears} onChange={(e) => set({ amortYears: Number(e.target.value) || 25 })} /></Field>
-            <Field label="Next renewal" htmlFor="gd-t"><input id="gd-t" type="date" className="input" value={m.termEnd} onChange={(e) => set({ termEnd: e.target.value })} /></Field>
-            <Field label="Pay every" htmlFor="gd-f">
-              <select id="gd-f" className="input" value={m.frequency} onChange={(e) => set({ frequency: e.target.value as MortgageFrequency })}>
-                <option value="monthly">Month</option><option value="semi-monthly">Half month</option><option value="biweekly">Two weeks</option><option value="weekly">Week</option>
-              </select>
-            </Field>
-          </div>
-          {m.principal > 0 && <p className="small soft">Payment works out to about <strong className="mono">{fmt(mortgagePayment(m.principal, m.ratePct, m.amortYears, m.frequency))}</strong>.</p>}
-        </>
-      )}
+      {has === 'yes' && <MortgageFields m={m} onChange={setM} isNew={!existing} />}
     </Drawer>
   );
 }
