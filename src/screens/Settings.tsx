@@ -1,4 +1,4 @@
-import { PageSub } from '../components/Guide';
+import { BackToMore, PageSub } from '../components/Guide';
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
@@ -20,7 +20,7 @@ export function Settings() {
 
   return (
     <div className="page">
-      <div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
 
       <section className="section" id="levels">
         <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>

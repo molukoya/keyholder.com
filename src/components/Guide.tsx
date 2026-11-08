@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Icon } from './Icon';
 import { useStore } from '../data/store';
 
 // Small helpers that make the app explain itself: page subtitles, the sample banner,
@@ -113,4 +114,26 @@ export function Tour() {
       </div>
     </div>
   );
+}
+
+// ---------- Preview only: switch between the three design styles ----------
+const STYLE_NAMES = { a: 'Swiss Ledger', b: 'Hard Copy', c: 'Deed & Ink' } as const;
+type StyleId = keyof typeof STYLE_NAMES;
+export function StyleSwitch() {
+  const [cur, setCur] = useState<StyleId>(() => (document.documentElement.dataset.style as StyleId) || 'a');
+  const pick = (s: StyleId) => {
+    document.documentElement.dataset.style = s; setCur(s);
+    try { localStorage.setItem('keyholder:style', s); } catch { /* storage blocked */ }
+  };
+  return (
+    <div className="style-switch" role="group" aria-label="Design style">
+      <span>Preview · pick a design style</span>
+      {(Object.keys(STYLE_NAMES) as StyleId[]).map((s) => <button key={s} aria-pressed={cur === s} onClick={() => pick(s)}>{s.toUpperCase()} · {STYLE_NAMES[s]}</button>)}
+    </div>
+  );
+}
+
+/** Phone only: pages reached from the "More" menu get a way back to it. */
+export function BackToMore() {
+  return <Link to="/more" className="crumb phone-only"><Icon name="back" size={16} />Back to More</Link>;
 }

@@ -43,9 +43,9 @@ export function Icon({ name, size = 20, title }: { name: keyof typeof P | string
 export function KeyMark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="4" fill="var(--pine)" />
-      <circle cx="12" cy="16" r="6" fill="none" stroke="var(--brass)" strokeWidth="3" />
-      <path d="M18 16h10M24 16v5M27 16v3" stroke="var(--brass)" strokeWidth="3" />
+      <rect width="32" height="32" rx="4" fill="var(--logo-bg)" />
+      <circle cx="12" cy="16" r="6" fill="none" stroke="var(--logo-fg)" strokeWidth="3" />
+      <path d="M18 16h10M24 16v5M27 16v3" stroke="var(--logo-fg)" strokeWidth="3" />
     </svg>
   );
 }

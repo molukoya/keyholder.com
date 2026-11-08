@@ -108,7 +108,9 @@ Larger type (17px body, 48px buttons), one main action per row, plain labels ("M
 
 ## Front door and guidance
 
-- **Landing page** (`#/`, and `#/welcome` from inside the app): hero with a live mini demo, the problem, 3 steps, six feature panels, the GIC comparison, Bronze/Silver/Gold cards, a province tile map with each province's forms, trust, early-access pricing (prices not final), FAQ, final call to action.
+- **Public site** in five pages under one menu (☰ on phones): Overview (`#/welcome`), Features, Provinces, Pricing, Questions (`#/welcome/<page>`). Each page ends with Back / Next. Overview has the live mini demo, 3 steps and the GIC teaser.
+- **Design styles (preview only):** a strip at the top switches between A · Swiss Ledger, B · Hard Copy and C · Deed & Ink across the site and the app. Once one is chosen, the other two and the strip are removed.
+- **Back and cancel:** signup questions have Back (question 1 goes back to the website) and Exit, and the browser's back button steps through questions (`#/start/<n>`). Tenant and property pages have "Back to …"; on phones, Taxes, Paperwork and Settings have "Back to More". Every panel closes with Cancel, ✕, Esc or a tap outside.
 - **Ways in:** "Get started" opens the signup questions (`#/start`). "See it in action" loads the two sample properties straight away and starts the tour. Returning users go to Home. The logo and Settings → "What is Keyholder?" open the landing page again.
 - **Guidance in the app:** a 5-step tour (skippable, replay from Settings), a one-line subtitle under each page title, a sample-data banner with "Start with my own", a "Start here" card with progress for new users, and status pills you can tap for a plain explanation.
 - **Banks:** connect several banks at once. Withdrawals are read too: bills become expenses (learned per payee), mortgage payments are ticked off against the mortgage, or offer to set one up. Review lives at the top of Paperwork → Expense receipts.

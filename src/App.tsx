@@ -15,7 +15,7 @@ import { Rentals } from './screens/Rentals';
 import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
 import { Landing } from './screens/Landing';
-import { SampleBanner, Tour, PageSub } from './components/Guide';
+import { SampleBanner, Tour, PageSub, StyleSwitch } from './components/Guide';
 
 export function App() {
   return (
@@ -39,9 +39,9 @@ function Root() {
   const loc = useLocation();
   useTheme();
   // The landing page is the front door; /welcome shows it again from inside the app.
-  if (loc.pathname === '/welcome' || (!state.profile.onboarded && loc.pathname !== '/start')) return <Landing />;
-  if (!state.profile.onboarded) return <Onboarding />;
-  return <Shell />;
+  const onStart = loc.pathname === '/start' || loc.pathname.startsWith('/start/');
+  const page = loc.pathname.startsWith('/welcome') || (!state.profile.onboarded && !onStart) ? <Landing /> : !state.profile.onboarded ? <Onboarding /> : <Shell />;
+  return <><StyleSwitch />{page}</>;
 }
 
 function Shell() {

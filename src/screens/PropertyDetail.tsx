@@ -29,7 +29,7 @@ export function PropertyDetail() {
 
   return (
     <div className="page">
-      <Link to="/rentals" className="crumb"><Icon name="back" size={16} />Rentals</Link>
+      <Link to="/rentals" className="crumb"><Icon name="back" size={16} />Back to Rentals</Link>
       <h1 className="sr-only">{p.nickname}</h1>
       <div className="prop-head">
         <PropertyCard property={p} active banner />

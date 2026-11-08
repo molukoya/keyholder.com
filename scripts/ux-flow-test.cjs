@@ -236,12 +236,20 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
     await step(tag, 'D1 First visit shows the landing page with both buttons', async () => {
-      await pg.goto(BASE); await pg.waitForSelector('.lp-h1'); await pg.waitForSelector('.lp-hero >> text=Get started, free'); await pg.waitForSelector('.lp-hero >> text=See it in action');
+      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Get started, free'); await pg.waitForSelector('.lp-hero >> text=See it in action');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
-    await step(tag, 'D3 Province map: tap BC → BC forms', async () => { await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
-    await step(tag, 'D4 Section links scroll to the section', async () => { if (tag === 'phone') return 'links hidden on phone'; await pg.locator('.lp-links >> text=Pricing').click(); await pg.waitForTimeout(800); if (!(await pg.locator('#pricing').isVisible())) throw new Error('no pricing'); });
+    const menuGo = async (label) => { if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
+    await step(tag, 'D3 Menu → Provinces page → tap BC → BC forms', async () => { await menuGo('Provinces'); await pg.waitForSelector('h1:has-text("Built for every province")'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
+    await step(tag, 'D4 Every menu page opens, Next/Back pager works, browser back works', async () => {
+      for (const [l, h] of [['Features', 'Everything a small landlord'], ['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Your rental']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
+      await pg.locator('.lp-pg.next').click(); await pg.waitForSelector('h1:has-text("Everything a small landlord")');
+      await pg.locator('.lp-pg.prev').click(); await pg.waitForSelector('h1:has-text("Your rental")');
+      await pg.goBack(); await pg.waitForSelector('h1:has-text("Everything a small landlord")');
+      await menuGo('Overview');
+      if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
+    });
     await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Get started, free').click(); await pg.waitForSelector('.q-question'); });
     await step(tag, 'D6 "See it in action" → sample Home, banner and tour (5 steps)', async () => {
       await pg.goto(BASE); await pg.locator('.lp-hero >> text=See it in action').click(); await pg.waitForSelector('.sample-banner'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
@@ -253,11 +261,23 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       for (const p of ['portfolio', 'rentals', 'taxes', 'paperwork', 'settings']) { await go(pg, p); if (!(await pg.locator('.page-sub').count())) throw new Error(p); }
     });
     await step(tag, 'D9 Settings → "What is Keyholder?" → landing → back to dashboard', async () => {
-      await go(pg, 'settings'); await pg.locator('text=What is Keyholder?').click(); await pg.waitForSelector('.lp-h1');
-      await pg.locator('.lp-nav >> text=Open my dashboard').click(); await pg.waitForSelector('.rent-row');
+      await go(pg, 'settings'); await pg.locator('text=What is Keyholder?').click(); await pg.waitForSelector('.lp-hero-h');
+      if (tag === 'phone') await pg.locator('.lp-burger').click();
+      await pg.locator(tag === 'phone' ? '.lp-menu >> text=Open my dashboard' : '.lp-nav-cta >> text=Open my dashboard').click(); await pg.waitForSelector('.rent-row');
     });
     await step(tag, 'D10 Settings → "Show the tour again" replays it', async () => { await go(pg, 'settings'); await pg.locator('text=Show the tour again').click(); await pg.waitForSelector('.tour-card'); await pg.locator('.tour-card >> text=Skip tour').click(); });
     await step(tag, 'D11 Sample banner → "Start with my own" → signup questions', async () => { await pg.locator('.sample-banner >> text=Start with my own').click(); await pg.waitForSelector('.q-question'); const st = await state(pg); if (st.properties.length) throw new Error('sample not cleared'); });
+    await step(tag, 'D12 Signup: Back on question 1 returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('.q-question'); await pg.locator('.q-foot >> text=Back to website').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
+    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('text=Continue'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
+    await step(tag, 'D14 Signup: browser back goes to the previous question', async () => {
+      await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('text=Continue'); await pg.waitForSelector("h1:has-text(\"What's your setup?\")");
+      await pg.goBack(); await pg.waitForSelector('h1:has-text("Where do your tenants live?")');
+    });
+    await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
+      await pg.goto(BASE + '#/start'); await pg.locator('.q-exit').click(); await pg.locator('.lp-hero >> text=See it in action').click(); await pg.locator('.tour-card >> text=Skip tour').click();
+      await go(pg, 'rent/tenant/t-maya'); await pg.locator('.crumb:has-text("Back to")').click(); await pg.waitForSelector('h1, .pcard');
+      if (tag === 'phone') for (const p of ['taxes', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
+    });
     ok(tag, 'D errors', errsD.length === 0, errsD.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);

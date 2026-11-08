@@ -1,4 +1,4 @@
-import { PageSub } from '../components/Guide';
+import { BackToMore, PageSub } from '../components/Guide';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import type { BankName, BankTxn, Expense, ExpenseCategory, Property } from '../data/types';
@@ -32,7 +32,7 @@ export function Money() {
 export function Taxes() {
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Taxes</h1><PageSub>Your rental income and costs for the year, ready for the CRA T776 form.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1>Taxes</h1><PageSub>Your rental income and costs for the year, ready for the CRA T776 form.</PageSub></div></div>
       <TaxPackPage />
     </div>
   );

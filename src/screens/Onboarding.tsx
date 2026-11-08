@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { Goal, Profile, Province, RentMethod, SetupKind, Tone } from '../data/types';
 import { useStore } from '../data/store';
 import { PROVINCES, province } from '../lib/jurisdiction';
-import { KeyMark } from '../components/Icon';
+import { Icon, KeyMark } from '../components/Icon';
 import { Letterhead } from '../components/domain';
 
 // Signup as a pain-point questionnaire (PRD §5): six questions, one per screen, then the plan letter.
@@ -31,7 +32,12 @@ const GOALS: { id: Goal; label: string }[] = [
 
 export function Onboarding() {
   const { act } = useStore();
-  const [step, setStep] = useState(0);
+  const nav = useNavigate();
+  const loc = useLocation();
+  // The step lives in the address (/start/2) so the browser's back button goes to the previous question.
+  const step = Math.max(0, Number(loc.pathname.split('/')[2]) || 0);
+  const setStep = (n: number) => (n < 0 ? nav('/welcome') : nav(n === 0 ? '/start' : `/start/${n}`));
+  const exit = () => nav('/welcome');
   const [a, setA] = useState<Partial<Profile>>({ province: 'ON', city: 'Toronto', dreads: [], taxWorries: [] });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -122,12 +128,13 @@ export function Onboarding() {
     },
   ];
 
-  if (step >= steps.length) return <PlanLetter a={a} name={name} email={email} setName={setName} setEmail={setEmail} onBack={() => setStep(steps.length - 1)} onFinish={finish} />;
+  if (step >= steps.length) return <PlanLetter a={a} name={name} email={email} setName={setName} setEmail={setEmail} onBack={() => setStep(steps.length - 1)} onExit={exit} onFinish={finish} />;
   const s = steps[step];
   return (
     <div className="q-wrap">
       <div className="q-top">
         <span className="brand" style={{ margin: 0 }}><KeyMark />Keyholder</span>
+        <button className="btn ghost q-exit" onClick={exit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button>
         <div className="q-lines" aria-label={`Question ${step + 1} of ${steps.length}`}>
           {steps.map((_, i) => <span key={i} className={i < step ? 'done' : i === step ? 'now' : ''} />)}
         </div>
@@ -136,7 +143,7 @@ export function Onboarding() {
       <p className="q-aside">{s.aside ?? ' '}</p>
       {s.body}
       <div className="q-foot">
-        <button className="btn ghost" onClick={() => setStep(step - 1)} disabled={step === 0}>Back</button>
+        <button className="btn ghost" onClick={() => setStep(step - 1)}><Icon name="back" size={16} />{step === 0 ? 'Back to website' : 'Back'}</button>
         <button className="btn primary" onClick={() => setStep(step + 1)} disabled={!s.ok}>Continue</button>
       </div>
       <p className="tiny faint" style={{ marginTop: 'auto', paddingTop: 48 }}>No account needed yet. Answers take about two minutes and set up Keyholder for you.</p>
@@ -144,8 +151,8 @@ export function Onboarding() {
   );
 }
 
-function PlanLetter({ a, name, email, setName, setEmail, onBack, onFinish }: {
-  a: Partial<Profile>; name: string; email: string; setName: (s: string) => void; setEmail: (s: string) => void; onBack: () => void; onFinish: (sample: boolean) => void;
+function PlanLetter({ a, name, email, setName, setEmail, onBack, onExit, onFinish }: {
+  a: Partial<Profile>; name: string; email: string; setName: (s: string) => void; setEmail: (s: string) => void; onBack: () => void; onExit: () => void; onFinish: (sample: boolean) => void;
 }) {
   const { state } = useStore();
   const lines: string[] = [];
@@ -167,7 +174,7 @@ function PlanLetter({ a, name, email, setName, setEmail, onBack, onFinish }: {
 
   return (
     <div className="q-wrap">
-      <div className="q-top"><span className="brand" style={{ margin: 0 }}><KeyMark />Keyholder</span></div>
+      <div className="q-top"><span className="brand" style={{ margin: 0 }}><KeyMark />Keyholder</span><button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button></div>
       <div className="letter" style={{ maxWidth: 720, width: '100%' }}>
         <Letterhead state={{ ...state, profile: { ...state.profile, name: 'Keyholder', email: 'Your plan' } }} />
         <h1 className="serif" style={{ fontSize: 'var(--t-28)', marginBottom: 16 }}>Here's what Keyholder will take off your plate</h1>

@@ -37,7 +37,7 @@ export function TenantDetail() {
 
   return (
     <div className="page">
-      <Link to={prop ? `/rent/property/${prop.id}` : "/rentals"} className="crumb"><Icon name="back" size={16} />{prop?.nickname ?? "Rentals"}</Link>
+      <Link to={prop ? `/rent/property/${prop.id}` : "/rentals"} className="crumb"><Icon name="back" size={16} />Back to {prop?.nickname ?? "Rentals"}</Link>
       <div className="page-head">
         <div>
           <div className="eyebrow">{prop?.nickname} · Unit {unit?.label}</div>
