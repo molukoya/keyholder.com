@@ -9,16 +9,20 @@ const ok = (tag, name, pass, note = '') => results.push({ tag, name, pass, note 
 
 async function onboard(pg, sample) {
   await pg.goto(BASE + '#/start');
-  await pg.click('text=Ontario'); await pg.click('text=Continue');
-  await pg.click('text=A few doors (2 to 5)'); await pg.click('text=Continue');
-  await pg.click('text=Interac e-Transfer'); await pg.click('text=Continue');
-  await pg.click('text=Wondering who has paid'); await pg.click('text=Continue');
-  await pg.click('text=I never know what I can deduct'); await pg.click('text=Continue');
-  await pg.click('text=Never chasing rent or paperwork again'); await pg.click('text=Continue');
-  await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex@example.com');
-  await pg.click(sample ? 'text=Explore with sample properties' : 'text=Start empty');
+  await answerQuestions(pg);
+  if (sample) await pg.click('text=Try with sample properties first');
+  else { await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)'); }
   await pg.waitForTimeout(300);
   if (sample) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
+}
+async function answerQuestions(pg) {
+  await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
+  await pg.click('text=2 to 5 rental units'); await pg.click('.q-foot >> text=Next');
+  await pg.click('text=Interac e-Transfer'); await pg.click('.q-foot >> text=Next');
+  await pg.click('text=Knowing who has paid'); await pg.click('.q-foot >> text=Next');
+  await pg.click("text=I don't know what costs I can claim"); await pg.click('.q-foot >> text=Next');
+  await pg.click('text=Getting paid on time'); await pg.click('.q-foot >> text=See my plan');
+  await pg.waitForSelector('text=Save your plan');
 }
 const state = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')));
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(250); };
@@ -236,7 +240,7 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
     await step(tag, 'D1 First visit shows the landing page with both buttons', async () => {
-      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Get started, free'); await pg.waitForSelector('.lp-hero >> text=See it in action');
+      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Start free'); await pg.waitForSelector('.lp-hero >> text=Try a demo first');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
@@ -250,9 +254,9 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       await menuGo('Overview');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
-    await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Get started, free').click(); await pg.waitForSelector('.q-question'); });
+    await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question'); });
     await step(tag, 'D6 "See it in action" → sample Home, banner and tour (5 steps)', async () => {
-      await pg.goto(BASE); await pg.locator('.lp-hero >> text=See it in action').click(); await pg.waitForSelector('.sample-banner'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
+      await pg.goto(BASE); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.waitForSelector('.sample-banner'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
       for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
       await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200); if (await pg.locator('.tour').count()) throw new Error('tour still open');
     });
@@ -268,17 +272,49 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     await step(tag, 'D10 Settings → "Show the tour again" replays it', async () => { await go(pg, 'settings'); await pg.locator('text=Show the tour again').click(); await pg.waitForSelector('.tour-card'); await pg.locator('.tour-card >> text=Skip tour').click(); });
     await step(tag, 'D11 Sample banner → "Start with my own" → signup questions', async () => { await pg.locator('.sample-banner >> text=Start with my own').click(); await pg.waitForSelector('.q-question'); const st = await state(pg); if (st.properties.length) throw new Error('sample not cleared'); });
     await step(tag, 'D12 Signup: Back on question 1 returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('.q-question'); await pg.locator('.q-foot >> text=Back to website').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
-    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('text=Continue'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
+    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
     await step(tag, 'D14 Signup: browser back goes to the previous question', async () => {
-      await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('text=Continue'); await pg.waitForSelector("h1:has-text(\"What's your setup?\")");
-      await pg.goBack(); await pg.waitForSelector('h1:has-text("Where do your tenants live?")');
+      await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.waitForSelector('h1:has-text("What are you renting out?")');
+      await pg.goBack(); await pg.waitForSelector('h1:has-text("Where is your rental property?")');
     });
     await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
-      await pg.goto(BASE + '#/start'); await pg.locator('.q-exit').click(); await pg.locator('.lp-hero >> text=See it in action').click(); await pg.locator('.tour-card >> text=Skip tour').click();
+      await pg.goto(BASE + '#/start'); await pg.locator('.q-exit').click(); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.locator('.tour-card >> text=Skip tour').click();
       await go(pg, 'rent/tenant/t-maya'); await pg.locator('.crumb:has-text("Back to")').click(); await pg.waitForSelector('h1, .pcard');
       if (tag === 'phone') for (const p of ['taxes', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
     });
+    await step(tag, 'D16 Help button opens plain answers', async () => {
+      await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.rail .help-btn').click(); await pg.waitForSelector('#help-title');
+      await pg.locator('.help-list summary').first().click(); await pg.locator('[aria-label="Close help"]').click();
+    });
+    await step(tag, 'D17 Home shows "Since your last visit"', async () => { await go(pg, 'today'); await pg.waitForSelector('.since >> text=Since your last visit'); });
     ok(tag, 'D errors', errsD.length === 0, errsD.slice(0, 3).join(' | '));
+
+    // ---------------- E. Accounts: Google signup, sign out, sign in ----------------
+    const errsE = [];
+    pg = await (await b.newContext({ viewport: vp })).newPage();
+    pg.on('pageerror', (e) => errsE.push(`E ${e.message}`));
+    await step(tag, 'E1 Questions show "Question 1 of 6" and a reason', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('text=Question 1 of 6'); await pg.waitForSelector('.q-aside'); });
+    await step(tag, 'E2 After 6 questions: Continue with Google → account picker → signed up', async () => {
+      await answerQuestions(pg);
+      await pg.locator('.acct-google').click(); await pg.waitForSelector('#gp-title');
+      await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
+      const st = await state(pg); if (st.profile.account?.provider !== 'google' || !st.profile.account.signedIn) throw new Error('no google account');
+    });
+    await step(tag, 'E3 Settings shows the account → Sign out → website', async () => {
+      await go(pg, 'settings'); await pg.waitForSelector('#account >> text=alex.morgan@gmail.com');
+      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+    });
+    await step(tag, 'E4 Sign in (menu) → Google → back to Home', async () => {
+      if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator('.lp-menu >> text=Sign in').click(); } else await pg.locator('.lp-nav-cta >> text=Sign in').click();
+      await pg.waitForSelector('h1:has-text("Welcome back")');
+      await pg.locator('.acct-google').click(); await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
+    });
+    await step(tag, 'E5 Sign in with an unknown email offers to create an account', async () => {
+      await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.goto(BASE + '#/signin'); await pg.fill('#ob-email', 'someone@else.ca'); await pg.click('text=Email me a sign-in link'); await pg.click('text=Open the link (preview)');
+      await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
+    });
+    ok(tag, 'E errors', errsE.length === 0, errsE.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;

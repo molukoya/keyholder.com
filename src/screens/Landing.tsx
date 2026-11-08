@@ -3,7 +3,8 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
-import { Brand, KeyMark, WORDMARKS, setWordmark, useWordmark } from '../components/Brand';
+import { Brand } from '../components/Brand';
+import { Term } from '../components/Guide';
 import { POPULAR_BANKS, RETURN_PRESETS, province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 
@@ -42,10 +43,10 @@ export function Landing() {
   const [solid, setSolid] = useState(false);
   const seg = loc.pathname.split('/').filter(Boolean);
   const raw = seg[0] === 'welcome' ? seg[1] ?? '' : seg[0] ?? '';
-  const logo = raw === 'logo';
+  const logo = false;
   const page: PageId = (PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
   const idx = logo ? -1 : PAGES.findIndex((p) => p.id === page);
-  const signedIn = state.profile.onboarded;
+  const signedIn = state.profile.onboarded && !(state.profile.account && !state.profile.account.signedIn);
   const demo = () => { act.startDemo(); nav('/today'); };
   const start = () => nav(signedIn ? '/today' : '/start');
 
@@ -57,7 +58,7 @@ export function Landing() {
 
   const ctas = signedIn
     ? <Link className="btn primary" to="/today">Open my dashboard</Link>
-    : <><button className="btn ghost" onClick={demo}>See it in action</button><button className="btn primary" onClick={start}>Get started</button></>;
+    : <><Link className="btn ghost" to="/signin">Sign in</Link><button className="btn primary" onClick={start}>Start free</button></>;
   const next = PAGES[idx + 1];
   const prev = PAGES[idx - 1];
 
@@ -81,7 +82,6 @@ export function Landing() {
       </header>
 
       <main>
-        {logo && <LogoOptions />}
         {!logo && page === '' && <Overview start={start} demo={demo} signedIn={signedIn} />}
         {!logo && page === 'features' && <Features />}
         {!logo && page === 'provinces' && <Provinces />}
@@ -101,11 +101,11 @@ export function Landing() {
           <div className="lp-wrap lp-cta-in reveal">
             <div>
               <h2 className="lp-h2">Get your weekends back.</h2>
-              <p className="lp-lede">Six quick questions, about two minutes. No card needed.</p>
+              <p className="lp-lede">Answer 6 quick questions, about 2 minutes. Free for 1 rental unit.</p>
             </div>
             <div className="btn-row">
-              <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Get started, free'}</button>
-              {!signedIn && <button className="btn lp-big lp-on-dark" onClick={demo}>See it in action</button>}
+              <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
+              {!signedIn && <button className="btn lp-big lp-on-dark" onClick={demo}>Try a demo first</button>}
             </div>
           </div>
         </section>
@@ -118,7 +118,7 @@ export function Landing() {
             <p>Product</p>{PAGES.map((p) => <Link key={p.id} to={href(p.id)}>{p.label}</Link>)}
           </nav>
           <nav aria-label="Get started">
-            <p>Start</p><Link to="/start">Sign up</Link><button className="lp-link" onClick={demo}>Try the sample</button><Link to="/welcome/logo">Logo options</Link>
+            <p>Start</p><Link to="/start">Create a free account</Link><Link to="/signin">Sign in</Link><button className="lp-link" onClick={demo}>Try a demo</button>
           </nav>
           <p className="lp-legal">Keyholder prepares documents and information. It does not give legal or tax advice, file returns, or hold or move money. Notice periods, forms and rates in this preview are being verified with each province. © 2026 Keyholder.</p>
         </div>
@@ -183,12 +183,12 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
           <div className="lp-hero-copy">
             <p className="lp-kicker">For Canadian landlords with 1 to 10 units</p>
             <h1 className="lp-hero-h">Your rental, <em>handled.</em></h1>
-            <p className="lp-lede">Keyholder tracks rent, sends receipts and reminders, prepares late-rent notices for your province, and tells you plainly whether your property is worth it.</p>
+            <p className="lp-lede">Keyholder keeps track of your rent, writes receipts and reminders for you, and keeps every bill in one place. You stay in charge.</p>
             <div className="btn-row">
-              <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Get started, free'}</button>
-              {!signedIn && <button className="btn lp-big lp-on-dark" onClick={demo}>See it in action</button>}
+              <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
+              {!signedIn && <button className="btn lp-big lp-on-dark" onClick={demo}>Try a demo first, no sign-up</button>}
             </div>
-            <ul className="lp-ticks"><li>No card needed</li><li>You approve everything</li><li>Never moves your money</li></ul>
+            <ul className="lp-ticks"><li>Free for 1 rental unit</li><li>No card needed</li><li>About 15 minutes to set up</li></ul>
           </div>
           <div className="lp-hero-visual">
             <LiveDemo />
@@ -203,8 +203,8 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
           <ol className="lp-steps">
             {[
               ['home', 'Add your property', 'The address, the units and your tenants. A home with a rented basement works too.'],
-              ['bank', 'Connect your banks', 'View only, any Canadian bank. Or skip it and tap "Mark paid" yourself.'],
-              ['check', 'Approve the next step', 'Each tenant gets one button: receipt, reminder or notice. Nothing goes out without you.'],
+              ['bank', 'Connect your bank, or skip it', 'Keyholder can only look, never move your money. Or skip this and tap "Mark paid" yourself.'],
+              ['check', 'Tap the next step', 'Each tenant gets one button, like "Send receipt". Nothing is sent until you tap it.'],
             ].map(([ic, t, d], i) => (
               <li key={t} className="lp-step reveal" style={{ transitionDelay: `${i * 80}ms` }}>
                 <span className="lp-step-ic"><Icon name={ic} size={22} /></span>
@@ -214,6 +214,7 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
               </li>
             ))}
           </ol>
+          <div className="lp-need reveal"><Icon name="info" size={20} /><p><strong>What you need:</strong> your rental's address, your tenant's name and rent amount, and about 15 minutes.</p></div>
         </div>
       </section>
 
@@ -221,8 +222,8 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         <div className="lp-wrap lp-two">
           <div className="reveal">
             <p className="lp-kicker">The question that matters</p>
-            <h2 className="lp-h2">Is your property beating a GIC?</h2>
-            <p className="lp-lede">Rent left over, mortgage paid down and value growth, added up and compared with savings, a GIC and the stock market. One honest number, explained in plain words.</p>
+            <h2 className="lp-h2">Is your rental really making you money?</h2>
+            <p className="lp-lede">Keyholder adds up the rent you keep, the mortgage you have paid off, and how much your home has gone up in value. Then it compares that with leaving the money in savings, a <Term t="GIC" />, or the stock market.</p>
             <Link to="/welcome/features" className="lp-arrow">See how it is worked out</Link>
           </div>
           <div className="lp-panel reveal"><CompareBars /></div>
@@ -231,7 +232,7 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
 
       <section className="lp-sec lp-alt">
         <div className="lp-wrap">
-          <SecHead kicker="What it does" title="Everything a small landlord does, in one place." />
+          <SecHead kicker="What it does" title="Everything a landlord does, in one place." />
           <div className="lp-grid3">
             {FEATURES.map((f, i) => (
               <Link key={f.t} to="/welcome/features" className="lp-card reveal" style={{ transitionDelay: `${(i % 3) * 70}ms` }}>
@@ -260,11 +261,11 @@ function CompareBars() {
 // ================================================================ Features (tabs)
 const FEATURES: { t: string; icon: string; short: string; d: string; art: React.ReactNode }[] = [
   { t: 'Get paid, without chasing', icon: 'rent', short: 'Paid, Late or Due for every unit, with receipts in one tap.', d: 'Every unit shows Paid, Late or Due. Rent from your bank is spotted on its own. Receipts go out with one tap, and reminders stop the moment rent lands.', art: <div className="art-rows"><div><span>Maya</span><b className="status paid">Paid</b></div><div><span>Jordan</span><b className="status late">Late</b></div><div><span>Sam</span><b className="status due">Found</b></div></div> },
-  { t: 'Late rent, the legal way', icon: 'paper', short: "Your province's notice, with the dates worked out.", d: "When reminders aren't enough, Keyholder prepares your province's notice, like Ontario's N4 or BC's RTB-30, with the dates worked out and every detail checked before you approve.", art: <div className="art-sheet"><b>N4</b><i /><i /><i className="s" /><span className="stamp served">Served</span></div> },
-  { t: 'Fill an empty unit faster', icon: 'user', short: 'An application link, side-by-side applicants, one-step lease.', d: 'Share an application link or QR code. Compare applicants side by side, check references, and turn your pick into a tenant and a lease in one step.', art: <div className="art-apps"><div><b>Daniel</b><i style={{ width: '70%' }} /></div><div className="pick"><b>Lena &amp; Tom</b><i style={{ width: '90%' }} /></div></div> },
-  { t: 'Bills and mortgage from your banks', icon: 'bank', short: 'Several banks at once. Bills filed, mortgage ticked off.', d: 'Connect as many banks as you like. Gas, property tax and hardware-store bills are filed to the right property. Mortgage payments are ticked off on their own.', art: <div className="art-receipts"><span>Enbridge · $212</span><span>City tax · $1,300</span><span>RBC mortgage · ✓</span></div> },
-  { t: 'Know if it is worth it', icon: 'chart', short: 'Your return next to a GIC, savings and stocks.', d: 'Your net worth in property, what you earn a year including value growth, and how that compares with a GIC, savings and the stock market.', art: <div className="art-bars"><i style={{ ['--h' as string]: '92%' }} className="you" /><i style={{ ['--h' as string]: '30%' }} /><i style={{ ['--h' as string]: '38%' }} /><i style={{ ['--h' as string]: '70%' }} /></div> },
-  { t: 'Tax time, already done', icon: 'print', short: 'A T776 summary that builds itself as you go.', d: 'A CRA T776 rental summary that builds itself as you go, with depreciation, mortgage interest and a checklist of anything missing.', art: <div className="art-sheet"><b>T776</b><i /><i /><i /><span className="stamp paid">Ready</span></div> },
+  { t: 'Late rent, the legal way', icon: 'paper', short: 'The right official notice, with the dates worked out.', d: "If a reminder doesn't work, Keyholder fills in your province's official notice for unpaid rent (in Ontario, that's the N4 form). It works out the dates and checks every detail before you send it.", art: <div className="art-sheet"><b>N4</b><i /><i /><i className="s" /><span className="stamp served">Served</span></div> },
+  { t: 'Fill an empty unit faster', icon: 'user', short: 'People apply online. You compare and pick.', d: 'Share a link for people to apply. See everyone side by side, check references, and turn your pick into a tenant and a lease in one step.', art: <div className="art-apps"><div><b>Daniel</b><i style={{ width: '70%' }} /></div><div className="pick"><b>Lena &amp; Tom</b><i style={{ width: '90%' }} /></div></div> },
+  { t: 'Bills and mortgage from your banks', icon: 'bank', short: 'Bills sorted for you. Mortgage payments checked off.', d: 'Connect one bank or several. Bills like gas and property tax are saved to the right property for you, and mortgage payments are checked off on their own.', art: <div className="art-receipts"><span>Enbridge · $212</span><span>City tax · $1,300</span><span>RBC mortgage · ✓</span></div> },
+  { t: 'Know if it is worth it', icon: 'chart', short: 'See if your rental makes money, in plain words.', d: 'See what your property is worth, what you keep each year, and how that compares with putting the money in a savings account or the stock market.', art: <div className="art-bars"><i style={{ ['--h' as string]: '92%' }} className="you" /><i style={{ ['--h' as string]: '30%' }} /><i style={{ ['--h' as string]: '38%' }} /><i style={{ ['--h' as string]: '70%' }} /></div> },
+  { t: 'Tax time, already done', icon: 'print', short: 'Your tax numbers, ready when you need them.', d: 'Every rent payment and cost is saved as you go. At tax time, Keyholder shows the numbers for the rental part of your tax return (CRA form T776), plus a list of anything missing.', art: <div className="art-sheet"><b>T776</b><i /><i /><i /><span className="stamp paid">Ready</span></div> },
 ];
 
 function Features() {
@@ -293,7 +294,7 @@ function Features() {
       </section>
       <section className="lp-sec lp-alt">
         <div className="lp-wrap">
-          <SecHead kicker="Bronze · Silver · Gold" title="Starts simple. Gets smarter as you add more.">Nothing is required beyond the rent. Each property's card turns from bronze to silver to gold as you add detail.</SecHead>
+          <SecHead kicker="Bronze · Silver · Gold" title="Starts simple. Gets smarter as you add more.">You only need the rent to start. Your property card turns from bronze to silver to gold as you add more details. It's always free: these are not paid levels.</SecHead>
           <div className="lp-grid3">
             <LevelCard level="bronze" title="Bronze" need="Your property, tenants and rent" gives={['Rent tracking, receipts, reminders', 'Expenses and a tax summary', 'A rough idea of what you earn']} />
             <LevelCard level="silver" title="Silver" need="What you paid and when" gives={['Your gain since you bought it', 'Return compared with a GIC', 'Rent compared with the area', 'Room to borrow']} />
@@ -328,22 +329,22 @@ function Provinces() {
   const late = formsFor(sel, 'late-rent'), inc = formsFor(sel, 'rent-increase'), lease = formsFor(sel, 'lease');
   return (
     <>
-      <PageHead kicker="Provinces" title={<>Built for every province <em>and territory.</em></>}>Rules for rent increases and notices differ across Canada. Keyholder knows the difference.</PageHead>
+      <PageHead kicker="Provinces" title={<>Built for every province <em>and territory.</em></>}>Each province has its own rules for leases, rent increases and late rent. Keyholder uses the right forms for where your rental is.</PageHead>
       <section className="lp-sec">
         <div className="lp-wrap">
-          <SecHead kicker="Forms by province" title="Tap a province to see its forms." />
+          <SecHead kicker="Forms by province" title="Tap your province to see its forms." />
           <div className="lp-map reveal">
             <div className="lp-tiles" role="radiogroup" aria-label="Province">
               {TILES.map(([p, c, r]) => <button key={p} role="radio" aria-checked={sel === p} aria-label={province(p).name} className={`lp-tile${sel === p ? ' on' : ''}`} style={{ gridColumn: c, gridRow: r }} onClick={() => setSel(p)}>{p}</button>)}
             </div>
             <div className="lp-map-info" aria-live="polite">
               <div key={sel} className="lp-swap">
-                <p className="lp-kicker">{info.tribunal}</p>
+                <p className="lp-kicker">Rules set by: {info.tribunal}</p>
                 <h3>{info.name}</h3>
                 <dl>
-                  <dt>Late rent</dt><dd>{late.map((f) => f.code).join(' → ') || '—'}</dd>
-                  <dt>Rent increase</dt><dd>{inc.map((f) => f.code).join(', ') || '—'}{info.rentIncreaseGuidelinePct ? ` · guideline ${info.rentIncreaseGuidelinePct}%` : ''}</dd>
-                  <dt>Lease</dt><dd>{lease.map((f) => f.code).join(', ') || '—'}</dd>
+                  <dt>When rent is late</dt><dd>{late.length ? <ol>{late.map((f) => <li key={f.id}>{f.title} <code>{f.code}</code></li>)}</ol> : '—'}</dd>
+                  <dt>Raising the rent</dt><dd>{inc.length ? inc.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}{info.rentIncreaseGuidelinePct ? <span className="lp-dd-note">Most rents can go up {info.rentIncreaseGuidelinePct}% this year</span> : null}</dd>
+                  <dt>Lease</dt><dd>{lease.length ? lease.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}</dd>
                 </dl>
                 <a className="lp-arrow" href={AUTHORITY_URL[sel]} target="_blank" rel="noopener noreferrer">Official site</a>
               </div>
@@ -402,7 +403,10 @@ function Pricing({ start }: { start: () => void }) {
 
 // ================================================================ Questions
 const FAQ: [string, string][] = [
-  ['Is this legal or tax advice?', 'No. Keyholder prepares documents and numbers for you; you make the decisions. For legal notices we suggest checking with a paralegal the first time, and an accountant at tax time.'],
+  ["I'm new to being a landlord. Is this for me?", 'Yes. Keyholder was made for people with one or a few rentals. It explains each step in plain words and tells you what to do next.'],
+  ['What does it cost?', 'Free for one rental unit. For 2 to 10 units, it is planned at $8 per unit a month. Early-access prices are not final, and you will never be charged without agreeing first.'],
+  ['Is my bank information safe?', 'Yes. Keyholder can only look at deposits and bills. It can never move money, and it never sees your bank password.'],
+  ['Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['Which banks work?', 'RBC, TD, BMO, Scotiabank, CIBC, National Bank, Desjardins, Tangerine and most credit unions. Connect as many as you like, view only.'],
   ['I rent out part of my own home. Does that work?', 'Yes. Tell Keyholder what share you rent out, and shared costs like heat and property tax are split for you.'],
   ['Will my tenant need an account?', 'No. Tenants get receipts and reminders by email, and can apply through a simple link.'],
@@ -444,27 +448,5 @@ function LiveDemo() {
       {sent.maya && <div className="lp-receipt" aria-live="polite"><strong>Rent receipt #1042</strong><span>Maya Chen · $1,650.00 · Nov 1</span><span className="stamp paid">Paid</span></div>}
       <div className="lp-demo-foot"><Icon name="bank" size={16} /> Checking RBC and TD every 4 hours</div>
     </div>
-  );
-}
-
-// ================================================================ Logo options (pick one)
-function LogoOptions() {
-  const cur = useWordmark();
-  return (
-    <>
-      <PageHead kicker="Logo options" title={<>Pick your <em>Keyholder</em> logo.</>}>Tap one to use it across the site and the app, then tell me which you chose.</PageHead>
-      <section className="lp-sec">
-        <div className="lp-wrap lp-logos">
-          {WORDMARKS.map((w, i) => (
-            <button key={w.id} className={`lp-logo-card reveal${cur === w.id ? ' on' : ''}`} aria-pressed={cur === w.id} onClick={() => setWordmark(w.id)}>
-              <span className="lp-logo-stage light"><Brand size={44} variant={w.id} /></span>
-              <span className="lp-logo-stage dark"><Brand size={44} variant={w.id} /></span>
-              <span className="lp-logo-stage icon-row">{[56, 40, 28, 20].map((n) => <KeyMark key={n} size={n} variant={w.id} />)}</span>
-              <span className="lp-logo-meta"><b>{String.fromCharCode(65 + i)} · {w.name}</b><span>{w.note}</span><em>{cur === w.id ? 'In use' : 'Use this one'}</em></span>
-            </button>
-          ))}
-        </div>
-      </section>
-    </>
   );
 }

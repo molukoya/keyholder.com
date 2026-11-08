@@ -32,7 +32,7 @@ export function Money() {
 export function Taxes() {
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1>Taxes</h1><PageSub>Your rental income and costs for the year, ready for the CRA T776 form.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1>Taxes</h1><PageSub>Your rent and costs for the year, ready for the rental part of your tax return (CRA form T776).</PageSub></div></div>
       <TaxPackPage />
     </div>
   );

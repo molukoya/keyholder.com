@@ -46,6 +46,13 @@ export interface Profile {
   /** Showing the sample properties (demo). */
   sample?: boolean;
   tourDone?: boolean;
+  /** Account (Stage 1: simulated). Sample/demo users have none. */
+  account?: { provider: 'google' | 'email'; email: string; name: string; signedIn: boolean; created: ISODate };
+  /** Email me on rent day and once a month (preview only: nothing is sent). */
+  emailUpdates?: boolean;
+  /** Today's visit and the one before, for "Since your last visit". */
+  lastVisit?: ISODate;
+  prevVisit?: ISODate;
 }
 
 export type PropertyType = 'house' | 'duplex' | 'triplex' | 'condo' | 'townhouse' | 'other';

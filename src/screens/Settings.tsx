@@ -22,6 +22,24 @@ export function Settings() {
     <div className="page">
       <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
 
+      <section className="section" id="account">
+        <h2 className="section-title">Your account</h2>
+        <div className="sheet">
+          {p.account ? (
+            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+              <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
+              <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
+            </div>
+          ) : (
+            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+              <div><strong>You're using sample properties</strong><div className="small soft">Create a free account to save your own.</div></div>
+              <button className="btn primary" onClick={() => { act.startOwn(); nav('/start'); }}>Create my account</button>
+            </div>
+          )}
+          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />Email me on rent day and once a month with a summary <span className="soft small">(preview: no emails are sent yet)</span></label>
+        </div>
+      </section>
+
       <section className="section" id="levels">
         <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
         <div className="sheet">

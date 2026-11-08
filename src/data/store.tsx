@@ -104,6 +104,19 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     startDemo() { mut((d) => { const profile = { ...defaultProfile(), ...d.profile, onboarded: true, sample: true, tourDone: false }; Object.assign(d, seedState(profile)); }); },
     /** From the sample banner: clear the sample and go back to the questions. */
     startOwn() { mut((d) => { Object.assign(d, emptyState(defaultProfile())); }); },
+    /** Create the account at the end of signup (Google or email link) and start with the user's own empty setup. */
+    signUp(p: Partial<Profile>, account: { provider: 'google' | 'email'; email: string; name: string }) {
+      mut((d) => {
+        const profile = { ...d.profile, ...p, name: account.name || p.name || '', email: account.email, onboarded: true, sample: false,
+          account: { ...account, signedIn: true, created: today() } };
+        const next = emptyState(profile);
+        next.banks = [];
+        Object.assign(d, next);
+        audit(d, 'Account created', `${account.provider === 'google' ? 'Google' : 'Email link'} · ${account.email}`);
+      });
+    },
+    signIn() { mut((d) => { if (d.profile.account) d.profile.account.signedIn = true; }); },
+    signOut() { mut((d) => { if (d.profile.account) d.profile.account.signedIn = false; }); toast('Signed out. See you soon.'); },
     setProfile(p: Partial<Profile>) { mut((d) => { Object.assign(d.profile, p); }); },
     resetDemo() { mut((d) => { const prof = { ...d.profile }; Object.assign(d, seedState(prof)); }); toast('Sample data restored.'); },
     clearAll() { mut((d) => { Object.assign(d, emptyState({ ...d.profile })); }); toast('All data cleared. Start by adding a property.'); },

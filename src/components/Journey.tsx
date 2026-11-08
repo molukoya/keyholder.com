@@ -193,9 +193,9 @@ export function ScoreList() {
   const p = form ? state.properties.find((x) => x.id === form.pid) : undefined;
   return (
     <section className="section" id="score">
-      <h2 className="section-title">Raise your Keyholder score</h2>
+      <h2 className="section-title">Finish setting up · {score}% done</h2>
       <div className="sheet">
-        <div className="score-hero"><ScoreRing score={score} big /><p style={{ margin: 0 }}>{score >= 100 ? 'Everything is complete.' : 'Each detail makes your numbers more accurate. Pick any of these.'}</p></div>
+        <div className="score-hero"><ScoreRing score={score} big /><p style={{ margin: 0 }}>{score >= 100 ? 'Everything is set up.' : 'Optional. Each one makes your numbers more accurate. Pick any.'}</p></div>
         {todo.length > 0 && <ul className="rows">{(all ? todo : todo.slice(0, 3)).map((i) => {
           const pr = i.propertyId ? state.properties.find((x) => x.id === i.propertyId) : undefined;
           return (

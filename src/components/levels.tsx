@@ -93,9 +93,9 @@ export function ScoreChip() {
   }, [score]);
   const next = todo[0];
   return (
-    <button data-tour="score" className={`score-chip${bump ? ' bump' : ''}`} onClick={() => { if (location.hash.includes('/today')) document.getElementById('score')?.scrollIntoView({ behavior: 'smooth' }); else nav('/today'); }} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
+    <button data-tour="score" className={`score-chip${bump ? ' bump' : ''}`} onClick={() => { if (location.hash.includes('/today')) document.getElementById('score')?.scrollIntoView({ behavior: 'smooth' }); else nav('/today'); }} aria-label={`Setup progress ${score} percent. See what is left.`}>
       <ScoreRing score={shown} />
-      <span className="score-label">Keyholder score</span>
+      <span className="score-label">Setup progress</span>
       {next && <span className="score-next">+{next.points - next.earned} next</span>}
     </button>
   );

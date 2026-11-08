@@ -10,10 +10,10 @@ export const WORDMARKS: { id: WordmarkId; name: string; note: string }[] = [
   { id: 'c', name: 'Monogram', note: 'The H and K of Keyholder share one upright, in a soft circle. A premium initial badge.' },
   { id: 'd', name: 'Keyhole “o”', note: 'Word only. The first “o” carries a keyhole, and doubles as the app icon.' },
 ];
-const KEY = 'keyholder:wordmark';
 const listeners = new Set<(v: WordmarkId) => void>();
-function readChoice(): WordmarkId { try { const v = localStorage.getItem(KEY); return v === 'b' || v === 'c' || v === 'd' ? v : 'a'; } catch { return 'a'; } }
-export function setWordmark(v: WordmarkId) { try { localStorage.setItem(KEY, v); } catch { /* storage blocked */ } listeners.forEach((f) => f(v)); }
+// Chosen: D (keyhole "o"). The other versions stay here for reference only.
+function readChoice(): WordmarkId { return 'd'; }
+export function setWordmark(v: WordmarkId) { listeners.forEach((f) => f(v)); }
 export function useWordmark() {
   const [v, setV] = useState<WordmarkId>(readChoice);
   useEffect(() => { listeners.add(setV); return () => { listeners.delete(setV); }; }, []);

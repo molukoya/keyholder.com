@@ -271,3 +271,12 @@ a.lp-card:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px;
   .lp .reveal { opacity: 1; transform: none; transition: none; }
   .lp-bar i { transform: none; transition: none; }
 }
+.lp-need { display: flex; gap: 12px; align-items: flex-start; margin-top: 24px; padding: 18px 20px; border-radius: 14px; background: #EEF0FF; color: var(--lp-ink); }
+.lp-need svg { flex: none; color: var(--indigo); margin-top: 3px; }
+.lp-need p { margin: 0; line-height: 1.55; }
+.lp-map-info dd ol { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.lp-map-info dd span { display: block; }
+.lp-map-info dd { font-family: var(--font-ui); font-size: 16px; }
+.lp-map-info code { font-family: var(--font-mono); font-size: 13px; padding: 1px 6px; border-radius: 6px; background: #fff; border: 1px solid var(--lp-rule); margin-left: 4px; }
+.lp-dd-note { margin-top: 6px; font-size: 14px; color: var(--lp-soft); }
+.lp-dark .term { border-bottom-color: rgba(255,255,255,.6); }

@@ -16,7 +16,8 @@ import { Rentals } from './screens/Rentals';
 import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
 import { Landing } from './screens/Landing';
-import { SampleBanner, Tour, PageSub } from './components/Guide';
+import { SignIn } from './screens/Account';
+import { SampleBanner, Tour, PageSub, HelpButton } from './components/Guide';
 
 export function App() {
   return (
@@ -41,8 +42,12 @@ function Root() {
   useTheme();
   // The landing page is the front door; /welcome shows it again from inside the app.
   const onStart = loc.pathname === '/start' || loc.pathname.startsWith('/start/');
-  const page = loc.pathname.startsWith('/welcome') || (!state.profile.onboarded && !onStart) ? <Landing /> : !state.profile.onboarded ? <Onboarding /> : <Shell />;
-  return page;
+  // Signed out (an account exists but is signed out) behaves like a visitor until they sign in again.
+  const inApp = state.profile.onboarded && !(state.profile.account && !state.profile.account.signedIn);
+  if (loc.pathname.startsWith('/welcome')) return <Landing />;
+  if (!inApp && loc.pathname.startsWith('/signin')) return <SignIn />;
+  if (!inApp) return onStart ? <Onboarding /> : <Landing />;
+  return <Shell />;
 }
 
 function Shell() {
@@ -55,6 +60,9 @@ function Shell() {
   const count = useMemo(() => needsYouCount(state, today), [state, today]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
+  // Remember the visit before today's, for "Since your last visit" on Home.
+  const { act } = useStore();
+  useEffect(() => { if (state.profile.lastVisit !== today) act.setProfile({ prevVisit: state.profile.lastVisit, lastVisit: today }); }, [today]); // eslint-disable-line react-hooks/exhaustive-deps
   // Desktop keyboard shortcuts (PRD §12): P = log a payment, E = add an expense, T = open the tray.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,6 +92,7 @@ function Shell() {
         <div style={{ height: 16 }} />
         <button className="btn primary" data-tour="receipt" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
+          <HelpButton />
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
         </div>
       </aside>
@@ -91,6 +100,7 @@ function Shell() {
       <div className="main">
         <div className="mobile-top">
           <Link to="/welcome" className="brand" style={{ margin: 0 }}><Brand size={24} /></Link>
+          <HelpButton compact />
         </div>
         <main>
           <SampleBanner />

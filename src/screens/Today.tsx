@@ -8,6 +8,9 @@ import { RentRows, ScoreList } from '../components/Journey';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
+import { SinceLastVisit } from '../components/Guide';
+import { needsYouCount } from '../lib/tray';
+import { addDays } from '../lib/dates';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 
@@ -66,7 +69,7 @@ export function Today() {
   let headline: React.ReactNode;
   if (notDue) headline = <>Rent is due {fmtDay(occupied[0].line.due)}.</>;
   else if (!late.length && pending.size) headline = <>{paid} of {occupied.length} paid. Please confirm {pending.size === 1 ? 'one payment' : `${pending.size} payments`}.</>;
-  else if (!late.length) headline = <><em>All rent is in.</em> You're all set.</>;
+  else if (!late.length) headline = <><em className="all-in"><span aria-hidden>✓</span> All rent is in.</em> Nice work.</>;
   else headline = <>{paid} of {occupied.length} paid. <span className="bad">{late.length === 1 ? `${firstName(late[0])} is late.` : `${late.length} tenants are late.`}</span></>;
 
   return (
@@ -74,6 +77,7 @@ export function Today() {
       <h1 className="sr-only">Home</h1>
       <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
       <p className="pulse">{headline}</p>
+      <SinceLastVisit since={state.profile.prevVisit ?? addDays(today, -7)} needs={needsYouCount(state, today)} />
       <div className="track-top"><BankStatus /></div>
 
       <RentRows />
