@@ -42,7 +42,7 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
     <div className="acct-modal" role="dialog" aria-modal="true" aria-labelledby="gp-title">
       <div className="scrim" onClick={onClose} />
       <div className="acct-modal-card">
-        <div className="acct-modal-head"><GoogleG /><span>Sign in with Google</span><button className="btn ghost small" onClick={onClose} aria-label="Cancel"><Icon name="close" size={18} /></button></div>
+        <div className="acct-modal-head"><span className="acct-preview-tag">Preview</span><span>Stand-in for Google sign-in</span><button className="btn ghost small" onClick={onClose} aria-label="Cancel"><Icon name="close" size={18} /></button></div>
         <h2 id="gp-title">Choose an account</h2>
         <p className="small soft">to continue to Keyholder</p>
         {!other ? (
