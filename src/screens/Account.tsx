@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
@@ -36,7 +37,8 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
   const [email, setEmail] = useState('');
   const known = state.profile.account?.provider === 'google' ? [{ name: state.profile.account.name, email: state.profile.account.email }] : [];
   const choices = known.length ? known : [{ name: 'Alex Morgan', email: 'alex.morgan@gmail.com' }];
-  return (
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
+  return createPortal(
     <div className="acct-modal" role="dialog" aria-modal="true" aria-labelledby="gp-title">
       <div className="scrim" onClick={onClose} />
       <div className="acct-modal-card">
@@ -61,7 +63,8 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
         )}
         <p className="tiny faint acct-note">Preview: this stands in for Google sign-in. Nothing is sent to Google yet, and Keyholder never asks for your Google password.</p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

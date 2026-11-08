@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 import { useStore } from '../data/store';
 import { fmt0 } from '../lib/money';
@@ -161,10 +162,11 @@ export function HelpButton({ compact }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const { act } = useStore();
   const nav = useNavigate();
+  useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [open]);
   return (
     <>
       <button className={compact ? 'btn ghost small help-btn' : 'nav-link help-btn'} onClick={() => setOpen(true)}><Icon name="info" size={compact ? 18 : 20} />Help</button>
-      {open && (
+      {open && createPortal(
         <div className="acct-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
           <div className="scrim" onClick={() => setOpen(false)} />
           <div className="acct-modal-card help-card">
@@ -175,7 +177,8 @@ export function HelpButton({ compact }: { compact?: boolean }) {
               <button className="btn" onClick={() => { setOpen(false); act.setProfile({ tourDone: false }); nav('/today'); }}>Show me around again</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

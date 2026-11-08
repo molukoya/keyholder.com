@@ -140,7 +140,8 @@ h1, h2 { font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: lining
 
 /* Help, since-last-visit, celebration */
 .help-btn { width: 100%; }
-.mobile-top { display: flex; justify-content: space-between; align-items: center; }
+.nav-link.help-btn { border: 0; background: transparent; font: inherit; color: var(--ink-soft); cursor: pointer; text-align: left; box-shadow: none; }
+.nav-link.help-btn:hover { background: var(--paper-sunk); color: var(--ink); }
 .mobile-top .help-btn { width: auto; }
 .help-card { width: min(520px, 100%); max-height: 86vh; overflow-y: auto; }
 .help-list details { border-bottom: 1px solid var(--rule); }

@@ -5,7 +5,10 @@ const { chromium } = require('playwright');
 const out = process.argv[2] || '.';
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
 const results = [];
-const ok = (tag, name, pass, note = '') => results.push({ tag, name, pass, note });
+// ONLY=D,E runs just those sections (letters at the start of each check's name). Progress prints as it goes.
+const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean);
+const want = (section) => !ONLY.length || ONLY.includes(section);
+const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}`); };
 
 async function onboard(pg, sample) {
   await pg.goto(BASE + '#/start');
@@ -27,7 +30,7 @@ async function answerQuestions(pg) {
 const state = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')));
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(250); };
 const approve = async (pg) => { await pg.locator('.slide-confirm .knob').focus(); await pg.keyboard.press('Enter'); await pg.waitForTimeout(350); };
-const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) { ok(tag, name, false, String(e.message).split('\n')[0].slice(0, 160)); } };
+const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) { ok(tag, name, false, process.env.DEBUG ? String(e.message).split('\n').slice(0, 14).join(' / ') : String(e.message).split('\n')[0].slice(0, 160)); } };
 
 (async () => {
   const b = await chromium.launch();
@@ -212,7 +215,7 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     // ---------------- C. Every link on every page ----------------
     const pages = ['today', 'rentals', 'rent/property/p-maple', 'rent/property/p-maple/find', 'rent/property/p-maple/notices', 'rent/property/p-maple/value', 'rent/property/p-maple/mortgage', 'rent/property/p-birch/value', 'rent/tenant/t-maya', 'portfolio', 'portfolio/cash-flow', 'taxes', 'paperwork/expenses', 'paperwork/income', 'paperwork/leases', 'paperwork/notices', 'paperwork/forms', 'settings', 'more'];
     const bad = [];
-    for (const p of pages) {
+    if (want('C')) for (const p of pages) {
       await go(pg, p);
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) bad.push(`${p}: sideways scroll`);
       const hrefs = await pg.$$eval('a[href^="#/"]', (as) => [...new Set(as.map((a) => a.getAttribute('href')))]);
@@ -225,7 +228,7 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
         void target;
       }
     }
-    ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
+    if (want('C')) ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
     // Navigation bars
     await step(tag, 'C2 Main navigation reaches every tab', async () => {
       const labels = tag === 'phone' ? ['Home', 'Portfolio', 'Rentals', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Taxes', 'Paperwork', 'Settings'];

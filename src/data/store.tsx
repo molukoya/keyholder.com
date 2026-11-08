@@ -91,7 +91,9 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     // ---- Profile & onboarding ----
     completeOnboarding(p: Partial<Profile>, withSample: boolean) {
       mut((d) => {
-        const profile = { ...d.profile, ...p, onboarded: true };
+        const merged = { ...d.profile, ...p, onboarded: true };
+        // The sample comes with a sample landlord, so notices and receipts can be signed.
+        const profile = withSample ? sampleLandlord(merged) : merged;
         const next = withSample ? seedState(profile) : emptyState(profile);
         if (!withSample) next.banks = [];
         next.profile.sample = withSample;
@@ -101,7 +103,7 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
       });
     },
     /** "See it in action": skip the questions, load the two sample properties and start the tour. */
-    startDemo() { mut((d) => { const profile = { ...defaultProfile(), ...d.profile, onboarded: true, sample: true, tourDone: false }; Object.assign(d, seedState(profile)); }); },
+    startDemo() { mut((d) => { const profile = sampleLandlord({ ...defaultProfile(), ...d.profile, onboarded: true, sample: true, tourDone: false }); Object.assign(d, seedState(profile)); }); },
     /** From the sample banner: clear the sample and go back to the questions. */
     startOwn() { mut((d) => { Object.assign(d, emptyState(defaultProfile())); }); },
     /** Create the account at the end of signup (Google or email link) and start with the user's own empty setup. */
@@ -387,6 +389,11 @@ export type Actions = ReturnType<typeof makeActions>;
 
 interface Ctx { state: AppState; act: Actions; today: string; toasts: { id: number; text: string }[] }
 const StoreCtx = createContext<Ctx | null>(null);
+
+/** Sample properties need a landlord to sign receipts and notices; use a sample one if the visitor has not given a name. */
+function sampleLandlord(p: Profile): Profile {
+  return p.name ? p : { ...p, name: 'Alex Morgan', email: p.email || 'alex.morgan@example.com' };
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(load);
