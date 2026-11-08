@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export function defaultProfile(): Profile {
   return {
@@ -41,8 +41,11 @@ export function emptyState(profile?: Profile): AppState {
   };
 }
 
-/** `asOf` lets tests pin the sample data to a fixed date. */
-export function seedState(profile?: Profile, asOf?: string): AppState {
+/**
+ * Demo data: one personal-and-rental home and one investment property.
+ * `asOf` pins the dates (tests); `provinceSamples` adds a one-unit rental in every other province (tests only).
+ */
+export function seedState(profile?: Profile, asOf?: string, provinceSamples = false): AppState {
   const today = asOf ?? todayISO();
   const thisPeriod = periodOf(today);
   const s = emptyState(profile);
@@ -81,7 +84,7 @@ export function seedState(profile?: Profile, asOf?: string): AppState {
     { id: 'l-patel', unitId: 'u-b', tenantId: 't-patel', start: '2024-08-01', rent: 145_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 140_000, utilities: 'Tenant pays hydro', parking: false, pets: true, emailNoticeConsent: true },
     { id: 'l-sam', unitId: 'u-bsmt', tenantId: 't-sam', start: addMonths(`${thisPeriod}-01`, -9), rent: 150_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 150_000, utilities: 'All included', parking: false, pets: false, emailNoticeConsent: false },
   ];
-  // One small sample rental in every other province and territory, to show each province's forms.
+  // Test-only: one small rental in every other province and territory, to exercise each province's forms.
   const PROVINCE_SAMPLES: [Province, string, string, string, string, number, string, boolean][] = [
     ['BC', 'Vancouver', '2215 Commercial Dr', 'Commercial Drive suite', 'Main', 2_150_00, 'Arjun Mehta', true],
     ['AB', 'Calgary', '1408 Kensington Rd NW', 'Kensington condo', '1408', 1_750_00, 'Chloe Tremblay', true],
@@ -98,7 +101,7 @@ export function seedState(profile?: Profile, asOf?: string): AppState {
   ];
   const lateSamples = new Set<string>();
   const sampleLeases = new Set<string>();
-  PROVINCE_SAMPLES.forEach(([prov, city, address, nickname, label, rent, tenant, late], i) => {
+  (provinceSamples ? PROVINCE_SAMPLES : []).forEach(([prov, city, address, nickname, label, rent, tenant, late], i) => {
     const pid = `p-${prov.toLowerCase()}`, uid2 = `u-${prov.toLowerCase()}`, tid = `t-${prov.toLowerCase()}`, lid = `l-${prov.toLowerCase()}`;
     s.properties.push({ id: pid, nickname, address, city, province: prov, type: 'other', rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100, claimCCA: false });
     s.units.push({ id: uid2, propertyId: pid, label, rent, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'occupied' });

@@ -23,7 +23,7 @@ describe('forms registry', () => {
   });
 
   it('suggests the province\'s next late-rent step', () => {
-    const s = seedState(undefined, today);
+    const s = seedState(undefined, today, true);
     const next = (id: string) => nextNotice(s, s.leases.find((l) => l.id === id)!, today)?.form.code;
     expect(next('l-patel')).toBe('N4');
     expect(next('l-bc')).toBe('RTB-30');

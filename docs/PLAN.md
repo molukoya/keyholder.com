@@ -23,7 +23,7 @@ Alberta: templates (14-day notice, rent increase, breach, inspection) and the RT
 lease, notice of lease modification, formal demand and TAL application (no eviction notice for late rent). All other
 provinces and territories use shared templates and link to their official site. One form screen: pre-filled, checks,
 slide to approve, delivery and proof of service. Every code, title and period is a placeholder to verify.
-Sample data has one rental in every province and territory.
+The demo has two properties (a home with a rented basement, and an investment triplex). Paperwork → Forms can show any province; tests cover every province with a test-only data set.
 
 **Late rent:** reminder → N4 (prefilled from the ledger, termination date from the rules pack, checks, slide to
 approve, delivery method limited by email consent, proof of service, cancelled automatically if paid in full)

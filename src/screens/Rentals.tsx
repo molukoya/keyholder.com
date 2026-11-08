@@ -7,7 +7,7 @@ import { addDays, daysBetween, fmtDate, fmtDay, fmtPeriod } from '../lib/dates';
 import { arrears, nextNotice, propertyOf } from '../lib/notices';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 import { FormWizard } from '../components/FormWizard';
-import { reminderStage } from '../lib/tray';
+import { reminderStage, trayItems } from '../lib/tray';
 import { province } from '../lib/jurisdiction';
 import { fmt, fmt0 } from '../lib/money';
 import { propertyLevel } from '../lib/levels';
@@ -77,7 +77,9 @@ export function UnitRow({ unit }: { unit: Unit }) {
     );
   }
   const line = currentLine(state, lease, today)!;
-  const isLate = line.state === 'late' || (line.state === 'partial' && line.daysLate > 0);
+  // A deposit waiting to be confirmed for this tenant: show it instead of "late".
+  const found = trayItems(state, today).some((t) => t.kind === 'match' && t.suggestion?.leaseId === lease.id);
+  const isLate = !found && (line.state === 'late' || (line.state === 'partial' && line.daysLate > 0));
   return (
     <li className={`unit-row ${isLate ? 'late' : ''}`}>
       <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
@@ -86,8 +88,9 @@ export function UnitRow({ unit }: { unit: Unit }) {
         {line.state === 'paid' && <span className="status paid"><Icon name="check" size={16} />Paid</span>}
         {isLate && <span className="status late">Late · {line.daysLate} days</span>}
         {(line.state === 'due' || line.state === 'upcoming') && <span className="status due">{line.state === 'due' ? 'Due today' : `Due ${fmtDay(line.due)}`}</span>}
+        {found && line.state !== 'paid' && <span className="status due">Payment found</span>}
       </span>
-      {isLate ? <button className="btn primary" onClick={() => setLate(lease)}>Late rent options</button>
+      {found && line.state !== 'paid' ? <button className="btn primary" onClick={() => nav('/today')}>Confirm</button> : isLate ? <button className="btn primary" onClick={() => setLate(lease)}>Late rent options</button>
         : line.state !== 'paid' ? <button className="btn" onClick={() => setPay(true)}>Mark paid</button> : <span />}
       {pay && <PaymentForm leaseId={lease.id} onClose={() => setPay(false)} />}
       {late && <LateRentDrawer lease={late} onClose={() => setLate(null)} />}

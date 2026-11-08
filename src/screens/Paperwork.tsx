@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import type { Lease, Message, Receipt } from '../data/types';
+import type { Lease, Message, Province, Receipt } from '../data/types';
 import { AUTHORITY_URL, SITUATIONS, formsFor } from '../lib/forms';
 import { FormWizard, SituationPicker } from '../components/FormWizard';
 import { useStore } from '../data/store';
 import { addDays, addMonths, fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
-import { province } from '../lib/jurisdiction';
+import { PROVINCES, province } from '../lib/jurisdiction';
 import { Expenses } from './Money';
 import { fmt } from '../lib/money';
 import { messageBody } from '../lib/templates';
@@ -154,39 +154,46 @@ function Log() {
   );
 }
 
-/** Forms library: every situation, with the right form for each property's province. */
+/** Forms library: every situation and its form, for any province. Prepare works for your own properties. */
 function FormsLibrary() {
   const { state, today } = useStore();
   const props = state.properties.filter((p) => !p.archived);
-  const [pid, setPid] = useState(props[0]?.id ?? '');
+  const [prov, setProv] = useState<Province>(props[0]?.province ?? state.profile.province);
   const [pick, setPick] = useState<{ lease: Lease; formId: string } | null>(null);
   const [choose, setChoose] = useState<string | null>(null);
-  const p = props.find((x) => x.id === pid);
-  if (!p) return <div className="sheet"><Empty title="Add a property to see its forms." /></div>;
-  const leases = state.leases.filter((l) => state.units.find((u) => u.id === l.unitId)?.propertyId === p.id && (!l.end || l.end >= today));
-  const prov = province(p.province);
+  const leases = state.leases.filter((l) => {
+    const pr = state.properties.find((x) => x.id === state.units.find((u) => u.id === l.unitId)?.propertyId);
+    return pr && !pr.archived && pr.province === prov && (!l.end || l.end >= today);
+  });
+  const info = province(prov);
+  const own = new Set(props.map((p) => p.province));
   return (
     <>
       <div className="spread" style={{ marginBottom: 16 }}>
-        <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname} · {x.province}</option>)}</select>
-        <span className="small soft">{prov.name} · {prov.tribunal} · <a href={AUTHORITY_URL[p.province]} target="_blank" rel="noopener noreferrer">official site</a></span>
+        <label className="btn-row"><span className="small">Show forms for</span>
+          <select className="input" style={{ width: 'auto' }} value={prov} onChange={(e) => setProv(e.target.value as Province)} aria-label="Province">
+            {PROVINCES.map((x) => <option key={x.code} value={x.code}>{x.name}{own.has(x.code) ? ' (your properties)' : ''}</option>)}
+          </select>
+        </label>
+        <span className="small soft">{info.tribunal} · <a href={AUTHORITY_URL[prov]} target="_blank" rel="noopener noreferrer">official site</a></span>
       </div>
+      {!leases.length && <div className="callout">You have no tenants in {info.name}, so these forms are for reading. Prepare is available for provinces where you have a rental.</div>}
       {SITUATIONS.map((s) => (
         <section key={s.id} className="section">
           <h2 className="section-title">{s.label}</h2>
-          <div className="sheet tight"><ul className="unit-list">{formsFor(p.province, s.id).map((f) => (
+          <div className="sheet tight"><ul className="unit-list">{formsFor(prov, s.id).map((f) => (
             <li key={f.id} className="unit-row form-row">
               <span className="form-code">{f.code}</span>
               <span className="unit-who"><strong>{f.title}</strong><span>{f.plain}</span></span>
               <span className="unit-state"><span className={`status ${f.official ? 'paid' : 'vacant'}`}>{f.official ? 'Official form' : 'Template'}</span></span>
-              <button className="btn" disabled={!leases.length} onClick={() => (leases.length === 1 ? setPick({ lease: leases[0], formId: f.id }) : setChoose(f.id))}>Prepare</button>
+              {leases.length ? <button className="btn" onClick={() => (leases.length === 1 ? setPick({ lease: leases[0], formId: f.id }) : setChoose(f.id))}>Prepare</button> : <span />}
             </li>
           ))}</ul></div>
         </section>
       ))}
       {choose && (
         <Drawer title="For which tenant?" onClose={() => setChoose(null)}>
-          <div className="stack">{leases.map((l) => { const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId); return <button key={l.id} className="choice" onClick={() => { setPick({ lease: l, formId: choose }); setChoose(null); }}><span className="t">{t?.names.join(' & ')}</span><span className="s">Unit {u?.label}</span></button>; })}</div>
+          <div className="stack">{leases.map((l) => { const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId); const pr = state.properties.find((x) => x.id === u?.propertyId); return <button key={l.id} className="choice" onClick={() => { setPick({ lease: l, formId: choose }); setChoose(null); }}><span className="t">{t?.names.join(' & ')}</span><span className="s">{pr?.nickname} · Unit {u?.label}</span></button>; })}</div>
         </Drawer>
       )}
       {pick && <FormWizard lease={pick.lease} formId={pick.formId} onClose={() => setPick(null)} />}
