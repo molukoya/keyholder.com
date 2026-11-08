@@ -11,7 +11,7 @@
   --primary: #4F46E5; --on-primary: #FFFFFF; --accent: #6D3AED; --accent-tint: #EDE9FE; --sky: #38BDF8;
   --grad: linear-gradient(100deg, #4F46E5 0%, #7C3AED 50%, #38BDF8 100%);
   --night: #0B0B1F;
-  --font-display: 'Urbanist', 'Inter', 'Helvetica Neue', sans-serif;
+  --font-display: 'Raleway', 'Inter', 'Helvetica Neue', sans-serif;
   --font-ui: 'Inter', 'Helvetica Neue', Helvetica, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --radius: 10px; --btn-radius: 10px; --card-radius: 16px; --bw: 1px;
@@ -36,7 +36,7 @@
 
 /* ---------------------------------------------------------------- App surfaces */
 body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
-h1, h2 { font-weight: 700; letter-spacing: -0.03em; }
+h1, h2 { font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: lining-nums; }
 .page h1, .q-wrap h1 { font-size: clamp(2.2rem, 4vw, 2.9rem); line-height: 1.02; }
 .page-head { border-bottom: 1px solid var(--rule); padding-bottom: 16px; }
 .section-title { font-family: var(--font-ui); font-size: 15px; font-weight: 600; letter-spacing: 0; }
@@ -82,7 +82,7 @@ h1, h2 { font-weight: 700; letter-spacing: -0.03em; }
 /* ---------------------------------------------------------------- Brand lockups (custom wordmarks) */
 .brand-lockup { display: inline-flex; align-items: center; gap: calc(var(--bs) * .34); color: var(--ink); line-height: 1; font-family: var(--font-display); }
 .brand-lockup .keymark { flex: none; border-radius: 9px; box-shadow: 0 4px 14px -4px rgba(79,70,229,.55); }
-.wm { display: inline-flex; align-items: baseline; font-family: 'Urbanist', sans-serif; font-weight: 800; letter-spacing: -0.045em; font-size: calc(var(--bs) * .86); white-space: nowrap; }
+.wm { display: inline-flex; align-items: baseline; font-family: 'Raleway', sans-serif; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: lining-nums; font-size: calc(var(--bs) * .86); white-space: nowrap; }
 .wm-a { font-size: calc(var(--bs) * .98); align-items: flex-end; }
 .wm-a .wm-k { height: .7em; width: auto; margin-right: .02em; margin-bottom: .02em; overflow: visible; color: var(--primary); }
 .wm-b { font-weight: 700; letter-spacing: -0.04em; align-items: center; }

@@ -3,6 +3,7 @@
    angled bands, scroll reveals. */
 
 .lp { background: var(--paper); color: var(--ink); min-height: 100vh; overflow-x: clip; font-family: var(--font-ui); }
+.lp :is(.lp-h1, .lp-hero-h, .lp-h2, .lp-amt, .lp-row-n, .lp-mini-v, .lp-bar strong) { font-variant-numeric: lining-nums; }
 .lp-wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; position: relative; }
 @media (max-width: 600px) { .lp-wrap { padding: 0 16px; } }
 .lp em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -23,7 +24,7 @@
 .lp-badge i::after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: var(--accent); animation: lp-pulse 2.4s ease-in-out infinite; }
 @keyframes lp-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
 
-.lp-h1, .lp-hero-h { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.045em; line-height: .98; margin: 0; }
+.lp-h1, .lp-hero-h { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.035em; line-height: 1; margin: 0; }
 .lp-h1 { font-size: clamp(46px, 7vw, 92px); max-width: 15ch; }
 .lp-h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.04em; font-size: clamp(32px, 4.4vw, 58px); line-height: 1.04; margin: 0 0 18px; max-width: 18ch; }
 .lp-lede { font-size: clamp(17px, 1.6vw, 20px); line-height: 1.6; color: var(--ink-soft); max-width: 50ch; margin: 22px 0 0; }
@@ -79,7 +80,7 @@
 .lp-hero { padding: clamp(48px, 7vw, 96px) 0 clamp(64px, 9vw, 128px); }
 .lp-hero-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center; }
 .lp-hero-copy { grid-column: 1 / span 6; }
-.lp-hero-h { font-size: clamp(58px, 8.6vw, 128px); }
+.lp-hero-h { font-size: clamp(50px, 7.4vw, 104px); }
 .lp-hero-copy .btn-row { margin-top: 32px; }
 .lp-fine { color: var(--ink-faint); margin-top: 16px; }
 .lp-stack { grid-column: 7 / -1; position: relative; min-height: 560px; --sy: 0; perspective: 1400px; }
