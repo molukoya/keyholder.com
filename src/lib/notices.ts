@@ -90,8 +90,8 @@ export function nextNotice(state: AppState, lease: Lease, today: ISODate): { for
 /** Earliest allowed rent increase date for a lease (12-month rule and the form's notice period). */
 export function earliestIncrease(state: AppState, lease: Lease, today: ISODate, form?: FormDef): ISODate {
   const last = state.notices.filter((n) => n.leaseId === lease.id && formById(n.formId)?.situation === 'rent-increase').map((n) => n.details?.effective ?? '').sort().pop();
-  let d = addMonths(last || lease.start, 12);
+  // Any date at least 12 months after the start or last increase, with the full notice period from today.
+  const d = addMonths(last || lease.start, 12);
   const minByNotice = addDays(today, form?.noticeDays ?? 90);
-  while (d < minByNotice) d = addMonths(d, 12);
-  return d;
+  return d < minByNotice ? minByNotice : d;
 }

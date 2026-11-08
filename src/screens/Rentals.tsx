@@ -4,7 +4,8 @@ import QRCode from 'qrcode';
 import type { Applicant, Lease, Listing, Notice, Unit } from '../data/types';
 import { currentLine, unitTenant, useStore } from '../data/store';
 import { addDays, daysBetween, fmtDate, fmtDay, fmtPeriod } from '../lib/dates';
-import { arrears, nextNotice, propertyOf } from '../lib/notices';
+import { arrears, earliestIncrease, nextNotice, propertyOf } from '../lib/notices';
+import { rentVsMarket } from '../lib/silver';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 import { FormWizard } from '../components/FormWizard';
 import { reminderStage, trayItems } from '../lib/tray';
@@ -61,6 +62,7 @@ export function UnitRow({ unit }: { unit: Unit }) {
   const nav = useNavigate();
   const [pay, setPay] = useState(false);
   const [late, setLate] = useState<Lease | null>(null);
+  const [raise, setRaise] = useState(false);
   const { lease, tenant } = unitTenant(state, unit.id, today);
   if (!lease || !tenant) {
     const listing = state.listings.find((l) => l.unitId === unit.id);
@@ -90,8 +92,13 @@ export function UnitRow({ unit }: { unit: Unit }) {
         {(line.state === 'due' || line.state === 'upcoming') && <span className="status due">{line.state === 'due' ? 'Due today' : `Due ${fmtDay(line.due)}`}</span>}
         {found && line.state !== 'paid' && <span className="status due">Payment found</span>}
       </span>
-      {found && line.state !== 'paid' ? <button className="btn primary" onClick={() => nav('/today')}>Confirm</button> : isLate ? <button className="btn primary" onClick={() => setLate(lease)}>Late rent options</button>
-        : line.state !== 'paid' ? <button className="btn" onClick={() => setPay(true)}>Mark paid</button> : <span />}
+      <span className="row-act">
+        {found && line.state !== 'paid' ? <button className="btn primary" onClick={() => nav('/today')}>Confirm</button> : isLate ? <button className="btn primary" onClick={() => setLate(lease)}>Late rent options</button>
+          : line.state !== 'paid' ? <button className="btn" onClick={() => setPay(true)}>Mark paid</button> : null}
+        <UnitMenu onRaise={() => setRaise(true)} />
+      </span>
+      <RaiseRentSuggestion lease={lease} unit={unit} onRaise={() => setRaise(true)} />
+      {raise && <RaiseRent lease={lease} onClose={() => setRaise(false)} />}
       {pay && <PaymentForm leaseId={lease.id} onClose={() => setPay(false)} />}
       {late && <LateRentDrawer lease={late} onClose={() => setLate(null)} />}
     </li>
@@ -442,5 +449,54 @@ function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
       <Field label="Your notes" htmlFor={`an-${a.id}`}><textarea id={`an-${a.id}`} className="input" style={{ minHeight: 70 }} value={as.notes ?? ''} onChange={(e) => setA({ notes: e.target.value })} placeholder="Called the landlord: always paid on time" /></Field>
       <p className="tiny soft">Look at the whole picture: rental history, references and income together. Income alone can't be the reason to say no.</p>
     </>
+  );
+}
+
+// =====================================================================================
+// Raising the rent: a suggestion when rent is below the local estimate, and always one tap away
+// =====================================================================================
+export function RaiseRent({ lease, onClose }: { lease: Lease; onClose: () => void }) {
+  const { state } = useStore();
+  const prop = propertyOf(state, lease)!;
+  return <FormWizard lease={lease} formId={formsFor(prop.province, 'rent-increase')[0].id} onClose={onClose} />;
+}
+
+function UnitMenu({ onRaise }: { onRaise: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="row-menu">
+      <button className="btn ghost small dots" aria-label="More options" aria-expanded={open} onClick={() => setOpen((o) => !o)}>⋯</button>
+      {open && <span className="row-menu-pop" role="menu"><button role="menuitem" onClick={() => { setOpen(false); onRaise(); }}>Raise rent</button></span>}
+    </span>
+  );
+}
+
+/** The rent suggestion: shown only when the rent is meaningfully below what similar units rent for nearby. */
+export function rentSuggestion(state: ReturnType<typeof useStore>['state'], lease: Lease, unit: Unit, today: string) {
+  const prop = propertyOf(state, lease);
+  if (!prop || lease.end) return null;
+  const mk = rentVsMarket(prop, unit);
+  if (mk.gap <= 5000) return null;
+  const form = formsFor(prop.province, 'rent-increase')[0];
+  const effective = earliestIncrease(state, lease, today, form);
+  const noticeBy = addDays(effective, -(form.noticeDays ?? 90));
+  const guide = province(prop.province).rentIncreaseGuidelinePct;
+  const capped = guide ? Math.round(lease.rent * (1 + guide / 100)) : undefined;
+  return { mk, form, effective, noticeBy, guide, capped, prov: prop.province, beds: unit.bedrooms };
+}
+
+function RaiseRentSuggestion({ lease, unit, onRaise }: { lease: Lease; unit: Unit; onRaise: () => void }) {
+  const { state, today } = useStore();
+  const sg = rentSuggestion(state, lease, unit, today);
+  if (!sg) return null;
+  return (
+    <div className="suggest">
+      <div>
+        <strong>Rent is about {fmt0(sg.mk.gap)} below similar {sg.beds}-bedrooms nearby ({fmt0(sg.mk.market)}).</strong>
+        <span> You can raise it from {fmtDate(sg.effective)}{sg.capped ? `, up to ${fmt(sg.capped)} with the ${sg.guide}% guideline` : ''}. Give notice by {fmtDate(sg.noticeBy)}.</span>
+        <span className="tiny soft"> Area rents are estimates.</span>
+      </div>
+      <button className="btn" onClick={onRaise}>Raise rent</button>
+    </div>
   );
 }

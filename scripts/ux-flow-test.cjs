@@ -124,8 +124,23 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       await row('Sam').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
       return (await row('Sam').locator('.status').textContent()) + ' · ' + ((await row('Sam').locator('.row-act').textContent()) || '').replace('⋯', '').trim();
     });
-    await step(tag, 'B3 Maya: Send receipt → row moves to "Raise rent" (renewal)', async () => {
-      await row('Maya').locator('text=Send receipt').click(); await pg.waitForTimeout(250); const t = await btn('Maya'); if (t !== 'Raise rent') throw new Error('button: ' + t); return t;
+    await step(tag, 'B3 Maya: Send receipt → row shows Paid with no to-do (raise rent is not a to-do)', async () => {
+      await row('Maya').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
+      if (await row('Maya').locator('.row-act .btn').count()) throw new Error('button: ' + (await btn('Maya')));
+      return (await row('Maya').locator('.status').textContent()).trim();
+    });
+    await step(tag, 'B3b Rentals: below-market suggestion → Raise rent → N1 prepared', async () => {
+      await go(pg, 'rentals'); const sg = pg.locator('.unit-row', { hasText: 'Maya' }).locator('.suggest');
+      const text = (await sg.textContent()).slice(0, 90); await sg.locator('text=Raise rent').click(); await pg.waitForTimeout(200);
+      if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('N1 did not open'); await approve(pg);
+      return text;
+    });
+    await step(tag, 'B3c Raise rent is always reachable: ⋯ on Rentals and the tenant page', async () => {
+      await go(pg, 'rentals'); await pg.locator('.unit-row', { hasText: 'Jordan' }).locator('.dots').click(); await pg.locator('[role=menuitem]:has-text("Raise rent")').click(); await pg.waitForTimeout(200);
+      if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('⋯ did not open N1'); await pg.keyboard.press('Escape');
+      await go(pg, 'rent/tenant/t-sam'); await pg.locator('.page-head >> text=Raise rent').click(); await pg.waitForTimeout(200);
+      if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('tenant page did not open N1'); await pg.keyboard.press('Escape');
+      await go(pg, 'today');
     });
     await step(tag, 'B4 Jordan: Send reminder → row says "Prepare N4"', async () => {
       await row('Jordan').locator('text=Send reminder').click(); await pg.waitForTimeout(250); const t = await btn('Jordan'); if (t !== 'Prepare N4') throw new Error('button: ' + t); return t;
@@ -147,9 +162,10 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       await pg.locator('.prop-line >> text=See mortgage').click(); await pg.waitForSelector('text=Still owed');
     });
     await step(tag, 'B9 ⋯ → Hide for a week, then bring it back', async () => {
-      await go(pg, 'today'); await row('Maya').locator('.dots').click(); await pg.locator('text=Hide for a week').click(); await pg.waitForTimeout(200);
-      const t = (await row('Maya').locator('.row-act').textContent()).replace('⋯', '').trim(); await pg.locator('text=hidden or ignored').locator('button').click(); await pg.locator('text=Bring back').first().click(); await pg.waitForTimeout(200);
-      return 'Maya while hidden: ' + t + ' · after: ' + (await btn('Maya'));
+      await go(pg, 'today'); const line = pg.locator('.prop-line:has-text("mortgage renews")');
+      await line.locator('.dots').click(); await pg.locator('text=Hide for a week').click(); await pg.waitForTimeout(200);
+      const hidden = !(await line.count()); await pg.locator('text=hidden or ignored').locator('button').click(); await pg.locator('text=Bring back').first().click(); await pg.waitForTimeout(200);
+      const back = await pg.locator('.prop-line:has-text("mortgage renews")').count(); if (!hidden || !back) throw new Error(`hidden=${hidden} back=${back}`); return 'mortgage line hidden, then back';
     });
     await step(tag, 'B10 Score list: pick any item; ⋯ Ignore raises the score', async () => {
       const n = await pg.locator('#score .row').count(); await pg.locator('#score >> text=Show all').click(); const n2 = await pg.locator('#score .row').count();

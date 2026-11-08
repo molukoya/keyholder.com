@@ -7,7 +7,7 @@ import { leaseBalance, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { Letterhead, ReceiptLetter, methodLabel, ordinal } from '../components/domain';
 import { PaymentForm } from '../components/forms';
-import { LateRentDrawer } from './Rentals';
+import { LateRentDrawer, RaiseRent } from './Rentals';
 import { SituationPicker } from '../components/FormWizard';
 import { Drawer, Empty, Field, SlideToConfirm, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -24,6 +24,7 @@ export function TenantDetail() {
   const [editContact, setEditContact] = useState(false);
   const [late, setLate] = useState(false);
   const [forms, setForms] = useState(false);
+  const [raise, setRaise] = useState(false);
   const t = state.tenants.find((x) => x.id === id);
   if (!t) return <div className="page"><Empty title="That tenant isn't here." action={<Link to="/rentals" className="btn">Back to Rent</Link>} /></div>;
   const lease = state.leases.filter((l) => l.tenantId === t.id).sort((a, b) => b.start.localeCompare(a.start))[0];
@@ -45,6 +46,7 @@ export function TenantDetail() {
         </div>
         <div className="btn-row">
           <button className="btn" onClick={() => setStatement(true)}><Icon name="print" size={16} />Statement</button>
+          {lease && !lease.end && <button className="btn" onClick={() => setRaise(true)}>Raise rent</button>}
           {lease && <button className="btn" onClick={() => setForms(true)}>Forms and notices</button>}
           {bal > 0 && lease && !lease.end && <button className="btn danger" onClick={() => setLate(true)}>Late rent options</button>}
           {lease && !lease.end && <button className="btn primary" onClick={() => setPay(true)}><Icon name="check" size={16} />Confirm rent</button>}
@@ -177,6 +179,7 @@ export function TenantDetail() {
       {editContact && <ContactDrawer onClose={() => setEditContact(false)} />}
       {late && lease && <LateRentDrawer lease={lease} onClose={() => setLate(false)} />}
       {forms && lease && <SituationPicker lease={lease} onClose={() => setForms(false)} />}
+      {raise && lease && <RaiseRent lease={lease} onClose={() => setRaise(false)} />}
     </div>
   );
 

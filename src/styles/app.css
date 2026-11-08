@@ -661,3 +661,9 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
   .prop-line { padding: var(--s-4); }
   .prop-line .row-act { width: 100%; } .prop-line .row-act > .btn { flex: 1; }
 }
+
+/* ---------- Rent suggestion (Rentals) ---------- */
+.suggest { grid-column: 1 / -1; display: flex; gap: var(--s-3); align-items: center; justify-content: space-between; padding: var(--s-3) var(--s-4); background: var(--pine-tint); border-left: 3px solid var(--pine); font-size: var(--t-14); flex-wrap: wrap; }
+.suggest > div { flex: 1; min-width: 220px; }
+.unit-row .row-act { display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end; }
+@media (max-width: 640px) { .unit-row .row-act { grid-column: 1 / -1; } .unit-row .row-act > .btn { flex: 1; } .suggest .btn { width: 100%; } }
