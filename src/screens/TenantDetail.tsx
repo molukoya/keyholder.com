@@ -7,7 +7,7 @@ import { leaseBalance, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { Letterhead, ReceiptLetter, methodLabel, ordinal } from '../components/domain';
 import { PaymentForm } from '../components/forms';
-import { Drawer, Empty, Field, SlideToConfirm, Stamp } from '../components/ui';
+import { Drawer, Empty, Field, SlideToConfirm, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function TenantDetail() {
@@ -141,13 +141,13 @@ export function TenantDetail() {
       {correct && <PaymentForm correct={correct} onClose={() => setCorrect(null)} />}
       {receipt && (
         <Drawer title={`Receipt #${receipt.number}`} onClose={() => setReceipt(null)} wide
-          footer={<>{receipt.status !== 'superseded' && <button className="btn ghost danger" onClick={() => { act.voidPayment(receipt.paymentId); setReceipt(null); }}>Undo this payment</button>}<button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button></>}>
+          footer={<>{receipt.status !== 'superseded' && <button className="btn ghost danger" onClick={() => { act.voidPayment(receipt.paymentId); setReceipt(null); }}>Undo this payment</button>}{!embedded && <button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}</>}>
           <ReceiptLetter receipt={receipt} />
           <p className="letter-foot">{receipt.status === 'sent' ? `Sent ${fmtDate(receipt.sentAt!.slice(0, 10))} at ${fmtTime(receipt.sentAt!)}` : receipt.status === 'draft' ? 'Draft — waiting for your approval in the tray' : 'Superseded by a corrected receipt'}</p>
         </Drawer>
       )}
       {statement && lease && (
-        <Drawer title="Tenant ledger statement" onClose={() => setStatement(false)} wide footer={<button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}>
+        <Drawer title="Tenant ledger statement" onClose={() => setStatement(false)} wide footer={embedded ? undefined : <button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}>
           <div className="letter print-me" style={{ maxWidth: 'none' }}>
             <Letterhead state={state} />
             <div className="serif" style={{ fontSize: 'var(--t-20)' }}>Ledger statement — {t.names.join(' & ')}</div>

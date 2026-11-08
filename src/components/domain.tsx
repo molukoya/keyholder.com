@@ -7,7 +7,7 @@ import { leaseLedger, type ChargeState } from '../lib/finance';
 import { fmt, fmt0 } from '../lib/money';
 import { messageBody } from '../lib/templates';
 import { Icon } from './Icon';
-import { Initials, Stamp } from './ui';
+import { Initials, Stamp, embedded } from './ui';
 
 const STATE_LABEL: Record<ChargeState, string> = { paid: 'Paid', late: 'Late', partial: 'Partial', due: 'Due', upcoming: 'Upcoming' };
 
@@ -55,7 +55,7 @@ export function DoorPlate({ unit }: { unit: Unit }) {
           <span className="soft">Since {fmtDate(lease.start)}</span>
           <span className="soft">{lease.emailNoticeConsent ? 'Email notices OK' : 'Paper notices only'}</span>
           <span className="who" style={{ marginTop: 'auto' }}>
-            <a href={`#/rent/tenant/${tenant.id}`} onClick={(e) => e.stopPropagation()}>Open ledger →</a>
+            <span role="link" tabIndex={0} style={{ color: 'var(--ink-blue)', textDecoration: 'underline' }} onClick={(e) => { e.stopPropagation(); nav(`/rent/tenant/${tenant.id}`); }}>Open ledger →</span>
           </span>
         </div>
       </div>
@@ -188,7 +188,7 @@ export function MessageEditor({ message, onDone }: { message: Message; onDone: (
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button className="btn ghost" onClick={() => { act.discardMessage(message.id); onDone(); }}>Don't send</button>
         <button className="btn" onClick={() => setEditing((e) => !e)}><Icon name="edit" size={16} />{editing ? 'Preview' : 'Edit wording'}</button>
-        {receipt && <button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print</button>}
+        {receipt && !embedded && <button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print</button>}
         <button className="btn primary" disabled={!canEmail} onClick={() => { act.approveMessage(message.id, changed ? { subject, body } : undefined); onDone(); }}>
           <Icon name="check" size={16} />Approve and send
         </button>

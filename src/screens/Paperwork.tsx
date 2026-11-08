@@ -6,7 +6,7 @@ import { fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
 import { fmt } from '../lib/money';
 import { messageBody } from '../lib/templates';
 import { Letterhead, ReceiptLetter, methodLabel } from '../components/domain';
-import { Drawer, Empty, Stamp } from '../components/ui';
+import { Drawer, Empty, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function Paperwork() {
@@ -49,7 +49,7 @@ function Receipts() {
           );
         })}</tbody>
       </table></div>
-      {open && <Drawer title={`Receipt #${open.number}`} onClose={() => setOpen(null)} wide footer={<button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}><ReceiptLetter receipt={open} /></Drawer>}
+      {open && <Drawer title={`Receipt #${open.number}`} onClose={() => setOpen(null)} wide footer={embedded ? undefined : <button className="btn" onClick={() => window.print()}><Icon name="print" size={16} />Print or save PDF</button>}><ReceiptLetter receipt={open} /></Drawer>}
     </>
   );
 }

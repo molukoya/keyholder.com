@@ -6,6 +6,9 @@ import type { Cents, Phase } from '../data/types';
 import { FEATURES, type Feature } from '../data/phases';
 import { usePhase } from '../data/store';
 
+/** True inside the Claude artifact preview, where printing and file downloads are blocked by the frame. */
+export const embedded = typeof window !== 'undefined' && !!(window as unknown as { __KH_EMBED?: boolean }).__KH_EMBED;
+
 // ---------- Stamp: real states only, never decorative ----------
 export function Stamp({ kind, children, press }: { kind: string; children?: ReactNode; press?: boolean }) {
   const rot = ((kind.charCodeAt(0) + kind.length) % 5) - 2.5;

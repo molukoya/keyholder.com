@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { HashRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
 import { PHASES } from './data/phases';
 import { trayItems } from './lib/tray';
@@ -18,9 +19,7 @@ import { Tray } from './screens/Tray';
 export function App() {
   return (
     <StoreProvider>
-      <HashRouter>
-        <Root />
-      </HashRouter>
+      {embedded ? <MemoryRouter><Root /></MemoryRouter> : <HashRouter><Root /></HashRouter>}
     </StoreProvider>
   );
 }
@@ -46,6 +45,7 @@ function Shell() {
   const [capture, setCapture] = useState(false);
   const [pay, setPay] = useState(false);
   const loc = useLocation();
+  const navigate = useNavigate();
   const count = useMemo(() => trayItems(state, today).length, [state, today]);
   const phase = PHASES.find((p) => p.id === state.profile.phase)!;
 
@@ -57,11 +57,11 @@ function Shell() {
       if (e.metaKey || e.ctrlKey || e.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || document.querySelector('.drawer')) return;
       if (e.key === 'p') { e.preventDefault(); setPay(true); }
       if (e.key === 'e') { e.preventDefault(); setCapture(true); }
-      if (e.key === 't') { e.preventDefault(); window.location.hash = '#/tray'; }
+      if (e.key === 't') { e.preventDefault(); navigate('/tray'); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [navigate]);
 
   const nav = [
     { to: '/today', label: 'Today', icon: 'today' },
@@ -116,7 +116,7 @@ function Shell() {
       <nav className="bottombar" aria-label="Main">
         <NavLink to="/today"><Icon name="today" />Today{count > 0 && <span className="badge">{count}</span>}</NavLink>
         <NavLink to="/rent"><Icon name="rent" />Rent</NavLink>
-        <a href="#" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Snap a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Capture</a>
+        <a href="#capture" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Snap a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Capture</a>
         <NavLink to="/money"><Icon name="money" />Money</NavLink>
         <NavLink to="/paperwork"><Icon name="paper" />Paperwork</NavLink>
       </nav>

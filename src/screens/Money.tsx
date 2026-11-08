@@ -9,7 +9,7 @@ import { BANKS, CATEGORIES, RETURN_PRESETS, category, regionData, type Band } fr
 import { parseETransferEmail } from '../lib/matching';
 import { fmt, fmt0, pct } from '../lib/money';
 import { ExpenseForm } from '../components/forms';
-import { Drawer, Empty, Figure, PhaseLocked, Seg, Term } from '../components/ui';
+import { Drawer, Empty, Figure, PhaseLocked, Seg, Term, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function Money() {
@@ -416,7 +416,7 @@ function TaxPackPage() {
           <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}</select>
           <Seg label="Tax year" value={year} onChange={setYear} options={[{ id: thisYear - 1, label: String(thisYear - 1) }, { id: thisYear, label: `${thisYear} so far` }]} />
         </div>
-        <div className="btn-row"><button className="btn" onClick={exportCsv}><Icon name="download" size={16} />Spreadsheet</button><button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Summary PDF</button></div>
+        {!embedded && <div className="btn-row"><button className="btn" onClick={exportCsv}><Icon name="download" size={16} />Spreadsheet</button><button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Summary PDF</button></div>}
       </div>
       <div className="split">
         <div className="sheet print-me">
