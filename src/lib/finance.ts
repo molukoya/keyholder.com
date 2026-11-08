@@ -362,11 +362,16 @@ export function worthIt(state: AppState, today: ISODate, opts: { propertyId?: st
 }
 
 export function verdict(w: WorthIt): string {
-  if (w.returnPct === null) return 'Add a value for the property to see whether it is worth keeping.';
-  const r = w.returnPct.toFixed(1), b = w.benchmarkPct.toFixed(1), d = Math.abs(w.diffPts ?? 0).toFixed(1);
-  if ((w.diffPts ?? 0) >= 0.25) return `Your equity earned ${r}% this year versus ${b}% in a 5-year GIC. Worth it by ${d} points.`;
-  if ((w.diffPts ?? 0) <= -0.25) return `Your equity earned ${r}% this year versus ${b}% in a 5-year GIC — ${d} points behind.`;
-  return `Your equity earned ${r}% this year, about the same as a 5-year GIC (${b}%).`;
+  if (w.returnPct === null) return 'Add what the property is worth to see this.';
+  return `Your property earned ${w.returnPct.toFixed(1)}% this year. A 5-year GIC would have paid ${w.benchmarkPct.toFixed(1)}%.`;
+}
+
+/** Short label for the verdict: ahead of, about the same as, or behind a GIC. */
+export function verdictTag(w: WorthIt): { text: string; tone: 'good' | 'even' | 'bad' } | null {
+  if (w.diffPts === null) return null;
+  if (w.diffPts >= 0.25) return { text: 'Ahead of a GIC', tone: 'good' };
+  if (w.diffPts <= -0.25) return { text: 'Behind a GIC', tone: 'bad' };
+  return { text: 'About the same as a GIC', tone: 'even' };
 }
 
 // =====================================================================================
@@ -378,7 +383,8 @@ export interface CCARow { cls: string; label: string; ratePct: number; opening: 
 export interface TaxPack {
   year: number;
   grossRents: Cents;
-  lines: { t776: string; label: string; amount: Cents; count: number }[];
+  /** label = plain words for the owner; craLabel = the official T776 wording for the accountant. */
+  lines: { t776: string; label: string; craLabel: string; amount: Cents; count: number }[];
   totalExpenses: Cents;
   netBeforeCCA: Cents;
   cca: CCARow[];
@@ -444,11 +450,11 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
   const grossRents = state.payments.filter((p) => !p.voided && leaseIds.has(p.leaseId) && p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
 
   const exps = state.expenses.filter((e) => e.propertyId === prop.id && e.date >= from && e.date <= to);
-  const byLine = new Map<string, { t776: string; label: string; amount: Cents; count: number }>();
+  const byLine = new Map<string, TaxPack['lines'][number]>();
   for (const e of exps) {
     if (e.kind !== 'current' || e.scope === 'personal') continue;
     const cat = CATEGORIES.find((c) => c.id === e.category)!;
-    const line = byLine.get(cat.t776) ?? { t776: cat.t776, label: cat.t776Label, amount: 0, count: 0 };
+    const line = byLine.get(cat.t776) ?? { t776: cat.t776, label: cat.label, craLabel: cat.t776Label, amount: 0, count: 0 };
     line.amount += rentalPortion(e, prop.rentalSharePct);
     line.count++;
     byLine.set(cat.t776, line);
@@ -456,9 +462,9 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
   const m = state.mortgages.find((x) => x.propertyId === prop.id);
   if (phase >= 3 && m) {
     const interest = Math.round((mortgagePaidBetween(m, from, to).interest * prop.rentalSharePct) / 100);
-    const line = byLine.get('8710') ?? { t776: '8710', label: 'Interest and bank charges', amount: 0, count: 0 };
+    const line = byLine.get('8710') ?? { t776: '8710', label: '', craLabel: 'Interest and bank charges', amount: 0, count: 0 };
     line.amount += interest;
-    line.label = 'Interest and bank charges (incl. mortgage interest)';
+    line.label = 'Mortgage interest and bank fees';
     byLine.set('8710', line);
   }
   const lines = [...byLine.values()].sort((a, b) => a.t776.localeCompare(b.t776));
@@ -471,24 +477,24 @@ export function taxPack(state: AppState, prop: Property, year: number, phase: Ph
   // Pre-flight checklist (TX-3)
   const preflight: TaxPack['preflight'] = [];
   const noReceipt = exps.filter((e) => !e.receiptImage);
-  if (noReceipt.length) preflight.push({ id: 'receipts', text: `${noReceipt.length} expense${noReceipt.length > 1 ? 's have' : ' has'} no receipt photo attached`, severity: 'fix' });
+  if (noReceipt.length) preflight.push({ id: 'receipts', text: `${noReceipt.length} expense${noReceipt.length > 1 ? 's have' : ' has'} no receipt photo`, severity: 'fix' });
   const noClass = exps.filter((e) => e.kind === 'capital' && !e.ccaClass);
-  if (noClass.length) preflight.push({ id: 'cca-class', text: `${noClass.length} capital item${noClass.length > 1 ? 's need' : ' needs'} a CCA class`, severity: 'fix' });
+  if (noClass.length) preflight.push({ id: 'cca-class', text: `${noClass.length} upgrade${noClass.length > 1 ? 's need' : ' needs'} a depreciation type`, severity: 'fix' });
   const other = exps.filter((e) => e.category === 'other');
-  if (other.length) preflight.push({ id: 'other', text: `${other.length} expense${other.length > 1 ? 's are' : ' is'} filed under "Something else" — check the category`, severity: 'check' });
-  if (!exps.some((e) => e.category === 'property-tax')) preflight.push({ id: 'ptax', text: 'No property tax logged this year', severity: 'check' });
-  if (!exps.some((e) => e.category === 'insurance')) preflight.push({ id: 'ins', text: 'No insurance premium logged this year', severity: 'check' });
-  if (phase >= 3 && !m) preflight.push({ id: 'mortgage', text: 'No mortgage recorded — skip if the property is paid off', severity: 'check' });
-  if (phase >= 3 && m) preflight.push({ id: 'mstatement', text: "Compare mortgage interest with your lender's annual statement", severity: 'check' });
+  if (other.length) preflight.push({ id: 'other', text: `${other.length} expense${other.length > 1 ? 's are' : ' is'} marked "Something else". Pick a type.`, severity: 'check' });
+  if (!exps.some((e) => e.category === 'property-tax')) preflight.push({ id: 'ptax', text: 'No property tax added this year', severity: 'check' });
+  if (!exps.some((e) => e.category === 'insurance')) preflight.push({ id: 'ins', text: 'No insurance added this year', severity: 'check' });
+  if (phase >= 3 && !m) preflight.push({ id: 'mortgage', text: 'No mortgage added. Skip this if it is paid off.', severity: 'check' });
+  if (phase >= 3 && m) preflight.push({ id: 'mstatement', text: "Check the interest matches your bank's yearly mortgage statement", severity: 'check' });
   // Unusual amounts: more than 3x the median of their category.
   for (const cat of new Set(exps.map((e) => e.category))) {
     const amts = exps.filter((e) => e.category === cat).map((e) => e.amount).sort((a, b) => a - b);
     if (amts.length < 3) continue;
     const med = amts[Math.floor(amts.length / 2)];
     const big = amts.filter((a) => a > med * 3).length;
-    if (big) preflight.push({ id: `unusual-${cat}`, text: `${big} unusually large ${CATEGORIES.find((c) => c.id === cat)!.label.toLowerCase()} expense${big > 1 ? 's' : ''} — confirm it is not a capital item`, severity: 'check' });
+    if (big) preflight.push({ id: `unusual-${cat}`, text: `${big} large ${CATEGORIES.find((c) => c.id === cat)!.label.toLowerCase()} expense${big > 1 ? 's' : ''}. Was it an upgrade?`, severity: 'check' });
   }
-  if (prop.ownerOccupied && prop.claimCCA) preflight.push({ id: 'cca-pre', text: 'CCA is on for a home you live in. Claiming it can affect the principal-residence exemption — confirm with an accountant', severity: 'check' });
+  if (prop.ownerOccupied && prop.claimCCA) preflight.push({ id: 'cca-pre', text: 'Depreciation is on for a home you live in. This can affect tax when you sell. Ask your accountant.', severity: 'check' });
 
   return { year, grossRents, lines, totalExpenses, netBeforeCCA, cca, ccaClaimed, netIncome, ownerShare: Math.round(netIncome * (prop.ownershipPct / 100)), preflight };
 }

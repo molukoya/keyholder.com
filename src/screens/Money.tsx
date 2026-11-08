@@ -4,8 +4,8 @@ import type { BankName, Expense } from '../data/types';
 import { usePhase, useStore } from '../data/store';
 import { enabled } from '../data/phases';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
-import { picture, rentalPortion, taxPack, verdict, worthIt } from '../lib/finance';
-import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, CATEGORIES, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
+import { picture, rentalPortion, taxPack, verdict, verdictTag, worthIt } from '../lib/finance';
+import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
 import { fmt, fmt0, pct } from '../lib/money';
 import { ExpenseForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, PhaseLocked, Seg, Term, embedded } from '../components/ui';
@@ -202,10 +202,10 @@ function ThePicture() {
         </select>
       </div>
       <div className="figures four" style={{ marginBottom: 24 }}>
-        <div><div className="label">In</div><Figure cents={pic.rentCollected} size="sm" className="in" /></div>
-        <div><div className="label">Out</div><Figure cents={pic.opex + pic.capital + pic.mortgageInterest + pic.mortgagePrincipal} size="sm" /></div>
-        <div><div className="label">Kept</div><Figure cents={pic.kept} size="sm" className={pic.kept < 0 ? 'urgent' : ''} /></div>
-        <div><div className="label">Per $1,000 of rent</div><span className="figure sm">{fmt0(pic.keptPer1000 * 100)}</span></div>
+        <div><div className="label">Money in</div><Figure cents={pic.rentCollected} size="sm" className="in" /></div>
+        <div><div className="label">Money out</div><Figure cents={pic.opex + pic.capital + pic.mortgageInterest + pic.mortgagePrincipal} size="sm" /></div>
+        <div><div className="label">Left over</div><Figure cents={pic.kept} size="sm" className={pic.kept < 0 ? 'urgent' : ''} /></div>
+        <div><div className="label">Left from each $1,000 of rent</div><span className="figure sm">{fmt0(Math.max(0, pic.keptPer1000) * 100)}</span></div>
       </div>
       <div className="split">
         <div className="sheet">
@@ -229,24 +229,23 @@ function ThePicture() {
           </details>
         </div>
         <div className="sheet">
-          <h2 style={{ marginBottom: 8 }}>See the math</h2>
+          <h2 style={{ marginBottom: 8 }}>How it adds up</h2>
           <table className="ledger"><tbody>
             {row('Rent collected', pic.rentCollected)}
             {pic.arrearsLoss > 0 && row('Rent still owing', pic.arrearsLoss, { note: 'Not counted above until it arrives' })}
             {pic.vacancyLoss > 0 && row('Lost to vacancy', pic.vacancyLoss)}
-            {row('Running costs', pic.opex, { neg: true, note: 'Repairs, utilities, tax, insurance — your rental share' })}
-            {row(<Term def="Net operating income: rent minus running costs, before the mortgage">NOI</Term>, pic.noi, { strong: true })}
+            {row('Running costs', pic.opex, { neg: true, note: 'Repairs, utilities, property tax, insurance' })}
+            {row('Left before the mortgage', pic.noi, { strong: true })}
             {phase >= 3 && pic.hasMortgageData && row('Mortgage interest', pic.mortgageInterest, { neg: true, note: 'Deductible' })}
-            {phase >= 3 && pic.hasMortgageData && row('Mortgage principal', pic.mortgagePrincipal, { neg: true, note: 'Savings in the house, not an expense' })}
+            {phase >= 3 && pic.hasMortgageData && row('Mortgage paid off', pic.mortgagePrincipal, { neg: true, note: 'This builds what you own' })}
             {phase === 2 && pic.hasMortgageData && row('Mortgage payments (approx.)', pic.mortgageInterest, { neg: true })}
-            {pic.capital > 0 && row('Improvements', pic.capital, { neg: true, note: 'Capital spending' })}
-            {row('Kept (cash flow)', pic.kept, { strong: true })}
+            {pic.capital > 0 && row('Upgrades', pic.capital, { neg: true })}
+            {row('Left over', pic.kept, { strong: true })}
           </tbody></table>
-          <div className="kv" style={{ marginTop: 16 }}>
-            <div><Term def="Running costs as a share of rent">Expense ratio</Term></div><div>{pct(pic.expenseRatio)}</div>
-            <div><Term def="Share of the year the units must be rented to cover all costs">Break-even occupancy</Term></div><div>{pic.rentCollected ? pct(((pic.opex + pic.mortgageInterest + pic.mortgagePrincipal) / (pic.rentCollected + pic.arrearsLoss || 1)) * 100) : '—'}</div>
-            {phase >= 3 && pic.hasMortgageData && <><div><Term def="Debt service coverage: NOI divided by mortgage payments. Lenders like 1.2 or more.">DSCR</Term></div><div>{(pic.noi / Math.max(1, pic.mortgageInterest + pic.mortgagePrincipal)).toFixed(2)}</div></>}
-          </div>
+          <ul className="plain-facts">
+            {pic.rentCollected > 0 && <li>Running costs take <strong>{pic.expenseRatio.toFixed(0)}%</strong> of the rent.</li>}
+            {phase >= 3 && pic.hasMortgageData && pic.mortgageInterest + pic.mortgagePrincipal > 0 && <li>Rent covers the mortgage <strong>{(pic.noi / (pic.mortgageInterest + pic.mortgagePrincipal)).toFixed(1)} times</strong>. Banks like to see 1.2 or more.</li>}
+          </ul>
           {phase < 3 && <p className="tiny soft" style={{ marginTop: 12 }}>{phase === 1 ? 'Before mortgage. ' : ''}The full mortgage split into interest and principal arrives in phase 3.</p>}
         </div>
       </div>
@@ -286,6 +285,7 @@ function WorthItPage() {
   const phase = usePhase();
   const [prop, setProp] = useState<string>('all');
   const w = useMemo(() => worthIt(state, today, { phase, propertyId: prop === 'all' ? undefined : prop }), [state, today, phase, prop]);
+  const tag = verdictTag(w);
   const p = state.properties.find((x) => x.id === prop) ?? state.properties[0];
   const region = p ? regionData(p.province, p.city) : null;
   const pic = picture(state, addDays(today, -364), today, { phase, propertyId: prop === 'all' ? undefined : prop });
@@ -293,45 +293,51 @@ function WorthItPage() {
   const potential = units.reduce((a, u) => a + u.rent * 12, 0);
   const vacancy = potential ? ((pic.vacancyLoss + pic.arrearsLoss) / potential) * 100 : 0;
   const grossYield = w.value ? (pic.rentCollected / (w.value || 1)) * 100 : 0;
+  const props = state.properties.filter((x) => !x.archived);
 
   return (
     <>
-      <div className="btn-row" style={{ marginBottom: 16 }}>
-        <select className="input" style={{ width: 'auto' }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
-          <option value="all">Whole portfolio</option>
-          {state.properties.filter((x) => !x.archived).map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}
-        </select>
-      </div>
-      <div className="sheet">
-        <p className="pulse" style={{ fontSize: 'clamp(1.4rem, 3vw, 2rem)', marginBottom: 8 }}>{verdict(w)}</p>
-        {w.returnPct !== null && <BenchmarkRuler value={w.returnPct} title="Return on your equity, last 12 months" />}
-        {w.missing.length > 0 && <div className="callout warn">Missing {w.missing.join(', ')}. Add it on the property's Value tab.</div>}
-      </div>
-      <div className="split">
-        <div className="sheet">
-          <h2 style={{ marginBottom: 8 }}>How it adds up</h2>
-          <table className="ledger"><tbody>
-            <tr><td>Cash flow kept</td><td className="num">{fmt0(w.cashFlow)}</td></tr>
-            <tr><td>Mortgage principal paid down{phase < 3 && <div className="tiny soft">Counted from phase 3, once the mortgage is recorded</div>}</td><td className="num">{fmt0(w.principalPaid)}</td></tr>
-            <tr><td>Change in value{w.appreciationEstimated && <div className="tiny soft">Estimated from the 5-year local price trend</div>}</td><td className="num">{fmt0(w.appreciation)}</td></tr>
-            <tr><td><strong>Total return</strong></td><td className="num"><strong>{fmt0(w.total)}</strong></td></tr>
-            <tr><td>Your equity (rental share)<div className="tiny soft">Value {fmt0(w.value)} − mortgage {fmt0(w.debt)}</div></td><td className="num">{fmt0(w.equity)}</td></tr>
-            <tr><td><strong>Return on equity</strong></td><td className="num"><strong>{w.returnPct === null ? '—' : pct(w.returnPct)}</strong></td></tr>
-          </tbody></table>
-          <p className="tiny soft" style={{ marginTop: 8 }}>For a home you live in, only the rented share of value, mortgage and costs is counted.</p>
+      {props.length > 1 && (
+        <div className="btn-row" style={{ marginBottom: 16 }}>
+          <select className="input" style={{ width: 'auto' }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
+            <option value="all">All properties</option>
+            {props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}
+          </select>
         </div>
-        {region && (
-          <div className="sheet">
-            <h2 style={{ marginBottom: 4 }}>Benchmark Guide</h2>
-            <p className="tiny soft">{p.city}, {p.province}{region.fallback ? ' — national figures, no city data yet' : ''}. Placeholder figures for design; real bands come from CMHC, Statistics Canada and CREA in stage 2.</p>
-            <BenchmarkRuler title="Vacancy and arrears" value={vacancy} band={region.vacancy} higherIsBetter={false} compact />
-            <p className="tiny soft">Vacancy in your area is {region.vacancyDirection} from last year. {region.vacancy.source}, {region.vacancy.asOf}</p>
-            <BenchmarkRuler title="Gross yield" value={grossYield} band={region.grossYield} compact />
-            <BenchmarkRuler title="Expense ratio" value={pic.expenseRatio} band={region.expenseRatio} higherIsBetter={false} compact />
-            <div className="kv"><div>Local price change, 1 / 5 / 10 yr</div><div>{pct(region.priceGrowth.y1)} / {pct(region.priceGrowth.y5)} / {pct(region.priceGrowth.y10)}</div></div>
-          </div>
-        )}
+      )}
+      <div className="sheet">
+        {tag && <span className={`status ${tag.tone === 'good' ? 'paid' : tag.tone === 'bad' ? 'late' : 'due'}`} style={{ marginBottom: 12 }}>{tag.text}</span>}
+        <p className="pulse" style={{ fontSize: 'clamp(1.4rem, 3vw, 2rem)', margin: '0 0 8px' }}>{verdict(w)}</p>
+        {w.returnPct !== null && <BenchmarkRuler value={w.returnPct} compact />}
+        {w.missing.length > 0 && <div className="callout warn">Add what {w.missing.join(' and ').replace(/a value for /g, '')} is worth on its Value tab.</div>}
       </div>
+
+      <details className="more">
+        <summary>See how</summary>
+        <div className="more-body">
+          <table className="ledger"><tbody>
+            <tr><td>Rent left over after costs</td><td className="num">{fmt0(w.cashFlow)}</td></tr>
+            {phase >= 3 && <tr><td>Mortgage paid off</td><td className="num">{fmt0(w.principalPaid)}</td></tr>}
+            <tr><td>Change in value{w.appreciationEstimated ? ' (estimated)' : ''}</td><td className="num">{fmt0(w.appreciation)}</td></tr>
+            <tr><td><strong>Total gain this year</strong></td><td className="num"><strong>{fmt0(w.total)}</strong></td></tr>
+            <tr><td>Your money in the property<div className="tiny soft">Worth {fmt0(w.value)}, less {fmt0(w.debt)} owed</div></td><td className="num">{fmt0(w.equity)}</td></tr>
+            <tr><td><strong>Gain ÷ your money</strong></td><td className="num"><strong>{w.returnPct === null ? '—' : pct(w.returnPct)}</strong></td></tr>
+          </tbody></table>
+          {state.properties.some((x) => x.ownerOccupied) && <p className="tiny soft" style={{ marginTop: 8 }}>For a home you live in, only the rented part counts.</p>}
+        </div>
+      </details>
+
+      {region && (
+        <details className="more">
+          <summary>Compare with {region.fallback ? 'Canada' : p.city}</summary>
+          <div className="more-body">
+            <BenchmarkRuler title="Empty or unpaid rent" value={vacancy} band={region.vacancy} higherIsBetter={false} compact />
+            <BenchmarkRuler title="Yearly rent ÷ value" value={grossYield} band={region.grossYield} compact />
+            <BenchmarkRuler title="Costs as a share of rent" value={pic.expenseRatio} band={region.expenseRatio} higherIsBetter={false} compact />
+            <p className="tiny soft">Sample figures for now. Real local figures come from CMHC and CREA later.</p>
+          </div>
+        </details>
+      )}
     </>
   );
 }
@@ -354,7 +360,7 @@ function TaxPackPage() {
   const exportCsv = () => {
     const rows = [['Line', 'Description', 'Amount']];
     rows.push(['8141', 'Gross rents', (pack.grossRents / 100).toFixed(2)]);
-    for (const l of pack.lines) rows.push([l.t776, l.label, (l.amount / 100).toFixed(2)]);
+    for (const l of pack.lines) rows.push([l.t776, l.craLabel, (l.amount / 100).toFixed(2)]);
     rows.push(['9936', 'Capital cost allowance', (pack.ccaClaimed / 100).toFixed(2)]);
     rows.push(['', 'Net income', (pack.netIncome / 100).toFixed(2)]);
     rows.push([], ['Date', 'Vendor', 'Category', 'T776 line', 'Kind', 'Amount', 'Rental portion']);
@@ -366,63 +372,66 @@ function TaxPackPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `keyholder-tax-pack-${p.nickname.replace(/\W+/g, '-')}-${year}.csv`; a.click();
   };
 
+  const fixList = pack.preflight;
   return (
     <>
       <div className="spread" style={{ marginBottom: 16 }}>
         <div className="btn-row">
-          <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}</select>
+          {props.length > 1 && <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}</select>}
           <Seg label="Tax year" value={year} onChange={setYear} options={[{ id: thisYear - 1, label: String(thisYear - 1) }, { id: thisYear, label: `${thisYear} so far` }]} />
         </div>
-        {!embedded && <div className="btn-row"><button className="btn" onClick={exportCsv}><Icon name="download" size={16} />Spreadsheet</button><button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Summary PDF</button></div>}
+        {!embedded && <div className="btn-row"><button className="btn" onClick={exportCsv}><Icon name="download" size={16} />Spreadsheet</button><button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Print for accountant</button></div>}
       </div>
-      <div className="split">
-        <div className="sheet print-me">
-          <div className="spread"><h2>Form T776 summary — {year}</h2><span className="pill">{p.nickname}</span></div>
-          <p className="tiny soft">Statement of Real Estate Rentals. {p.rentalSharePct < 100 ? `Shared costs at ${p.rentalSharePct}% rental share. ` : ''}Your ownership {p.ownershipPct}%.</p>
-          <table className="ledger">
-            <thead><tr><th>Line</th><th>Description</th><th className="num">Amount</th></tr></thead>
-            <tbody>
-              <tr><td className="date">8141</td><td><strong>Gross rents</strong></td><td className="num"><strong>{fmt(pack.grossRents)}</strong></td></tr>
-              {pack.lines.map((l) => <tr key={l.t776}><td className="date">{l.t776}</td><td>{l.label}{l.count > 0 && <span className="tiny soft"> · {l.count} entr{l.count === 1 ? 'y' : 'ies'}</span>}</td><td className="num">{fmt(l.amount)}</td></tr>)}
-              <tr><td /><td>Total expenses</td><td className="num">{fmt(pack.totalExpenses)}</td></tr>
-              <tr><td /><td>Net income before CCA</td><td className="num">{fmt(pack.netBeforeCCA)}</td></tr>
-              <tr><td className="date">9936</td><td>Capital cost allowance{!p.claimCCA && <span className="tiny soft"> · not claimed</span>}</td><td className="num">{fmt(pack.ccaClaimed)}</td></tr>
-            </tbody>
-            <tfoot><tr><td /><td>Net rental income {p.ownershipPct < 100 && `(your ${p.ownershipPct}%: ${fmt(pack.ownerShare)})`}</td><td className={`num ${pack.netIncome < 0 ? 'urgent' : ''}`}>{fmt(pack.netIncome)}</td></tr></tfoot>
-          </table>
-          {pack.cca.length > 0 && (
-            <>
-              <h3 style={{ margin: '24px 0 8px' }}>CCA schedule (Area A)</h3>
-              <div className="table-scroll"><table className="ledger">
-                <thead><tr><th>Class</th><th className="num">Opening UCC</th><th className="num">Additions</th><th className="num">Rate</th><th className="num">Claimed</th><th className="num">Closing UCC</th></tr></thead>
+
+      <div className="sheet">
+        <h2 style={{ marginBottom: 8 }}>{fixes ? `${fixes} thing${fixes > 1 ? 's' : ''} to fix` : fixList.length ? 'Almost ready' : 'Ready for your accountant'}</h2>
+        {fixList.length === 0 ? <p className="soft" style={{ margin: 0 }}>Nothing missing.</p> : (
+          <ul className="rows">{fixList.map((x) => (
+            <li key={x.id} className="row" style={{ gridTemplateColumns: '32px 1fr' }}>
+              <span className={x.severity === 'fix' ? 'urgent' : 'soft'}><Icon name={x.severity === 'fix' ? 'alert' : 'info'} size={20} /></span>
+              <span>{x.text}</span>
+            </li>
+          ))}</ul>
+        )}
+        {fixes > 0 && <Link to="/money/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
+      </div>
+
+      <div className="sheet print-me">
+        <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname}</h2>
+        <p className="small soft" style={{ marginTop: 0 }}>Line numbers are for your accountant (CRA form T776).</p>
+        <table className="ledger tax-totals">
+          <tbody>
+            <tr><td>Rent received</td><td className="line">8141</td><td className="num">{fmt(pack.grossRents)}</td></tr>
+            <tr><td>Expenses</td><td className="line" /><td className="num">−{fmt(pack.totalExpenses)}</td></tr>
+            <tr><td><Term def="Capital Cost Allowance: a yearly deduction for wear on the building and appliances">Depreciation (CCA)</Term>{!p.claimCCA && <span className="tiny soft"> · not claimed</span>}</td><td className="line">9936</td><td className="num">−{fmt(pack.ccaClaimed)}</td></tr>
+          </tbody>
+          <tfoot><tr><td>Taxable rental income{p.ownershipPct < 100 && <span className="tiny soft"> · your {p.ownershipPct}%: {fmt(pack.ownerShare)}</span>}</td><td className="line" /><td className={`num ${pack.netIncome < 0 ? 'urgent' : ''}`}>{fmt(pack.netIncome)}</td></tr></tfoot>
+        </table>
+
+        <details className="more" open={false}>
+          <summary>Expenses by type</summary>
+          <div className="more-body">
+            <table className="ledger tax-totals"><tbody>
+              {pack.lines.map((l) => <tr key={l.t776}><td>{l.label}</td><td className="line">{l.t776}</td><td className="num">{fmt(l.amount)}</td></tr>)}
+            </tbody></table>
+            {p.rentalSharePct < 100 && <p className="tiny soft">Shared costs counted at {p.rentalSharePct}%, the part you rent out.</p>}
+          </div>
+        </details>
+
+        {pack.cca.length > 0 && (
+          <details className="more">
+            <summary>Depreciation details</summary>
+            <div className="more-body table-scroll">
+              <table className="ledger">
+                <thead><tr><th>Class</th><th className="num">Start of year</th><th className="num">Added</th><th className="num">Rate</th><th className="num">Claimed</th><th className="num">End of year</th></tr></thead>
                 <tbody>{pack.cca.map((r) => <tr key={r.cls}><td>{r.label}</td><td className="num">{fmt(r.opening)}</td><td className="num">{fmt(r.additions)}</td><td className="num">{r.ratePct}%</td><td className="num">{fmt(r.claimed)}</td><td className="num">{fmt(r.closing)}</td></tr>)}</tbody>
-              </table></div>
-              <p className="tiny soft">Half-year rule applied to additions. CCA is limited so it does not create a rental loss. Stage 1 assumes the maximum was claimed in earlier years.</p>
-            </>
-          )}
-          <p className="tiny soft" style={{ marginTop: 16 }}>Keyholder prepares information. It does not file returns or give tax advice.</p>
-        </div>
-        <aside>
-          <div className="sheet">
-            <h2 style={{ marginBottom: 8 }}>{fixes ? `${fixes} thing${fixes > 1 ? 's' : ''} to fix before you're ready` : pack.preflight.length ? 'Ready, with a few checks' : "You're ready"}</h2>
-            <ul className="rows">{pack.preflight.map((x) => (
-              <li key={x.id} className="row" style={{ gridTemplateColumns: '28px 1fr' }}>
-                <span className={x.severity === 'fix' ? 'urgent' : 'soft'}><Icon name={x.severity === 'fix' ? 'alert' : 'info'} size={18} /></span>
-                <span className="small">{x.text}</span>
-              </li>
-            ))}</ul>
-            {pack.preflight.length === 0 && <p className="small soft">Nothing missing. Export the pack for your accountant.</p>}
-            <Link to="/money/expenses" className="small">Go to expenses →</Link>
-          </div>
-          <div className="sheet">
-            <h2 style={{ marginBottom: 8 }}>Where the lines come from</h2>
-            <p className="small soft">Each plain-word category maps to a T776 line:</p>
-            <table className="ledger"><tbody>{CATEGORIES.slice(0, 8).map((c) => <tr key={c.id}><td className="small">{c.label}</td><td className="num tiny">{c.t776}</td></tr>)}</tbody></table>
-          </div>
-        </aside>
+              </table>
+              <p className="tiny soft">Only half the rate applies in the year something is bought. Depreciation can't create a loss. Claiming it can mean paying some back when you sell.</p>
+            </div>
+          </details>
+        )}
+        <p className="tiny soft" style={{ marginTop: 16 }}>Keyholder prepares the numbers. It doesn't file your return or give tax advice.</p>
       </div>
     </>
   );
 }
-
-

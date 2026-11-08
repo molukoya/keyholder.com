@@ -10,7 +10,7 @@ import { province, regionData } from '../lib/jurisdiction';
 import { fmt, fmt0, fmtShort, pct } from '../lib/money';
 import { DoorPlate, RentRoll } from '../components/domain';
 import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm, UnitForm } from '../components/forms';
-import { Empty, Figure, PhaseLocked, Term } from '../components/ui';
+import { Empty, Figure, PhaseLocked } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 export function PropertyDetail() {
@@ -65,7 +65,7 @@ function Overview({ id }: { id: string }) {
         <div className="figures four">
           <div><div className="label">Rent in</div><Figure cents={yr.rentCollected} size="sm" className="in" /></div>
           <div><div className="label">Expenses</div><Figure cents={yr.opex} size="sm" /></div>
-          <div><div className="label"><Term def="Net operating income: rent minus running costs, before the mortgage">NOI</Term></div><Figure cents={yr.noi} size="sm" /></div>
+          <div><div className="label">Before mortgage</div><Figure cents={yr.noi} size="sm" /></div>
           <div><div className="label">Kept</div><Figure cents={yr.kept} size="sm" className={yr.kept < 0 ? 'urgent' : ''} /></div>
         </div>
         {p.rentalSharePct < 100 && <p className="small soft" style={{ marginTop: 8 }}>Shared costs counted at your {p.rentalSharePct}% rental share.</p>}
@@ -95,77 +95,58 @@ function ValueTab({ id }: { id: string }) {
   const equity = value - debt;
 
   if (!p.purchasePrice || !p.purchaseDate) {
-    return <div className="sheet"><Empty title="Start with what you paid." action={<p className="small">Add the purchase date and price under <strong>Edit details</strong>. Keyholder grows it with local price data to give a first estimate.</p>} /></div>;
+    return <div className="sheet"><Empty title="Start with what you paid." action={<p>Tap <strong>Edit details</strong> and add the purchase date and price.</p>} /></div>;
   }
-
-  const saveIdx = () => idx && act.addValuation({ propertyId: id, ...idx });
-  const saveCmp = () => cmp && act.addValuation({ propertyId: id, ...cmp });
+  const change = ((value - p.purchasePrice) / p.purchasePrice) * 100;
 
   return (
     <>
       <div className="sheet">
+        <div className="small soft">Worth about</div>
+        <div className="figure" style={{ margin: '4px 0 8px' }}>{blend ? `${fmtShort(blend.low)} – ${fmtShort(blend.high)}` : fmtShort(value)}</div>
+        <p style={{ margin: 0 }}>Bought for {fmt0(p.purchasePrice)} in {yearOf(p.purchaseDate)}. <span className={change >= 0 ? 'in' : 'urgent'}>{change >= 0 ? 'Up' : 'Down'} {Math.abs(change).toFixed(0)}%.</span></p>
+        <hr className="hr" style={{ margin: '16px 0' }} />
         <div className="spread">
-          <div>
-            <div className="label mono tiny soft">ESTIMATED VALUE TODAY</div>
-            {blend ? (
-              <>
-                <div className="figure" style={{ margin: '8px 0' }}>{fmtShort(blend.low)} – {fmtShort(blend.high)}</div>
-                <div className="soft">Most likely <strong className="mono">{fmt0(blend.likely)}</strong> · <span className={`pill conf-${blend.confidence}`}>{blend.confidence} confidence</span></div>
-              </>
-            ) : <div className="figure">—</div>}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div className="label mono tiny soft">YOUR EQUITY</div>
-            <Figure cents={equity} size="sm" />
-            <div className="tiny soft">Value minus {phase >= 3 && m ? 'mortgage balance' : 'approx. mortgage balance'} {fmt0(debt)}</div>
+          <div><div className="small soft">Yours after the mortgage</div><Figure cents={equity} size="sm" /></div>
+          <div className="btn-row">
+            <button className="btn" onClick={() => setForm('comp')}><Icon name="plus" size={16} />Add a nearby sale</button>
+            <button className="btn" onClick={() => setForm('owner')}><Icon name="edit" size={16} />Add my own estimate</button>
           </div>
         </div>
-        <p className="small soft" style={{ marginTop: 12 }}>A range, never a single precise number — automated estimates can be far off in small markets. Bought for {fmt0(p.purchasePrice)} on {fmtDate(p.purchaseDate)} ({pct(((value - p.purchasePrice) / p.purchasePrice) * 100)} since).</p>
       </div>
 
-      <h2 className="section-title">Ways to estimate</h2>
-      <div className="grid2" style={{ gap: 16 }}>
-        <div className="sheet">
-          <h3>Local price index</h3>
-          <p className="small soft">Your purchase price grown by the published home price index for {p.city}{region.fallback ? ' (national figures — no city data yet)' : ''}.</p>
-          {idx && <><div className="figure sm">{fmtShort(idx.low)} – {fmtShort(idx.high)}</div><p className="tiny soft">1 yr {pct(region.priceGrowth.y1)} · 5 yr avg {pct(region.priceGrowth.y5)}/yr · 10 yr avg {pct(region.priceGrowth.y10)}/yr<br />{region.priceGrowth.source}, {region.priceGrowth.asOf}</p></>}
-          <button className="btn small" onClick={saveIdx}>Save today's index estimate</button>
+      <details className="more">
+        <summary>How we worked this out</summary>
+        <div className="more-body">
+          <p className="small soft">We combine up to three estimates and show a range, because no estimate is exact.</p>
+          <div className="grid2" style={{ gap: 16 }}>
+            <div className="sheet">
+              <h3>Local price trend</h3>
+              <p className="small soft">Your purchase price, grown by how prices moved in {p.city}{region.fallback ? ' (Canada-wide figures)' : ''}.</p>
+              {idx && <div className="figure sm">{fmtShort(idx.low)} – {fmtShort(idx.high)}</div>}
+              <p className="tiny soft">Last year {pct(region.priceGrowth.y1)}. Average over 5 years {pct(region.priceGrowth.y5)} a year. Source: {region.priceGrowth.source}.</p>
+              {idx && <button className="btn small" onClick={() => act.addValuation({ propertyId: id, ...idx })}>Save this estimate</button>}
+            </div>
+            <div className="sheet">
+              <h3>Nearby sales</h3>
+              {cmp ? <><div className="figure sm">{fmtShort(cmp.low)} – {fmtShort(cmp.high)}</div><p className="tiny soft">From {cmp.note}.</p><button className="btn small" onClick={() => act.addValuation({ propertyId: id, ...cmp })}>Save this estimate</button></>
+                : <p className="small">No sales added from the last 12 months.</p>}
+              {comps.length > 0 && (
+                <ul className="rows" style={{ marginTop: 8 }}>{comps.map((c) => (
+                  <li key={c.id} className="row"><span className="margin">{fmtDate(c.saleDate)}</span><span><span className="title">{c.address}</span><span className="sub" style={{ display: 'block' }}>{fmt0(c.price)} · {c.similarity === 'less' ? 'not as nice' : c.similarity === 'more' ? 'nicer' : 'similar'}</span></span>
+                    <button className="btn small ghost" onClick={() => act.removeComparable(c.id)} aria-label={`Remove ${c.address}`}><Icon name="trash" size={16} /></button></li>
+                ))}</ul>
+              )}
+            </div>
+          </div>
+          <h3 style={{ margin: '8px 0 12px' }}>Value over time</h3>
+          <ValueChart vals={vals} />
+          <ul className="rows sheet" style={{ padding: '0 16px' }}>{vals.map((v) => (
+            <li key={v.id} className="row"><span className="margin">{fmtDate(v.date)}</span>
+              <span><span className="title">{fmtShort(v.likely)}</span><span className="sub" style={{ display: 'block' }}>{({ purchase: 'What you paid', owner: 'Your estimate', index: 'Local price trend', comparables: 'Nearby sales', assessment: 'Appraisal' })[v.source]}{v.note && v.source !== 'purchase' ? ` · ${v.note}` : ''}</span></span><span /></li>
+          ))}</ul>
         </div>
-        <div className="sheet">
-          <h3>Comparable sales</h3>
-          <p className="small soft">Recent sales near you, adjusted for how they compare.</p>
-          {cmp ? <><div className="figure sm">{fmtShort(cmp.low)} – {fmtShort(cmp.high)}</div><p className="tiny soft">{cmp.note} · {cmp.confidence} confidence</p></> : <p className="small">No sales in the last 12 months yet.</p>}
-          <div className="btn-row"><button className="btn small" onClick={() => setForm('comp')}><Icon name="plus" size={14} />Add a sale</button>{cmp && <button className="btn small" onClick={saveCmp}>Save estimate</button>}</div>
-        </div>
-      </div>
-      <div className="btn-row" style={{ marginBottom: 24 }}>
-        <button className="btn" onClick={() => setForm('owner')}><Icon name="edit" size={16} />Record my own estimate or an appraisal</button>
-      </div>
-
-      {comps.length > 0 && (
-        <section className="section">
-          <h2 className="section-title">Nearby sales</h2>
-          <div className="sheet tight table-scroll"><table className="ledger">
-            <thead><tr><th>Sold</th><th>Address</th><th>Beds</th><th>Compared</th><th className="num">Price</th><th /></tr></thead>
-            <tbody>{comps.map((c) => (
-              <tr key={c.id}><td className="date">{fmtDate(c.saleDate)}</td><td>{c.address}</td><td>{c.bedrooms}</td><td>{c.similarity === 'less' ? 'Less desirable' : c.similarity === 'more' ? 'Nicer' : 'Similar'}</td><td className="num">{fmt0(c.price)}</td>
-                <td><button className="btn small ghost" onClick={() => act.removeComparable(c.id)} aria-label="Remove sale"><Icon name="trash" size={14} /></button></td></tr>
-            ))}</tbody>
-          </table></div>
-        </section>
-      )}
-
-      <section className="section">
-        <h2 className="section-title">Valuation history</h2>
-        <ValueChart vals={vals} />
-        <div className="sheet tight table-scroll"><table className="ledger">
-          <thead><tr><th>Date</th><th>Source</th><th className="num">Low</th><th className="num">Likely</th><th className="num">High</th><th>Note</th></tr></thead>
-          <tbody>{vals.map((v) => (
-            <tr key={v.id}><td className="date">{fmtDate(v.date)}</td><td>{({ purchase: 'Purchase price', owner: 'My estimate', index: 'Price index', comparables: 'Comparables', assessment: 'Appraisal' })[v.source]}</td>
-              <td className="num">{fmtShort(v.low)}</td><td className="num"><strong>{fmtShort(v.likely)}</strong></td><td className="num">{fmtShort(v.high)}</td><td className="small soft">{v.note}</td></tr>
-          ))}</tbody>
-        </table></div>
-      </section>
+      </details>
       {form === 'owner' && <OwnerEstimateForm propertyId={id} onClose={() => setForm(null)} />}
       {form === 'comp' && <ComparableForm propertyId={id} onClose={() => setForm(null)} />}
     </>
@@ -202,7 +183,6 @@ function ValueChart({ vals }: { vals: { date: string; low: number; likely: numbe
 function MortgageTab({ id }: { id: string }) {
   const { state, today } = useStore();
   const [edit, setEdit] = useState<string | 'new' | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const p = state.properties.find((x) => x.id === id)!;
   const m = state.mortgages.find((x) => x.propertyId === id);
   const rows = useMemo(() => (m ? amortization(m) : []), [m]);
@@ -213,75 +193,77 @@ function MortgageTab({ id }: { id: string }) {
   const gain = value - sellCost - acb;
   const capex = state.expenses.filter((e) => e.propertyId === id && e.kind === 'capital');
 
+  if (!m) {
+    return (
+      <>
+        <div className="sheet"><Empty title="No mortgage added." action={<button className="btn primary" onClick={() => setEdit('new')}>Add mortgage</button>}>Paid off? You can skip this.</Empty></div>
+        {edit && <MortgageForm propertyId={id} onClose={() => setEdit(null)} />}
+      </>
+    );
+  }
+  const bal = mortgageBalanceAt(m, today, rows);
+  const ytd = mortgagePaidBetween(m, `${today.slice(0, 4)}-01-01`, today, rows);
+  const daysToRenew = daysBetween(today, m.termEnd);
+  const next = rows.find((r) => r.date > today);
+  const upcoming = rows.filter((r) => r.date > today);
+
   return (
     <>
-      <div className="split">
-        <div>
-          <section className="section">
-            <h2 className="section-title">Mortgage {m ? <button className="btn small ghost" onClick={() => setEdit(m.id)}><Icon name="edit" size={14} />Edit</button> : null}</h2>
-            {!m ? (
-              <div className="sheet"><Empty title="No mortgage recorded." action={<button className="btn primary" onClick={() => setEdit('new')}>Add the mortgage</button>}>Add it to split each payment into principal (your savings) and interest (deductible).</Empty></div>
-            ) : (() => {
-              const bal = mortgageBalanceAt(m, today, rows);
-              const ytd = mortgagePaidBetween(m, `${today.slice(0, 4)}-01-01`, today, rows);
-              const daysToRenew = daysBetween(today, m.termEnd);
-              const next = rows.find((r) => r.date > today);
-              return (
-                <>
-                  {daysToRenew >= 0 && daysToRenew <= 120 && <div className="callout brass"><strong>Renewal in {daysToRenew} days</strong> ({fmtDate(m.termEnd)}). Lenders can offer renewal terms up to 120 days early — a good time to compare rates.</div>}
-                  <div className="figures">
-                    <div><div className="label">Balance today</div><Figure cents={bal} size="sm" /></div>
-                    <div><div className="label">Interest this year</div><Figure cents={ytd.interest} size="sm" /><div className="tiny soft">Deductible{p.rentalSharePct < 100 ? ` at ${p.rentalSharePct}%` : ''}</div></div>
-                    <div><div className="label">Principal this year</div><Figure cents={ytd.principal} size="sm" className="in" /><div className="tiny soft">Savings, not an expense</div></div>
-                  </div>
-                  <div className="kv" style={{ marginTop: 16 }}>
-                    <div>Lender</div><div>{m.lender}</div>
-                    <div>Rate</div><div>{m.ratePct.toFixed(2)}% fixed</div>
-                    <div>Payment</div><div>{fmt(rows[0]?.payment ?? 0)} {m.frequency}</div>
-                    <div>Next payment</div><div>{next ? `${fmtDate(next.date)} · ${fmt(next.interest)} interest / ${fmt(next.principal)} principal` : '—'}</div>
-                    <div>Term ends</div><div>{fmtDate(m.termEnd)}</div>
-                    <div>Paid off</div><div>{rows.length ? fmtDate(rows[rows.length - 1].date) : '—'}</div>
-                  </div>
-                </>
-              );
-            })()}
-          </section>
-          {m && (
-            <section className="section">
-              <h2 className="section-title">Amortization schedule <button className="btn small ghost" onClick={() => setShowAll((s) => !s)}>{showAll ? 'Show next 12' : 'Show all'}</button></h2>
-              <div className="sheet tight table-scroll"><table className="ledger">
-                <thead><tr><th>#</th><th>Date</th><th className="num">Payment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Balance</th></tr></thead>
-                <tbody>{(showAll ? rows : rows.filter((r) => r.date > today).slice(0, 12)).map((r) => (
-                  <tr key={r.n}><td className="date">{r.n}</td><td className="date">{fmtDate(r.date)}</td><td className="num">{fmt(r.payment)}</td><td className="num">{fmt(r.interest)}</td><td className="num in">{fmt(r.principal)}</td><td className="num">{fmt(r.balance)}</td></tr>
-                ))}</tbody>
-              </table></div>
-            </section>
-          )}
+      {daysToRenew >= 0 && daysToRenew <= 120 && <div className="callout brass"><strong>Renews in {daysToRenew} days</strong> ({fmtDate(m.termEnd)}). A good time to compare rates.</div>}
+      <div className="figures">
+        <div><div className="label">Still owed</div><Figure cents={bal} size="sm" /></div>
+        <div><div className="label">Interest this year</div><Figure cents={ytd.interest} size="sm" /></div>
+        <div><div className="label">Paid off this year</div><Figure cents={ytd.principal} size="sm" className="in" /></div>
+      </div>
+      <div className="sheet" style={{ marginTop: 16 }}>
+        <div className="spread">
+          <div>
+            {next && <p style={{ margin: 0 }}><strong>Next payment {fmtDate(next.date)}: {fmt(next.payment)}</strong></p>}
+            <p className="small soft" style={{ margin: 0 }}>{m.lender} · {m.ratePct.toFixed(2)}% · renews {fmtDate(m.termEnd)}</p>
+          </div>
+          <button className="btn" onClick={() => setEdit(m.id)}><Icon name="edit" size={16} />Edit</button>
         </div>
-        <aside>
+        {p.rentalSharePct < 100 && <p className="small soft" style={{ margin: '12px 0 0' }}>You can deduct {p.rentalSharePct}% of the interest, the part for the rental.</p>}
+      </div>
+
+      <details className="more">
+        <summary>Show all payments</summary>
+        <div className="more-body table-scroll">
+          <table className="ledger">
+            <thead><tr><th>Date</th><th className="num">Payment</th><th className="num">Interest</th><th className="num">Paid off</th><th className="num">Still owed</th></tr></thead>
+            <tbody>{upcoming.map((r) => (
+              <tr key={r.n}><td className="date">{fmtDate(r.date)}</td><td className="num">{fmt(r.payment)}</td><td className="num">{fmt(r.interest)}</td><td className="num in">{fmt(r.principal)}</td><td className="num">{fmt(r.balance)}</td></tr>
+            ))}</tbody>
+          </table>
+          <p className="tiny soft">Paid off on {rows.length ? fmtDate(rows[rows.length - 1].date) : '—'} if the rate stays the same.</p>
+        </div>
+      </details>
+
+      <details className="more">
+        <summary>What it cost you, and if you sold</summary>
+        <div className="more-body grid2" style={{ gap: 16 }}>
           <div className="sheet">
-            <h2 style={{ marginBottom: 12 }}>Cost base</h2>
+            <h3 style={{ marginBottom: 8 }}>What it cost you</h3>
             <div className="kv">
-              <div>Purchase price</div><div>{fmt0(p.purchasePrice ?? 0)}</div>
+              <div>Price</div><div>{fmt0(p.purchasePrice ?? 0)}</div>
               <div>Closing costs</div><div>{fmt0(p.closingCosts ?? 0)}</div>
               <div>Land transfer tax</div><div>{fmt0(p.landTransferTax ?? 0)}</div>
-              <div>Improvements at purchase</div><div>{fmt0(p.improvementsAtPurchase ?? 0)}</div>
-              <div>Capital spending since ({capex.length})</div><div>{fmt0(capex.reduce((a, e) => a + e.amount, 0))}</div>
-              <div><strong><Term def="Adjusted cost base: what the property cost you, including improvements. Used to work out capital gain.">Adjusted cost base</Term></strong></div><div><strong>{fmt0(acb)}</strong></div>
+              <div>Upgrades{capex.length ? ` (${capex.length})` : ''}</div><div>{fmt0((p.improvementsAtPurchase ?? 0) + capex.reduce((a, e) => a + e.amount, 0))}</div>
+              <div><strong>Total</strong></div><div><strong>{fmt0(acb)}</strong></div>
             </div>
           </div>
           <div className="sheet">
-            <h2 style={{ marginBottom: 8 }}>If you sold today</h2>
+            <h3 style={{ marginBottom: 8 }}>If you sold today</h3>
             <div className="kv">
-              <div>Estimated value</div><div>{fmt0(value)}</div>
-              <div>Selling costs (≈5%)</div><div>−{fmt0(sellCost)}</div>
-              <div>Cost base</div><div>−{fmt0(acb)}</div>
-              <div><strong>Capital gain</strong></div><div><strong>{fmt0(gain)}</strong></div>
+              <div>Worth about</div><div>{fmt0(value)}</div>
+              <div>Selling costs (about 5%)</div><div>−{fmt0(sellCost)}</div>
+              <div>What it cost you</div><div>−{fmt0(acb)}</div>
+              <div><strong>Gain</strong></div><div><strong>{fmt0(gain)}</strong></div>
             </div>
-            <p className="tiny soft" style={{ marginTop: 8 }}>{p.ownerOccupied ? `The part you live in may be covered by the principal-residence exemption; the rented ${p.rentalSharePct}% generally is not. ` : ''}An estimate, not tax advice. Recapture of CCA claimed would also apply.</p>
+            <p className="tiny soft" style={{ marginTop: 8 }}>{p.ownerOccupied ? `Your own home part is usually tax-free. The rented ${p.rentalSharePct}% usually is not. ` : ''}An estimate. Ask your accountant before selling.</p>
           </div>
-        </aside>
-      </div>
+        </div>
+      </details>
       {edit && <MortgageForm propertyId={id} mortgage={edit === 'new' ? undefined : m} onClose={() => setEdit(null)} />}
     </>
   );

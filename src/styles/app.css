@@ -101,7 +101,7 @@ textarea.input { min-height: 120px; resize: vertical; line-height: 1.5; }
 .input:focus { outline: 2px solid var(--ink-blue); outline-offset: 1px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--s-4); }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 var(--s-4); }
-@media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } .tabs { flex-wrap: wrap; overflow: visible; } .tabs a, .tabs button { padding: var(--s-2) var(--s-3); } }
 .check { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-2) 0; cursor: pointer; }
 .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--pine); flex: none; }
 .seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; flex-wrap: wrap; }
@@ -406,3 +406,15 @@ input[type=range] { accent-color: var(--brass); width: 100%; }
 .choice.big .t { font-size: var(--t-20); font-family: var(--font-display); font-weight: 500; }
 .choice.big svg { color: var(--pine); }
 .slip .what { font-size: var(--t-16); }
+
+/* ---------- "More" disclosures: detail stays one tap away ---------- */
+details.more { margin: 0 0 var(--s-4); border-top: 1px solid var(--rule); }
+details.more > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--s-2); min-height: 52px; font-weight: 600; font-size: var(--t-16); color: var(--ink-blue); }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: ''; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-micro) var(--ease); margin: 0 4px; }
+details.more[open] > summary::before { transform: rotate(45deg); }
+details.more .more-body { padding-bottom: var(--s-4); }
+.plain-facts { margin: var(--s-4) 0 0; padding-left: 20px; display: grid; gap: var(--s-2); }
+.tax-totals td { font-size: var(--t-16); padding-block: 14px; }
+.tax-totals .line { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-faint); width: 1%; white-space: nowrap; }
+.tax-totals tfoot td { font-size: var(--t-20); }
