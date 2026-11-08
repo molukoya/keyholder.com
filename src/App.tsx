@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, MemoryRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { embedded } from './components/ui';
 import { StoreProvider, useStore } from './data/store';
 import { needsYouCount } from './lib/tray';
@@ -99,9 +99,9 @@ function Shell() {
             <Route path="/money/worth-it" element={<Navigate to="/portfolio" replace />} />
             <Route path="/money/bank" element={<Navigate to="/settings#rent-tracking" replace />} />
             <Route path="/more" element={<More />} />
-            <Route path="/rent/property/:id" element={<PropertyDetail />} />
-            <Route path="/rent/property/:id/:tab" element={<PropertyDetail />} />
-            <Route path="/rent/tenant/:id" element={<TenantDetail />} />
+            <Route path="/rent/property/:id" element={<Keyed><PropertyDetail /></Keyed>} />
+            <Route path="/rent/property/:id/:tab" element={<Keyed><PropertyDetail /></Keyed>} />
+            <Route path="/rent/tenant/:id" element={<Keyed><TenantDetail /></Keyed>} />
             <Route path="/money" element={<Navigate to="/paperwork/expenses" replace />} />
             <Route path="/money/expenses" element={<Navigate to="/paperwork/expenses" replace />} />
             <Route path="/money/cash-flow" element={<Navigate to="/portfolio/cash-flow" replace />} />
@@ -146,4 +146,10 @@ function More() {
       ))}</div>
     </div>
   );
+}
+
+/** Re-mount a page when its :id changes, so open panels and form state never carry over to another record. */
+function Keyed({ children }: { children: React.ReactNode }) {
+  const { id } = useParams();
+  return <div key={id}>{children}</div>;
 }

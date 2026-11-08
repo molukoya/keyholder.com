@@ -590,3 +590,8 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
 .checks li.bad { color: var(--rust); }
 .checks li.bad svg { flex: none; }
 .unit-label.long { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; word-break: break-word; line-height: 1.2; }
+.form-row { grid-template-columns: 96px minmax(0, 1fr) auto auto; }
+.form-code { font-family: var(--font-mono); font-size: var(--t-14); font-weight: 500; color: var(--ink); word-break: break-word; }
+@media (max-width: 640px) { .form-row { grid-template-columns: minmax(0, 1fr); } .form-row .form-code { font-size: 12px; color: var(--ink-soft); } .form-row .unit-state { grid-column: 1; } }
+.checks li.warn { color: var(--brass); }
+.checks li.warn svg { flex: none; }

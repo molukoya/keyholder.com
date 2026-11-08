@@ -291,23 +291,27 @@ export interface Applicant {
   status: ApplicantStatus;
 }
 
-// ---- Notices for late rent (N4 / L1, Ontario; generic elsewhere) ----
-export type NoticeKind = 'N4' | 'L1' | 'generic';
-export type NoticeStatus = 'draft' | 'served' | 'voided-by-payment' | 'filed';
+// ---- Forms and notices (any province) ----
+export type NoticeStatus = 'served' | 'voided-by-payment' | 'filed' | 'signed';
 
 export interface Notice {
   id: ID;
-  kind: NoticeKind;
+  /** Form in the registry (src/lib/forms.ts). */
+  formId: string;
+  /** Short code shown to people, e.g. "N4", "RTB-30". */
+  kind: string;
   leaseId: ID;
   tenantId: ID;
   createdAt: string;
   arrears: Cents;
   periods: Period[];
-  serveMethod: 'email' | 'hand' | 'mail' | 'mail-slot';
+  serveMethod: 'email' | 'hand' | 'mail' | 'mail-slot' | 'signed';
   servedOn?: ISODate;
   servedBy?: string;
   terminationDate?: ISODate;
   status: NoticeStatus;
+  /** Form-specific answers (new rent, reason, who moves in, inspection notes…). */
+  details?: Record<string, string>;
 }
 
 export interface AuditEntry {

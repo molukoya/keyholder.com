@@ -38,7 +38,7 @@ export function TodoSections() {
   const [allScore, setAllScore] = useState(false);
   // Also needs you: new applications and notices whose next step is due.
   const newApps = state.units.map((u) => ({ u, n: state.applicants.filter((a) => a.unitId === u.id && a.status === 'new').length })).filter((x) => x.n > 0);
-  const l1Ready = state.leases.filter((l) => nextNotice(state, l, today)?.kind === 'L1');
+  const l1Ready = state.leases.filter((l) => nextNotice(state, l, today)?.form.kind === 'application');
   const urgentAll = urgent + newApps.length + l1Ready.length;
   return (
     <>
@@ -61,7 +61,7 @@ export function TodoSections() {
             ))}
             {l1Ready.map((l) => (
               <div key={`l1-${l.id}`} className="slip urgent">
-                <div><div className="what">{name(l.tenantId)}'s notice deadline has passed</div><div className="why">Rent is still owing. You can apply to the Landlord and Tenant Board.</div></div>
+                <div><div className="what">{name(l.tenantId)}'s notice deadline has passed</div><div className="why">Rent is still owing. You can apply to the tribunal.</div></div>
                 <div className="btn-row"><button className="btn primary" onClick={() => nav(`/rent/property/${state.units.find((u) => u.id === l.unitId)?.propertyId}/notices`)}>See options</button></div>
               </div>
             ))}

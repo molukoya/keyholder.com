@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import type { Applicant, Lease, Listing, Notice, Unit } from '../data/types';
 import { currentLine, unitTenant, useStore } from '../data/store';
 import { addDays, daysBetween, fmtDate, fmtDay, fmtPeriod } from '../lib/dates';
-import { arrears, nextNotice, noticeChecks, noticeName, n4NoticeDays, MAIL_EXTRA_DAYS, terminationDate } from '../lib/notices';
+import { arrears, nextNotice, propertyOf } from '../lib/notices';
+import { AUTHORITY_URL, formsFor } from '../lib/forms';
+import { FormWizard } from '../components/FormWizard';
 import { reminderStage } from '../lib/tray';
 import { province } from '../lib/jurisdiction';
 import { fmt, fmt0 } from '../lib/money';
 import { propertyLevel } from '../lib/levels';
 import { byValue } from '../lib/score';
-import { Letterhead } from '../components/domain';
 import { PaymentForm, PropertyForm, TenancyForm, UnitForm } from '../components/forms';
-import { Drawer, Empty, Field, MoneyInput, Seg, SlideToConfirm, Stamp } from '../components/ui';
+import { Drawer, Empty, Field, MoneyInput, Seg, Stamp } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { ReminderDrawer } from './Tray';
 
@@ -305,15 +306,17 @@ function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant
 // =====================================================================================
 export function LateRentDrawer({ lease, onClose }: { lease: Lease; onClose: () => void }) {
   const { state, today } = useStore();
-  const [step, setStep] = useState<'menu' | 'reminder' | 'notice'>('menu');
+  const [step, setStep] = useState<'menu' | 'reminder' | string>('menu');
   const tenant = state.tenants.find((t) => t.id === lease.tenantId)!;
+  const prop = propertyOf(state, lease)!;
   const a = arrears(state, lease, today);
   const next = nextNotice(state, lease, today);
   const line = currentLine(state, lease, today)!;
   const st = reminderStage(Math.max(1, line.daysLate), state.profile.graceDays, state.profile.reminderTone);
-  const served = state.notices.filter((n) => n.leaseId === lease.id).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+  const forms = formsFor(prop.province, 'late-rent');
+  const done = state.notices.filter((n) => n.leaseId === lease.id).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
   if (step === 'reminder') return <ReminderDrawer lease={lease} period={a.periods[a.periods.length - 1]?.period ?? line.period} tone={st?.tone ?? 'gentle'} onClose={onClose} />;
-  if (step === 'notice' && next) return <NoticeWizard lease={lease} kind={next.kind} onClose={onClose} />;
+  if (step !== 'menu') return <FormWizard lease={lease} formId={step} onClose={onClose} />;
   return (
     <Drawer title={`Late rent · ${tenant.names.join(' & ')}`} onClose={onClose}>
       <p style={{ marginTop: 0 }}><strong>{fmt(a.total)} owing</strong> for {a.periods.map((p) => fmtPeriod(p.period)).join(', ')}.</p>
@@ -322,82 +325,29 @@ export function LateRentDrawer({ lease, onClose }: { lease: Lease; onClose: () =
           <div><strong>Send a reminder</strong><span>Most late rent is paid after a friendly note.</span></div>
           <button className="btn" onClick={() => setStep('reminder')}>Write reminder</button>
         </li>
-        <li className={next?.kind === 'N4' || next?.kind === 'generic' ? '' : 'muted'}>
-          <div><strong>{next?.kind === 'generic' ? 'Give a written notice of rent owing' : 'Give a notice to end the tenancy for unpaid rent (N4)'}</strong><span>The tenancy can end if rent isn't paid by the date on the notice. Paying in full cancels it.</span></div>
-          {(next?.kind === 'N4' || next?.kind === 'generic') ? <button className="btn primary" onClick={() => setStep('notice')}>Prepare notice</button> : <span className="small soft">{served.some((n) => n.kind === 'N4' && n.status === 'served') ? 'Served' : '—'}</span>}
-        </li>
-        <li className={next?.kind === 'L1' ? '' : 'muted'}>
-          <div><strong>Apply to the Landlord and Tenant Board (L1)</strong><span>Only after the N4 date has passed and rent is still owing.</span></div>
-          {next?.kind === 'L1' ? <button className="btn primary" onClick={() => setStep('notice')}>Prepare L1</button> : <span className="small soft">Not yet</span>}
-        </li>
+        {forms.map((f) => {
+          const isNext = next?.form.id === f.id;
+          const used = done.find((n) => n.formId === f.id);
+          return (
+            <li key={f.id} className={isNext ? '' : 'muted'}>
+              <div><strong>{f.code} · {f.title}</strong><span>{f.plain}</span></div>
+              {isNext ? <button className="btn primary" onClick={() => setStep(f.id)}>Prepare</button> : <span className="small soft">{used ? (used.status === 'voided-by-payment' ? 'Paid' : 'Done') : 'Not yet'}</span>}
+            </li>
+          );
+        })}
       </ol>
-      {served.length > 0 && (
+      {done.length > 0 && (
         <>
           <h3 style={{ margin: '16px 0 8px' }}>Notices so far</h3>
-          <ul className="rows">{served.map((n) => <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span>{n.kind} · {fmt(n.arrears)}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>)}</ul>
+          <ul className="rows">{done.map((n) => <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span>{n.kind}{n.arrears ? ` · ${fmt(n.arrears)}` : ''}{n.terminationDate ? ` · by ${fmtDate(n.terminationDate)}` : ''}</span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></li>)}</ul>
         </>
       )}
-      <p className="tiny soft" style={{ marginTop: 16 }}>Rules for {province(state.properties.find((p) => p.id === state.units.find((u) => u.id === lease.unitId)?.propertyId)?.province ?? 'ON').name}. Keyholder prepares documents. You decide and sign. <a href="https://tribunalsontario.ca/ltb/forms/" target="_blank" rel="noopener noreferrer">Official forms</a></p>
+      <p className="tiny soft" style={{ marginTop: 16 }}>{province(prop.province).name} · {province(prop.province).tribunal}. Keyholder prepares documents; you decide and sign. <a href={AUTHORITY_URL[prop.province]} target="_blank" rel="noopener noreferrer">Official site</a></p>
     </Drawer>
   );
 }
 
-function NoticeWizard({ lease, kind, onClose }: { lease: Lease; kind: Notice['kind']; onClose: () => void }) {
-  const { state, act, today } = useStore();
-  const tenant = state.tenants.find((t) => t.id === lease.tenantId)!;
-  const unit = state.units.find((u) => u.id === lease.unitId)!;
-  const prop = state.properties.find((p) => p.id === unit.propertyId)!;
-  const [method, setMethod] = useState<Notice['serveMethod']>(tenant.emailConsent ? 'email' : 'hand');
-  const [servedOn, setServedOn] = useState(today);
-  const [servedBy, setServedBy] = useState(state.profile.name);
-  const a = arrears(state, lease, today);
-  const checks = useMemo(() => noticeChecks(state, lease, method, today), [state, lease, method, today]);
-  const ok = checks.every((c) => c.ok) && !!servedBy.trim();
-  const end = kind === 'L1' ? undefined : terminationDate(servedOn, method);
-  const n4 = state.notices.find((n) => n.leaseId === lease.id && n.kind === 'N4' && n.status === 'served');
-
-  return (
-    <Drawer title={noticeName(kind, prop.province)} onClose={onClose} wide>
-      <div className="letter">
-        <Letterhead state={state} />
-        <div className="spread"><div className="serif" style={{ fontSize: 'var(--t-20)' }}>{kind === 'L1' ? 'Application L1 (prepared)' : kind === 'N4' ? 'Notice N4' : 'Notice of rent owing'}</div><Stamp kind="draft">Preview</Stamp></div>
-        <table><tbody>
-          <tr><td>To (tenant)</td><td>{tenant.names.join(' & ')}</td></tr>
-          <tr><td>From (landlord)</td><td>{state.profile.name || '—'}</td></tr>
-          <tr><td>Rental unit</td><td>Unit {unit.label}, {prop.address}, {prop.city}</td></tr>
-          {a.periods.map((p) => <tr key={p.period}><td>Rent owing for {fmtPeriod(p.period)}</td><td>{fmt(p.owing)}</td></tr>)}
-          <tr><td><strong>Total rent owing</strong></td><td><strong>{fmt(a.total)}</strong></td></tr>
-          {end && <tr><td>Pay by (termination date)</td><td>{fmtDate(end)}</td></tr>}
-          {kind === 'L1' && n4 && <tr><td>N4 served</td><td>{fmtDate(n4.servedOn!)} · {n4.serveMethod} · termination {fmtDate(n4.terminationDate!)}</td></tr>}
-        </tbody></table>
-        <p className="tiny" style={{ color: '#55605B' }}>{kind === 'L1' ? 'Attached: tenant ledger, copy of the N4, certificate of service.' : `If the tenant pays ${fmt(a.total)} by ${end ? fmtDate(end) : 'the date'}, this notice is void and the tenancy continues.`}</p>
-        <p className="tiny" style={{ color: '#55605B' }}>Preview. The official {kind === 'generic' ? 'provincial' : 'Tribunals Ontario'} form is filled in when Keyholder's backend is ready. Verify notice periods with the tribunal.</p>
-      </div>
-
-      <h3 style={{ margin: '20px 0 8px' }}>Checks</h3>
-      <ul className="checks">{checks.map((c) => <li key={c.text} className={c.ok ? 'ok' : 'bad'}><Icon name={c.ok ? 'check' : 'alert'} size={18} />{c.text}</li>)}</ul>
-
-      {kind !== 'L1' && (
-        <>
-          <h3 style={{ margin: '20px 0 8px' }}>How it is delivered</h3>
-          <Seg label="Delivery" value={method} onChange={setMethod} options={[{ id: 'email', label: 'Email' }, { id: 'hand', label: 'By hand' }, { id: 'mail-slot', label: 'Mail slot' }, { id: 'mail', label: 'Mail' }]} />
-          <p className="small soft">{method === 'mail' ? `Mail adds ${MAIL_EXTRA_DAYS} days.` : `At least ${n4NoticeDays(servedOn)} days' notice is given.`}</p>
-          <div className="grid2">
-            <Field label="Date delivered" htmlFor="nw-d"><input id="nw-d" type="date" className="input" value={servedOn} onChange={(e) => setServedOn(e.target.value)} /></Field>
-            <Field label="Delivered by" htmlFor="nw-b"><input id="nw-b" className="input" value={servedBy} onChange={(e) => setServedBy(e.target.value)} /></Field>
-          </div>
-          <p className="small soft">This is recorded as your proof of service (Certificate of Service).</p>
-        </>
-      )}
-
-      <div className="callout warn" style={{ marginTop: 16 }}>
-        <strong>Before you approve:</strong> this is a legal {kind === 'L1' ? 'application' : 'notice'}. {kind === 'L1' ? 'Filing costs a fee and starts a hearing.' : `If ${fmt(a.total)} isn't paid by ${end ? fmtDate(end) : 'the date'}, you can apply to end the tenancy.`} Talking to the tenant first often works better.
-      </div>
-      {ok ? <SlideToConfirm label={kind === 'L1' ? 'Slide to prepare the L1' : 'Slide to approve and record'} onConfirm={() => { act.serveNotice({ kind, leaseId: lease.id, tenantId: tenant.id, arrears: a.total, periods: a.periods.map((p) => p.period), serveMethod: method, servedOn: kind === 'L1' ? today : servedOn, servedBy, terminationDate: end }); onClose(); }} />
-        : <p className="urgent small">Fix the checks above before approving.</p>}
-    </Drawer>
-  );
-}
+export const statusLabel = (s: Notice['status']) => ({ served: 'Served', 'voided-by-payment': 'Paid', filed: 'Ready', signed: 'Signed' })[s];
 
 // =====================================================================================
 // Notices tab (property page)
@@ -429,7 +379,7 @@ export function NoticesTab({ propertyId }: { propertyId: string }) {
           {notices.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices yet.</p> : (
             <ul className="rows">{notices.map((n) => {
               const t = state.tenants.find((x) => x.id === n.tenantId);
-              return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>;
+              return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></li>;
             })}</ul>
           )}
         </div>

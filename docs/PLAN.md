@@ -16,6 +16,15 @@ Phones: Home, Rentals, camera, Portfolio, More (Taxes, Paperwork, Settings).
 fixed rights-safe form, applications with status, side-by-side comparison, decline with fair reasons only,
 accept → tenant + draft lease, vacancy cost counter.
 
+**Forms in every province** (`src/lib/forms.ts`): pick a situation (rent is late, raise the rent, damage or
+behaviour, own use, end by agreement, new lease, inspection) and Keyholder picks the property's provincial form.
+Ontario: N4, L1, L9, N1, N5, L2, N12, N11, Standard Lease. BC: RTB-30, RTB-7, RTB-33, RTB-32, RTB-8, RTB-1, RTB-27.
+Alberta: templates (14-day notice, rent increase, breach, inspection) and the RTDRS application. Quebec: mandatory
+lease, notice of lease modification, formal demand and TAL application (no eviction notice for late rent). All other
+provinces and territories use shared templates and link to their official site. One form screen: pre-filled, checks,
+slide to approve, delivery and proof of service. Every code, title and period is a placeholder to verify.
+Sample data has one rental in every province and territory.
+
 **Late rent:** reminder → N4 (prefilled from the ledger, termination date from the rules pack, checks, slide to
 approve, delivery method limited by email consent, proof of service, cancelled automatically if paid in full)
 → L1 once the N4 date passes. Other provinces: a generic notice of rent owing. Previews only until Stage 2 fills

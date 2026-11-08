@@ -54,6 +54,6 @@ export function trayItems(state: AppState, today: string): TrayItem[] {
 export function needsYouCount(state: AppState, today: string): number {
   const renewals = state.mortgages.filter((m) => { const n = daysBetween(today, m.termEnd); return n >= 0 && n <= 120; }).length;
   const apps = new Set(state.applicants.filter((a) => a.status === 'new').map((a) => a.unitId)).size;
-  const l1 = state.leases.filter((l) => nextNotice(state, l, today)?.kind === 'L1').length;
+  const l1 = state.leases.filter((l) => nextNotice(state, l, today)?.form.kind === 'application').length;
   return trayItems(state, today).length + renewals + apps + l1;
 }

@@ -10,6 +10,7 @@ import { reminderDraft } from '../lib/templates';
 import { fmt } from '../lib/money';
 import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
 import { levelInfo, propertyLevel, type Level } from '../lib/levels';
+import { formById } from '../lib/forms';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -68,7 +69,7 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     }
     // Cure tracking (N4-7): if all arrears are paid, a served notice is cancelled by payment.
     const owing = leaseLedger(lease, d.payments, today()).filter((l) => l.due < today() && l.paid < l.charge).length;
-    if (!owing) for (const n of d.notices) if (n.leaseId === lease.id && n.status === 'served') { n.status = 'voided-by-payment'; audit(d, 'Notice cancelled by payment', n.kind); }
+    if (!owing) for (const n of d.notices) if (n.leaseId === lease.id && n.status === 'served' && formById(n.formId)?.situation === 'late-rent') { n.status = 'voided-by-payment'; audit(d, 'Notice cancelled by payment', n.kind); }
     audit(d, 'Payment logged', `${fmt(p.amount)} from ${tenantName(d, lease.id)} for ${p.period} (${p.source})`);
     return pay;
   }
@@ -310,8 +311,10 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
 
     // ---- Late-rent notices ----
     serveNotice(n: Omit<Notice, 'id' | 'createdAt' | 'status'>) {
-      mut((d) => { d.notices.push({ ...n, id: uid('n'), createdAt: new Date().toISOString(), status: n.kind === 'L1' ? 'filed' : 'served' }); audit(d, n.kind === 'L1' ? 'L1 prepared' : `${n.kind} served`, `${fmt(n.arrears)} · ${n.serveMethod}${n.terminationDate ? ` · ends ${n.terminationDate}` : ''}`); });
-      toast(n.kind === 'L1' ? 'L1 application prepared with the ledger, notice and proof of service.' : 'Notice approved and recorded with proof of service.');
+      const f = formById(n.formId);
+      const status: Notice['status'] = f?.kind === 'application' ? 'filed' : f?.kind === 'notice' ? 'served' : 'signed';
+      mut((d) => { d.notices.push({ ...n, id: uid('n'), createdAt: new Date().toISOString(), status }); audit(d, `${n.kind} ${status}`, `${f?.title ?? ''}${n.terminationDate ? ` · ${n.terminationDate}` : ''}`); });
+      toast(status === 'filed' ? `${n.kind} prepared with the ledger, notice and proof of service.` : status === 'served' ? `${n.kind} approved and recorded with proof of service.` : `${n.kind} saved with the lease.`);
     },
 
     // ---- Phase 3 ----

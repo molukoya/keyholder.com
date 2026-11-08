@@ -24,10 +24,11 @@ describe('Keyholder score', () => {
     expect(propertyCompletion(s, birch, today)).toBeGreaterThan(pctBefore);
   });
 
-  it('orders properties by value, most valuable first', () => {
+  it('orders properties by value, most valuable first', async () => {
     const s = seedState(undefined, '2026-11-08');
-    const order = byValue(s, today).map((p) => p.id);
-    expect(order[0]).toBe('p-maple'); // $700k+ duplex vs a ~$460k rent-based basement estimate
+    const { propertyValue } = await import('./finance');
+    const vals = byValue(s, today).map((p) => propertyValue(s, p, today).value);
+    expect(vals).toEqual([...vals].sort((a, b) => b - a));
     s.properties.find((p) => p.id === 'p-birch')!.purchasePrice = 200_000_000;
     s.properties.find((p) => p.id === 'p-birch')!.purchaseDate = '2025-11-01';
     expect(byValue(s, today)[0].id).toBe('p-birch');

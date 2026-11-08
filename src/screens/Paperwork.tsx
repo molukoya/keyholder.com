@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import type { Message, Receipt } from '../data/types';
+import type { Lease, Message, Receipt } from '../data/types';
+import { AUTHORITY_URL, SITUATIONS, formsFor } from '../lib/forms';
+import { FormWizard, SituationPicker } from '../components/FormWizard';
 import { useStore } from '../data/store';
 import { addDays, addMonths, fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
 import { province } from '../lib/jurisdiction';
@@ -13,7 +15,7 @@ import { Icon } from '../components/Icon';
 
 export function Paperwork() {
   const { tab = 'expenses' } = useParams();
-  const tabs = [{ id: 'expenses', label: 'Expense receipts' }, { id: 'income', label: 'Rental income' }, { id: 'leases', label: 'Leases' }, { id: 'notices', label: 'Notices and letters' }];
+  const tabs = [{ id: 'expenses', label: 'Expense receipts' }, { id: 'income', label: 'Rental income' }, { id: 'leases', label: 'Leases' }, { id: 'notices', label: 'Notices and letters' }, { id: 'forms', label: 'Forms' }];
   const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
   return (
     <div className="page">
@@ -22,6 +24,7 @@ export function Paperwork() {
       {cur === 'expenses' && <Expenses />}
       {cur === 'income' && <Income />}
       {cur === 'leases' && <Leases />}
+      {cur === 'forms' && <FormsLibrary />}
       {cur === 'notices' && <><NoticesLog /><section className="section"><h2 className="section-title">Receipts and reminders sent</h2><Letters /></section><section className="section"><h2 className="section-title">History of changes</h2><Log /></section></>}
     </div>
   );
@@ -76,7 +79,7 @@ function NoticesLog() {
         {ns.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices served. Late-rent notices are prepared from a tenant's page or Rentals.</p> : (
           <ul className="rows">{ns.map((n) => {
             const t = state.tenants.find((x) => x.id === n.tenantId);
-            return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · delivered {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{n.status === 'voided-by-payment' ? 'Paid' : n.status === 'filed' ? 'Ready' : 'Served'}</Stamp></li>;
+            return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · delivered {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{({ served: 'Served', 'voided-by-payment': 'Paid', filed: 'Ready', signed: 'Signed' } as Record<string, string>)[n.status]}</Stamp></li>;
           })}</ul>
         )}
       </div>
@@ -121,17 +124,21 @@ function increaseText(start: string, prov: string, today: string): string {
 
 function Leases() {
   const { state, today } = useStore();
+  const [inc, setInc] = useState<Lease | null>(null);
   if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet.">Add a tenant to create the first lease record.</Empty></div>;
   return (
+    <>
     <div className="sheet tight table-scroll"><table className="ledger">
       <thead><tr><th>Tenant</th><th>Unit</th><th>Term</th><th className="num">Rent</th><th className="num">Last month's deposit</th><th>Email notices</th><th>Next rent increase</th></tr></thead>
       <tbody>{state.leases.map((l) => {
         const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId); const p = state.properties.find((x) => x.id === u?.propertyId);
         return (
-          <tr key={l.id}><td><Link to={`/rent/tenant/${t?.id}`}>{t?.names.join(' & ')}</Link></td><td>{p?.nickname} · {u?.label}</td><td className="date">{fmtDate(l.start)} → {l.end ? fmtDate(l.end) : 'month-to-month'}</td><td className="num">{fmt(l.rent)}</td><td className="num">{fmt(l.lmrDeposit)}</td><td>{l.emailNoticeConsent ? 'Consented' : 'Paper only'}</td><td className="small">{l.end ? '—' : increaseText(l.start, p?.province ?? 'ON', today)}</td></tr>
+          <tr key={l.id}><td><Link to={`/rent/tenant/${t?.id}`}>{t?.names.join(' & ')}</Link></td><td>{p?.nickname} · {u?.label}</td><td className="date">{fmtDate(l.start)} → {l.end ? fmtDate(l.end) : 'month-to-month'}</td><td className="num">{fmt(l.rent)}</td><td className="num">{fmt(l.lmrDeposit)}</td><td>{l.emailNoticeConsent ? 'Consented' : 'Paper only'}</td><td className="small">{l.end ? '—' : <>{increaseText(l.start, p?.province ?? 'ON', today)}<br /><button className="btn small" style={{ marginTop: 6 }} onClick={() => setInc(l)}>Prepare rent increase</button></>}</td></tr>
         );
       })}</tbody>
     </table></div>
+    {inc && <SituationPicker lease={inc} only="rent-increase" onClose={() => setInc(null)} />}
+    </>
   );
 }
 
@@ -144,5 +151,45 @@ function Log() {
         <li key={a.id} className="row"><span className="margin">{fmtDate(a.at.slice(0, 10))}<br />{fmtTime(a.at)}</span><span><span className="title">{a.action}</span><span className="sub" style={{ display: 'block' }}>{a.detail}</span></span><span /></li>
       ))}</ul>
     </div>
+  );
+}
+
+/** Forms library: every situation, with the right form for each property's province. */
+function FormsLibrary() {
+  const { state, today } = useStore();
+  const props = state.properties.filter((p) => !p.archived);
+  const [pid, setPid] = useState(props[0]?.id ?? '');
+  const [pick, setPick] = useState<{ lease: Lease; formId: string } | null>(null);
+  const [choose, setChoose] = useState<string | null>(null);
+  const p = props.find((x) => x.id === pid);
+  if (!p) return <div className="sheet"><Empty title="Add a property to see its forms." /></div>;
+  const leases = state.leases.filter((l) => state.units.find((u) => u.id === l.unitId)?.propertyId === p.id && (!l.end || l.end >= today));
+  const prov = province(p.province);
+  return (
+    <>
+      <div className="spread" style={{ marginBottom: 16 }}>
+        <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname} · {x.province}</option>)}</select>
+        <span className="small soft">{prov.name} · {prov.tribunal} · <a href={AUTHORITY_URL[p.province]} target="_blank" rel="noopener noreferrer">official site</a></span>
+      </div>
+      {SITUATIONS.map((s) => (
+        <section key={s.id} className="section">
+          <h2 className="section-title">{s.label}</h2>
+          <div className="sheet tight"><ul className="unit-list">{formsFor(p.province, s.id).map((f) => (
+            <li key={f.id} className="unit-row form-row">
+              <span className="form-code">{f.code}</span>
+              <span className="unit-who"><strong>{f.title}</strong><span>{f.plain}</span></span>
+              <span className="unit-state"><span className={`status ${f.official ? 'paid' : 'vacant'}`}>{f.official ? 'Official form' : 'Template'}</span></span>
+              <button className="btn" disabled={!leases.length} onClick={() => (leases.length === 1 ? setPick({ lease: leases[0], formId: f.id }) : setChoose(f.id))}>Prepare</button>
+            </li>
+          ))}</ul></div>
+        </section>
+      ))}
+      {choose && (
+        <Drawer title="For which tenant?" onClose={() => setChoose(null)}>
+          <div className="stack">{leases.map((l) => { const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId); return <button key={l.id} className="choice" onClick={() => { setPick({ lease: l, formId: choose }); setChoose(null); }}><span className="t">{t?.names.join(' & ')}</span><span className="s">Unit {u?.label}</span></button>; })}</div>
+        </Drawer>
+      )}
+      {pick && <FormWizard lease={pick.lease} formId={pick.formId} onClose={() => setPick(null)} />}
+    </>
   );
 }

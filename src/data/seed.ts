@@ -1,11 +1,11 @@
-import type { AppState, Expense, Lease, Message, Payment, Profile, Receipt } from './types';
+import type { AppState, Expense, Lease, Message, Payment, Profile, Province, Receipt } from './types';
 import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '../lib/dates';
 
 // Sample portfolio, dated relative to today so the demo always looks current.
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 export function defaultProfile(): Profile {
   return {
@@ -81,6 +81,33 @@ export function seedState(profile?: Profile, asOf?: string): AppState {
     { id: 'l-patel', unitId: 'u-b', tenantId: 't-patel', start: '2024-08-01', rent: 145_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 140_000, utilities: 'Tenant pays hydro', parking: false, pets: true, emailNoticeConsent: true },
     { id: 'l-sam', unitId: 'u-bsmt', tenantId: 't-sam', start: addMonths(`${thisPeriod}-01`, -9), rent: 150_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 150_000, utilities: 'All included', parking: false, pets: false, emailNoticeConsent: false },
   ];
+  // One small sample rental in every other province and territory, to show each province's forms.
+  const PROVINCE_SAMPLES: [Province, string, string, string, string, number, string, boolean][] = [
+    ['BC', 'Vancouver', '2215 Commercial Dr', 'Commercial Drive suite', 'Main', 2_150_00, 'Arjun Mehta', true],
+    ['AB', 'Calgary', '1408 Kensington Rd NW', 'Kensington condo', '1408', 1_750_00, 'Chloe Tremblay', true],
+    ['QC', 'Montréal', '4521 rue Saint-Denis', 'Plateau duplex', '2e', 1_450_00, 'Mathieu Gagnon', true],
+    ['MB', 'Winnipeg', '88 Wolseley Ave', 'Wolseley house', 'Upper', 1_350_00, 'Grace Kowalski', true],
+    ['SK', 'Saskatoon', '312 Broadway Ave', 'Broadway apartment', '2', 1_250_00, 'Liam Bear', false],
+    ['NS', 'Halifax', '5670 North St', 'North End flat', 'Lower', 1_800_00, 'Fatima Haddad', false],
+    ['NB', 'Moncton', '45 Archibald St', 'Archibald duplex', 'A', 1_300_00, 'Owen LeBlanc', false],
+    ['PE', 'Charlottetown', '19 Fitzroy St', 'Fitzroy townhouse', '1', 1_400_00, 'Hannah MacDonald', false],
+    ['NL', "St. John's", '77 Gower St', 'Gower Street row house', 'Main', 1_350_00, 'Noah Walsh', false],
+    ['YT', 'Whitehorse', '503 Wood St', 'Wood Street suite', 'Suite', 1_700_00, 'Ella Smith', false],
+    ['NT', 'Yellowknife', '4910 50th Ave', 'Old Town apartment', '3', 1_900_00, 'Jacob Lafferty', false],
+    ['NU', 'Iqaluit', '1085 Mivvik St', 'Mivvik Street unit', 'B', 2_400_00, 'Mary Kilabuk', false],
+  ];
+  const lateSamples = new Set<string>();
+  const sampleLeases = new Set<string>();
+  PROVINCE_SAMPLES.forEach(([prov, city, address, nickname, label, rent, tenant, late], i) => {
+    const pid = `p-${prov.toLowerCase()}`, uid2 = `u-${prov.toLowerCase()}`, tid = `t-${prov.toLowerCase()}`, lid = `l-${prov.toLowerCase()}`;
+    s.properties.push({ id: pid, nickname, address, city, province: prov, type: 'other', rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100, claimCCA: false });
+    s.units.push({ id: uid2, propertyId: pid, label, rent, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'occupied' });
+    const first = tenant.split(' ')[0].toLowerCase();
+    s.tenants.push({ id: tid, unitId: uid2, names: [tenant], email: `${first}@example.com`, phone: '', noticeMethod: 'email', emailConsent: i % 3 !== 2, emailConsentDate: i % 3 !== 2 ? addMonths(`${thisPeriod}-01`, -14) : undefined, aliases: [] });
+    leases.push({ id: lid, unitId: uid2, tenantId: tid, start: addMonths(`${thisPeriod}-01`, -14), rent, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: rent, utilities: 'Tenant pays hydro', parking: false, pets: false, emailNoticeConsent: i % 3 !== 2 });
+    sampleLeases.add(lid);
+    if (late) lateSamples.add(lid);
+  });
   s.leases = leases;
 
   // Payments for the last 14 months, through last month; this month is set up for the demo.
@@ -109,6 +136,14 @@ export function seedState(profile?: Profile, asOf?: string): AppState {
     id: `msg-${mayaId}`, kind: 'receipt', tenantId: 't-maya', leaseId: 'l-maya', period: thisPeriod, receiptId: `rcpt-${mayaId}`,
     subject: 'Your rent receipt', body: '', status: 'draft', edited: false, createdAt: now,
   });
+  // Province samples: this month paid on the 1st unless the sample is meant to be late.
+  for (const l of leases.filter((x) => sampleLeases.has(x.id) && !lateSamples.has(x.id))) {
+    const due = dueDate(thisPeriod, 1);
+    if (due > today) continue;
+    const id = `pay-${l.id}-${thisPeriod}`;
+    payments.push({ id, leaseId: l.id, period: thisPeriod, date: due, amount: l.rent, method: 'etransfer', source: 'manual', createdAt: `${due}T09:00:00.000Z` });
+    receipts.push({ id: `rcpt-${id}`, number: rn++, paymentId: id, status: 'sent', createdAt: `${due}T09:05:00.000Z`, sentAt: `${due}T09:05:00.000Z` });
+  }
   s.payments = payments;
   s.receipts = receipts;
   s.messages = messages;
