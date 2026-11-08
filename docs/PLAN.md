@@ -1,0 +1,78 @@
+# Keyholder build plan
+
+## Phases (what the product does) × Stages (how we build it)
+
+| | Stage 1 — front end on sample data | Stage 2 — backend, real data |
+|---|---|---|
+| **Phase 1 — Run the rental** | ✅ built | next |
+| **Phase 2 — Know what it is worth** | ✅ built | after Phase 1 |
+| **Phase 3 — Mortgage, tax and capital** | ✅ built | after Phase 2 |
+
+Every feature is assigned to a phase in `src/data/phases.ts`. The UI only shows a feature once its
+phase is on, so each phase is a complete app. Moving a feature between phases is a one-line change.
+Data entered in an earlier phase carries forward: the phase 2 and 3 fields sit on the same records.
+
+### Phase 1 — Run the rental
+Signup questionnaire and plan letter · properties, units, rental share for part-of-home rentals ·
+tenants and leases with email-notice consent · rent ledger and tenant statement · confirm rent by hand ·
+bank connection (read-only, big five) and forwarded e-Transfer emails, with payment matching ·
+receipts (drafted, approved, superseded on edit) · Gentle / Standard / Firm reminders with grace period
+and pause · trust ramp (co-pilot → automatic after 10 unchanged approvals) · expenses with receipt photo,
+plain-word categories and the repair-or-improvement question · Today (Pulse, In / Out / Kept, 14-day strip,
+door plates, rent roll) · approval tray · Paperwork (receipts, letters, leases, activity log).
+
+### Phase 2 — Know what it is worth
+Purchase date and price · value as a range from (a) the purchase price grown by a local home price index,
+(b) comparable sales you enter, (c) your own estimate or an appraisal — blended, with confidence, and kept as a
+dated history · equity using an approximate mortgage balance · the Worth-It reading against savings / GIC /
+stock benchmarks · Benchmark Guide rulers (vacancy, gross yield, expense ratio, price growth).
+
+### Phase 3 — Mortgage, tax and capital
+Closing costs, land transfer tax, land share, property tax and insurance · full mortgage with Canadian
+semi-annual compounding, amortization schedule and principal / interest split · renewal alert at 120 days ·
+capital items with CCA classes · CCA schedule (half-year rule, never creates a loss, off by default for a
+home you live in) · Tax Pack in T776 layout with pre-flight checklist, spreadsheet and PDF export ·
+adjusted cost base and capital gain estimate.
+
+### Not yet in a phase (from the PRD)
+Ontario N4 / N1 / L1 notices with the approval gate and proof of service, vacancy listings and the rental
+application form, tenant magic-link page, receipt OCR, accountant share link. Decide which phase they belong to.
+
+## Stage 1 notes
+- All data is in `localStorage`. Sample data is dated relative to today.
+- Bank linking, email forwarding and sending are **simulated**. The matcher and parser are real code with tests.
+- Price index, benchmark and rate figures in `src/lib/jurisdiction.ts` are **placeholders** for design work.
+- `src/data/store.tsx` actions (`logPayment`, `confirmMatch`, `saveExpense`, …) are the contract for the Stage 2 API.
+
+## Stage 2 — backend on Render (Node.js)
+
+**Database: PostgreSQL, using Render Postgres (managed).** The ledger needs relational integrity
+(payments → leases → units → properties), transactions for "log payment + draft receipt + cancel reminder"
+in one step, and an append-only audit table. Postgres covers all of it, and Render runs it as a managed
+service with daily backups and point-in-time recovery on paid plans.
+
+| Piece | Render service | Choice |
+|---|---|---|
+| API | Web Service | Node 22 + TypeScript, Fastify, Zod validation |
+| Database | Render Postgres | PostgreSQL; Drizzle ORM with SQL migrations; money as `bigint` cents |
+| Jobs | Background Worker + Render Key Value | BullMQ queue (Key Value is Redis-compatible): reminders, email parsing, bank polling, PDFs |
+| Schedules | Cron Job | Daily rent-state scan and reminder drafting; quarterly benchmark refresh |
+| Front end | Static Site | This repo, already in `render.yaml` |
+| Files | — (Render has no object store) | S3-compatible storage for receipt photos and PDFs, e.g. AWS S3 `ca-central-1` |
+| Email | — | Transactional provider with inbound parsing (Postmark or SendGrid) for receipts and forwarded e-Transfers |
+| Bank data | — | Canadian aggregator behind an adapter (Flinks, or Plaid Canada) |
+| Auth | — | Managed auth with MFA for owners; magic links for tenants |
+
+**Data residency check.** The PRD asks for data stored in Canada. Render's regions (Oregon, Ohio, Virginia,
+Frankfurt, Singapore at last check) do not include Canada. Options: accept US hosting with a privacy review
+(PIPEDA allows it with disclosure; Quebec Law 25 needs a privacy impact assessment), keep receipts and documents
+in a Canadian S3 region, or move the database to a Canadian provider later. Confirm Render's current regions
+before choosing.
+
+### Suggested Stage 2 order
+1. Schema + migrations from `src/data/types.ts`, auth, audit log
+2. Phase 1 API matching the store actions; swap `store.tsx` from localStorage to API calls
+3. Email sending and inbound e-Transfer parsing; reminder cron
+4. Bank aggregator adapter
+5. Phase 2: valuation sources and benchmark data feeds
+6. Phase 3: mortgage and Tax Pack PDF generation server-side

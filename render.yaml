@@ -1,0 +1,15 @@
+# Render Blueprint. Stage 1: the front end as a static site (no server, no database yet).
+# Stage 2 adds the Node API, a background worker, Postgres and Key Value here — see docs/PLAN.md.
+services:
+  - type: web
+    name: keyholder-web
+    runtime: static
+    buildCommand: npm ci && npm test && npm run build
+    staticPublishPath: ./dist
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
