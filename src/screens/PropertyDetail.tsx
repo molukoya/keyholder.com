@@ -34,8 +34,8 @@ export function PropertyDetail() {
       </div>
       <nav className="tabs" aria-label="Property sections">
         <NavLink end to={`/rent/property/${p.id}`} className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
-        <NavLink to={`/rent/property/${p.id}/value`}>Value {phase < 2 && <span className="lock">P2</span>}</NavLink>
-        <NavLink to={`/rent/property/${p.id}/mortgage`}>Purchase and mortgage {phase < 3 && <span className="lock">P3</span>}</NavLink>
+        {phase >= 2 && <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>}
+        {phase >= 3 && <NavLink to={`/rent/property/${p.id}/mortgage`}>Mortgage</NavLink>}
       </nav>
       {tab === 'overview' && <Overview id={p.id} />}
       {tab === 'value' && (enabled('valuation', phase) ? <ValueTab id={p.id} /> : <PhaseLocked phase={2} what="Property value" />)}

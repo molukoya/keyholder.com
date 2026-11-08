@@ -4,8 +4,8 @@
   --paper-raised: #FBF8F2;
   --paper-sunk: #ECE5D8;
   --ink: #1B2421;
-  --ink-soft: #55605B;
-  --ink-faint: #7D857F;
+  --ink-soft: #4A544F;
+  --ink-faint: #69716B;
   --rule: #D8D0C0;
   --rule-strong: #BFB49F;
   --pine: #1F4D3F;
@@ -23,7 +23,7 @@
   --font-ui: 'Instrument Sans', 'Public Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
 
-  --t-12: 0.75rem; --t-14: 0.875rem; --t-16: 1rem; --t-20: 1.25rem; --t-28: 1.75rem; --t-44: 2.75rem; --t-72: 4.5rem;
+  --t-12: 0.8125rem; --t-14: 0.9375rem; --t-16: 1.0625rem; --t-20: 1.3125rem; --t-28: 1.75rem; --t-44: 2.75rem; --t-72: 4.5rem;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
   --radius: 4px;
   --notch: 10px;

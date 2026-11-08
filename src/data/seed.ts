@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export function defaultProfile(): Profile {
   return {
@@ -114,12 +114,11 @@ export function seedState(profile?: Profile): AppState {
   s.messages = messages;
 
   // Bank connected; Sam's deposit came from a joint account and needs a look.
-  s.bank = { id: 'bank-1', bank: 'RBC', accountMask: '•••• 4417', status: 'connected', lastSync: now };
+  s.bank = { id: 'bank-1', bank: 'RBC', accountMask: '•••• 4417', status: 'connected', lastSync: new Date(Date.now() - 3 * 3600_000).toISOString() };
   s.txns = [
     { id: 'tx-maya', source: 'bank', date: mayaDate, amount: 165_000, payer: 'MAYA CHEN', memo: 'rent unit A', status: 'matched', paymentId: mayaId },
     { id: 'tx-sam', source: 'bank', date: addDays(dueDate(thisPeriod, 1), 1) <= today ? addDays(dueDate(thisPeriod, 1), 1) : today, amount: 150_000, payer: 'S OKAFOR-BELL', memo: '', status: 'new' },
     { id: 'tx-payroll', source: 'bank', date: addDays(today, -3), amount: 412_500, payer: 'ACME PAYROLL', memo: 'Salary', status: 'ignored' },
-    { id: 'tx-hydro', source: 'bank', date: addDays(today, -4), amount: -9_640, payer: 'ALECTRA UTILITIES', memo: 'Pre-authorized debit', status: 'new' },
   ];
 
   // Expenses across the last year.

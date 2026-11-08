@@ -3,34 +3,34 @@ import { Link, NavLink, useParams } from 'react-router-dom';
 import type { BankName, Expense } from '../data/types';
 import { usePhase, useStore } from '../data/store';
 import { enabled } from '../data/phases';
-import { addDays, addPeriods, fmtDate, fmtMonthShort, fmtTime, periodOf } from '../lib/dates';
+import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, rentalPortion, taxPack, verdict, worthIt } from '../lib/finance';
-import { BANKS, CATEGORIES, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
-import { parseETransferEmail } from '../lib/matching';
+import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, CATEGORIES, RETURN_PRESETS, category, regionData, type Band } from '../lib/jurisdiction';
 import { fmt, fmt0, pct } from '../lib/money';
 import { ExpenseForm } from '../components/forms';
-import { Drawer, Empty, Figure, PhaseLocked, Seg, Term, embedded } from '../components/ui';
+import { Drawer, Empty, Field, Figure, PhaseLocked, Seg, Term, embedded } from '../components/ui';
+import { BankStatus } from '../components/domain';
 import { Icon } from '../components/Icon';
 
 export function Money() {
   const { tab = 'expenses' } = useParams();
   const phase = usePhase();
   const tabs = [
-    { id: 'expenses', label: 'Expenses' },
-    { id: 'bank', label: 'Bank and e-Transfers' },
-    { id: 'picture', label: 'The picture' },
+    { id: 'expenses', label: 'Expenses', phase: 1 },
+    { id: 'bank', label: 'Rent tracking', phase: 1 },
+    { id: 'summary', label: 'Summary', phase: 1 },
     { id: 'worth-it', label: 'Worth it?', phase: 2 },
-    { id: 'tax', label: 'Tax Pack', phase: 3 },
-  ];
+    { id: 'tax', label: 'Taxes', phase: 3 },
+  ].filter((t) => t.phase <= phase);
   return (
     <div className="page">
-      <div className="page-head"><div><div className="eyebrow">Money</div><h1>{tabs.find((t) => t.id === tab)?.label ?? 'Money'}</h1></div></div>
+      <div className="page-head"><div><h1>{tabs.find((t) => t.id === tab)?.label ?? 'Money'}</h1></div></div>
       <nav className="tabs" aria-label="Money sections">
-        {tabs.map((t) => <NavLink key={t.id} to={`/money/${t.id}`} className={tab === t.id ? 'active' : ''}>{t.label} {t.phase && phase < t.phase ? <span className="lock">P{t.phase}</span> : null}</NavLink>)}
+        {tabs.map((t) => <NavLink key={t.id} to={`/money/${t.id}`} className={tab === t.id ? 'active' : ''}>{t.label}</NavLink>)}
       </nav>
       {tab === 'expenses' && <Expenses />}
       {tab === 'bank' && <Bank />}
-      {tab === 'picture' && <ThePicture />}
+      {(tab === 'summary' || tab === 'picture') && <ThePicture />}
       {tab === 'worth-it' && (enabled('worth-it', phase) ? <WorthItPage /> : <PhaseLocked phase={2} what="The Worth-It reading" />)}
       {tab === 'tax' && (enabled('tax-pack', phase) ? <TaxPackPage /> : <PhaseLocked phase={3} what="The Tax Pack" />)}
     </div>
@@ -94,72 +94,61 @@ function Expenses() {
 }
 
 // =====================================================================================
-// Bank and e-Transfer (two paths, same result)
+// How rent is tracked: two choices only — mark it yourself, or connect a bank that is checked every 4 hours.
 // =====================================================================================
 function Bank() {
   const { state, act } = useStore();
   const [connect, setConnect] = useState(false);
-  const [email, setEmail] = useState(false);
-  const [expenseFrom, setExpenseFrom] = useState<string | null>(null);
-  const [showIgnored, setShowIgnored] = useState(false);
-  const txns = state.txns.filter((t) => showIgnored || t.status !== 'ignored');
-  const fromTxn = state.txns.find((t) => t.id === expenseFrom);
+  const deposits = state.txns.filter((t) => t.amount > 0 && t.status !== 'ignored').slice(0, 20);
+  const manual = !state.bank;
 
   return (
     <>
-      <div className="grid2" style={{ gap: 16 }}>
-        <div className="sheet">
-          <div className="spread"><h2><Icon name="bank" /> Connect my bank</h2>{state.bank && <span className={`pill ${state.bank.status === 'connected' ? 'conf-high' : 'conf-low'}`}>{state.bank.status === 'connected' ? 'Connected' : 'Needs attention'}</span>}</div>
-          {state.bank ? (
-            <>
-              <p className="small" style={{ marginTop: 8 }}><strong>{state.bank.bank}</strong> chequing {state.bank.accountMask} · read-only · last checked {fmtTime(state.bank.lastSync)}</p>
-              {state.bank.status === 'needs-reauth' && <div className="callout warn">Your bank asks you to sign in again every 90 days. <button className="btn small" onClick={act.reauthBank}>Reconnect</button></div>}
-              <div className="btn-row"><button className="btn primary" onClick={act.syncBank}><Icon name="sync" size={16} />Check for new deposits</button><button className="btn ghost" onClick={act.disconnectBank}>Disconnect</button></div>
-            </>
-          ) : (
-            <><p className="small soft" style={{ marginTop: 8 }}>Read-only link for RBC, TD, BMO, Scotiabank or CIBC. Deposits match to rent automatically and withdrawals can become expenses.</p><button className="btn primary" onClick={() => setConnect(true)}>Connect a bank</button></>
-          )}
-        </div>
-        <div className="sheet">
-          <h2><Icon name="mail" /> Forward my e-Transfer emails</h2>
-          <p className="small soft" style={{ marginTop: 8 }}>No bank access needed. Set a rule in your email to forward Interac deposit notices to your private address:</p>
-          <p className="mono small" style={{ background: 'var(--paper-sunk)', padding: 8, wordBreak: 'break-all' }}>{state.profile.forwardingAddress}</p>
-          <button className="btn" onClick={() => setEmail(true)}>Try it: paste an e-Transfer email</button>
-        </div>
+      <p className="lead">How should Keyholder know rent has arrived?</p>
+      <div className="choices two" role="radiogroup" aria-label="How rent is tracked">
+        <button role="radio" aria-checked={manual} className="choice big" onClick={() => !manual && act.useManualTracking()}>
+          <Icon name="check" size={28} />
+          <span className="t">I'll mark it myself</span>
+          <span className="s">Tap "Mark paid" when rent comes in.</span>
+        </button>
+        <button role="radio" aria-checked={!manual} className="choice big" onClick={() => manual && setConnect(true)}>
+          <Icon name="bank" size={28} />
+          <span className="t">Check my bank for me</span>
+          <span className="s">Any Canadian bank or credit union. Checked every {BANK_CHECK_HOURS} hours.</span>
+        </button>
       </div>
 
-      <section className="section">
-        <h2 className="section-title">Activity <label className="check small" style={{ textTransform: 'none', letterSpacing: 0 }}><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} />Show ignored</label></h2>
-        {txns.length === 0 ? <div className="sheet"><Empty title="Nothing has come in yet.">Connect a bank or forward an e-Transfer email to see deposits here.</Empty></div> : (
-          <div className="sheet tight table-scroll"><table className="ledger">
-            <thead><tr><th>Date</th><th>From / to</th><th>Source</th><th className="num">Amount</th><th>What happened</th></tr></thead>
-            <tbody>{txns.map((t) => {
+      {state.bank && (
+        <div className="sheet" style={{ marginTop: 24 }}>
+          <BankStatus />
+          {state.bank.status === 'needs-reauth' && <div className="callout warn">Your bank needs you to sign in again. <button className="btn small" onClick={act.reauthBank}>Sign in</button></div>}
+          <p className="small soft" style={{ marginTop: 12 }}>View only. Keyholder can see deposits. It can never move money.</p>
+        </div>
+      )}
+
+      {state.bank && (
+        <section className="section" style={{ marginTop: 24 }}>
+          <h2 className="section-title">Rent found in your bank</h2>
+          {deposits.length === 0 ? <div className="sheet"><Empty title="No rent found yet.">The next check is automatic.</Empty></div> : (
+            <div className="sheet"><ul className="rows">{deposits.map((t) => {
               const pay = state.payments.find((p) => p.id === t.paymentId);
               const lease = state.leases.find((l) => l.id === pay?.leaseId);
               const ten = state.tenants.find((x) => x.id === lease?.tenantId);
               return (
-                <tr key={t.id}>
-                  <td className="date">{fmtDate(t.date)}</td>
-                  <td><strong>{t.payer}</strong>{t.memo && <div className="tiny soft">“{t.memo}”</div>}</td>
-                  <td className="small soft">{t.source === 'bank' ? state.bank?.bank ?? 'Bank' : 'Email'}</td>
-                  <td className={`num ${t.amount > 0 ? 'in' : ''}`}>{t.amount > 0 ? '+' : '−'}{fmt(Math.abs(t.amount))}</td>
-                  <td className="small">
-                    {t.status === 'matched' && <>Rent from {ten?.names[0]} · <button className="btn small ghost" onClick={() => pay && act.voidPayment(pay.id)}>Undo match</button></>}
-                    {t.status === 'expense' && <>Filed as expense</>}
-                    {t.status === 'ignored' && <>Ignored · <button className="btn small ghost" onClick={() => act.unignoreTxn(t.id)}>Restore</button></>}
-                    {t.status === 'new' && t.amount > 0 && <Link to="/tray">Needs a look →</Link>}
-                    {t.status === 'new' && t.amount < 0 && <span className="btn-row"><button className="btn small" onClick={() => setExpenseFrom(t.id)}>File as expense</button><button className="btn small ghost" onClick={() => act.ignoreTxn(t.id)}>Not rental</button></span>}
-                  </td>
-                </tr>
+                <li key={t.id} className="row">
+                  <span className="margin">{fmtDate(t.date)}</span>
+                  <span><span className="title">{fmt(t.amount)} from {t.payer}</span>
+                    <span className="sub" style={{ display: 'block' }}>{t.status === 'matched' ? `Marked as ${ten?.names[0]}'s rent` : 'Needs you to confirm'}</span></span>
+                  {t.status === 'matched'
+                    ? <button className="btn small ghost" onClick={() => pay && act.voidPayment(pay.id)}>Undo</button>
+                    : <Link className="btn small primary" to="/todo">Confirm</Link>}
+                </li>
               );
-            })}</tbody>
-          </table></div>
-        )}
-      </section>
-
+            })}</ul></div>
+          )}
+        </section>
+      )}
       {connect && <ConnectBank onClose={() => setConnect(false)} />}
-      {email && <PasteEmail onClose={() => setEmail(false)} />}
-      {fromTxn && <ExpenseForm onClose={() => setExpenseFrom(null)} fromTxn={fromTxn.id} prefill={{ amount: Math.abs(fromTxn.amount), date: fromTxn.date, vendor: fromTxn.payer, category: /UTIL|HYDRO|ENBRIDGE|ALECTRA|WATER/i.test(fromTxn.payer) ? 'utilities' : 'repairs' }} />}
     </>
   );
 }
@@ -167,49 +156,17 @@ function Bank() {
 function ConnectBank({ onClose }: { onClose: () => void }) {
   const { act } = useStore();
   const [bank, setBank] = useState<BankName | null>(null);
-  const [step, setStep] = useState<'pick' | 'consent' | 'working'>('pick');
+  const [q, setQ] = useState('');
+  const [working, setWorking] = useState(false);
+  const matches = q.trim() ? [...POPULAR_BANKS, ...OTHER_BANKS].filter((b) => b.toLowerCase().includes(q.trim().toLowerCase())) : [];
+  if (working) return <Drawer title="Connecting" onClose={onClose}><Empty title={`Connecting to ${bank}…`}>This takes a few seconds.</Empty></Drawer>;
   return (
-    <Drawer title="Connect a bank" onClose={onClose}>
-      {step === 'pick' && (
-        <>
-          <p className="small soft">Choose your bank. You'll sign in on your bank's own page. Keyholder never sees your password.</p>
-          <div className="choices">{BANKS.map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>
-          <div className="btn-row" style={{ marginTop: 16, justifyContent: 'flex-end' }}><button className="btn primary" disabled={!bank} onClick={() => setStep('consent')}>Continue</button></div>
-        </>
-      )}
-      {step === 'consent' && bank && (
-        <>
-          <div className="callout pine"><strong>Read-only access.</strong> Keyholder can see balances and transactions. It cannot move money, pay bills or change anything.</div>
-          <ul className="small" style={{ lineHeight: 1.8 }}><li>Deposits are matched to rent by payer name, amount, date and message</li><li>Anything uncertain waits in your tray</li><li>Disconnect any time from this screen</li></ul>
-          <p className="tiny soft">Stage 1 preview: this simulates the bank-data provider. No real connection is made.</p>
-          <div className="btn-row" style={{ justifyContent: 'flex-end' }}><button className="btn ghost" onClick={() => setStep('pick')}>Back</button><button className="btn primary" onClick={() => { setStep('working'); setTimeout(() => { act.connectBank(bank); onClose(); }, 900); }}>Sign in to {bank}</button></div>
-        </>
-      )}
-      {step === 'working' && <Empty title={`Connecting to ${bank}…`}>Waiting for your bank to confirm.</Empty>}
-    </Drawer>
-  );
-}
-
-const SAMPLE_EMAIL = (name: string, amt: string) => `INTERAC e-Transfer: ${name.toUpperCase()} sent you money.
-
-Hi,
-${name.toUpperCase()} has sent you $${amt} (CAD) and the money has been automatically deposited into your bank account.
-Message: rent
-Reference Number: CA${Math.random().toString(36).slice(2, 10)}`;
-
-function PasteEmail({ onClose }: { onClose: () => void }) {
-  const { state, act, today } = useStore();
-  const lease = state.leases.find((l) => !l.end && state.payments.filter((p) => p.leaseId === l.id && p.period === periodOf(today) && !p.voided).length === 0);
-  const ten = state.tenants.find((t) => t.id === lease?.tenantId);
-  const [text, setText] = useState(ten && lease ? SAMPLE_EMAIL(ten.names[0], (lease.rent / 100).toFixed(2)) : SAMPLE_EMAIL('Sam Okafor', '1,500.00'));
-  const parsed = parseETransferEmail(text);
-  return (
-    <Drawer title="Forwarded e-Transfer email" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!parsed} onClick={() => { if (parsed) { act.receiveTransferEmail({ payer: parsed.payer, amount: parsed.amount, memo: parsed.memo, date: today }); onClose(); } }}>Process email</button></>}>
-      <p className="small soft">This is what Keyholder receives when your forwarding rule runs. Edit it to test the matcher.</p>
-      <textarea className="input mono" style={{ minHeight: 220, fontSize: 12 }} value={text} onChange={(e) => setText(e.target.value)} aria-label="Email text" />
-      <div className="sheet" style={{ marginTop: 16, padding: 16 }}>
-        {parsed ? <div className="kv"><div>Payer</div><div>{parsed.payer}</div><div>Amount</div><div>{fmt(parsed.amount)}</div><div>Message</div><div>{parsed.memo || '—'}</div></div> : <p className="urgent small">This doesn't look like an Interac deposit notice.</p>}
-      </div>
+    <Drawer title="Which bank gets your rent?" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!bank} onClick={() => { setWorking(true); setTimeout(() => { act.connectBank(bank!); onClose(); }, 900); }}>{bank ? `Connect ${bank}` : 'Choose a bank'}</button></>}>
+      <div className="choices">{POPULAR_BANKS.map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>
+      <Field label="Somewhere else?" htmlFor="cb-q"><input id="cb-q" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type your bank or credit union" /></Field>
+      {matches.length > 0 && <div className="choices">{matches.slice(0, 6).map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>}
+      <div className="callout pine" style={{ marginTop: 16 }}>You sign in on your bank's own page. Keyholder never sees your password and can never move money.</div>
+      <p className="tiny soft">Preview only: no real bank is contacted.</p>
     </Drawer>
   );
 }

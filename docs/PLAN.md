@@ -15,7 +15,7 @@ Data entered in an earlier phase carries forward: the phase 2 and 3 fields sit o
 ### Phase 1 — Run the rental
 Signup questionnaire and plan letter · properties, units, rental share for part-of-home rentals ·
 tenants and leases with email-notice consent · rent ledger and tenant statement · confirm rent by hand ·
-bank connection (read-only, big five) and forwarded e-Transfer emails, with payment matching ·
+rent tracking with two choices: mark it paid yourself, or connect any Canadian bank or credit union (read-only) and Keyholder checks it every 4 hours and marks matching rent paid ·
 receipts (drafted, approved, superseded on edit) · Gentle / Standard / Firm reminders with grace period
 and pause · trust ramp (co-pilot → automatic after 10 unchanged approvals) · expenses with receipt photo,
 plain-word categories and the repair-or-improvement question · Today (Pulse, In / Out / Kept, 14-day strip,
@@ -36,7 +36,12 @@ adjusted cost base and capital gain estimate.
 
 ### Not yet in a phase (from the PRD)
 Ontario N4 / N1 / L1 notices with the approval gate and proof of service, vacancy listings and the rental
-application form, tenant magic-link page, receipt OCR, accountant share link. Decide which phase they belong to.
+application form, tenant magic-link page, receipt OCR, accountant share link, forwarding e-Transfer emails
+(dropped to keep rent tracking to two choices; the parser in `src/lib/matching.ts` is kept). Decide which phase they belong to.
+
+### Design rules for an older audience
+Larger type (17px body, 48px buttons), one main action per row, plain labels ("Mark paid", "Left over",
+"To do"), extra fields behind "More details", and later-phase screens hidden rather than shown locked.
 
 ## Stage 1 notes
 - All data is in `localStorage`. Sample data is dated relative to today.
@@ -56,11 +61,11 @@ service with daily backups and point-in-time recovery on paid plans.
 | API | Web Service | Node 22 + TypeScript, Fastify, Zod validation |
 | Database | Render Postgres | PostgreSQL; Drizzle ORM with SQL migrations; money as `bigint` cents |
 | Jobs | Background Worker + Render Key Value | BullMQ queue (Key Value is Redis-compatible): reminders, email parsing, bank polling, PDFs |
-| Schedules | Cron Job | Daily rent-state scan and reminder drafting; quarterly benchmark refresh |
+| Schedules | Cron Job | **Every 4 hours: check each connected bank for rent** (`0 */4 * * *`) and mark matches paid; daily reminder drafting; quarterly benchmark refresh |
 | Front end | Static Site | This repo, already in `render.yaml` |
 | Files | — (Render has no object store) | S3-compatible storage for receipt photos and PDFs, e.g. AWS S3 `ca-central-1` |
-| Email | — | Transactional provider with inbound parsing (Postmark or SendGrid) for receipts and forwarded e-Transfers |
-| Bank data | — | Canadian aggregator behind an adapter (Flinks, or Plaid Canada) |
+| Email | — | Transactional provider (Postmark or SendGrid) for receipts and reminders |
+| Bank data | — | Canadian aggregator behind an adapter (Flinks, or Plaid Canada), chosen for coverage of the big banks plus credit unions |
 | Auth | — | Managed auth with MFA for owners; magic links for tenants |
 
 **Data residency check.** The PRD asks for data stored in Canada. Render's regions (Oregon, Ohio, Virginia,

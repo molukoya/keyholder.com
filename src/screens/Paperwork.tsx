@@ -11,18 +11,15 @@ import { Icon } from '../components/Icon';
 
 export function Paperwork() {
   const { tab = 'receipts' } = useParams();
-  const tabs = [{ id: 'receipts', label: 'Receipts' }, { id: 'letters', label: 'Letters sent' }, { id: 'leases', label: 'Leases' }, { id: 'log', label: 'Activity log' }];
+  const tabs = [{ id: 'receipts', label: 'Receipts' }, { id: 'letters', label: 'Messages sent' }, { id: 'leases', label: 'Leases' }, { id: 'log', label: 'History' }];
   return (
     <div className="page">
-      <div className="page-head"><div><div className="eyebrow">Paperwork</div><h1>{tabs.find((t) => t.id === tab)?.label}</h1></div></div>
+      <div className="page-head"><h1>Paperwork</h1></div>
       <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={tab === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
       {tab === 'receipts' && <Receipts />}
       {tab === 'letters' && <Letters />}
       {tab === 'leases' && <Leases />}
       {tab === 'log' && <Log />}
-      <div className="callout" style={{ marginTop: 32 }}>
-        <strong>Coming to Paperwork:</strong> Ontario N4, N1 and L1 notices with the approval gate, vacancy listings and the rental application form. They are in the PRD's v1 but not in your three phases yet — see <Link to="/settings#phase">the phase plan</Link>.
-      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { activeLease, leaseLedger } from '../lib/finance';
 import { suggestMatch } from '../lib/matching';
 import { reminderDraft } from '../lib/templates';
 import { fmt } from '../lib/money';
+import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -206,12 +207,15 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
         d.profile.rentArrival = 'bank';
         audit(d, 'Bank connected', `${bank} (read-only)`);
       });
-      toast(`${bank} connected, read-only. Keyholder can see deposits but can never move money.`);
+      toast(`${bank} connected. Keyholder will check for rent every ${BANK_CHECK_HOURS} hours.`);
     },
-    disconnectBank() { mut((d) => { audit(d, 'Bank disconnected', d.bank?.bank ?? ''); d.bank = undefined; }); },
     reauthBank() { mut((d) => { if (d.bank) { d.bank.status = 'connected'; d.bank.lastSync = new Date().toISOString(); } }); toast('Connection renewed.'); },
-    /** Simulates a sync: deposits for some unpaid rent arrive, plus a bill. */
-    syncBank() {
+    /**
+     * Checks the bank for new rent deposits. Stage 1 simulates what the bank-data provider returns;
+     * in Stage 2 a scheduled job runs this every BANK_CHECK_HOURS hours for every connected bank.
+     * `auto` = run by the schedule: only speak up when rent was found.
+     */
+    syncBank(auto = false) {
       let matched = 0, review = 0;
       mut((d) => {
         if (!d.bank) return;
@@ -220,28 +224,22 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
         for (const u of d.units) {
           const l = activeLease(d, u.id, t); if (!l) continue;
           const open = leaseLedger(l, d.payments, t).filter((x) => x.paid < x.charge && x.due <= addDays(t, 3));
-          const already = d.txns.some((x) => x.status === 'new' && x.amount === l.rent);
+          const already = d.txns.some((x) => x.status === 'new' && x.amount > 0 && suggestMatch(d, x, t)?.leaseId === l.id);
           if (!open.length || already || Math.random() < 0.35) continue;
           const ten = d.tenants.find((x) => x.id === l.tenantId)!;
           fresh.push({ id: uid('tx'), source: 'bank', date: t, amount: open[0].charge - open[0].paid, payer: ten.names[0].toUpperCase(), memo: 'rent', status: 'new' });
         }
-        if (Math.random() < 0.6) fresh.push({ id: uid('tx'), source: 'bank', date: t, amount: -Math.round(4000 + Math.random() * 20000), payer: 'HOME DEPOT #7011', memo: 'Debit purchase', status: 'new' });
-        for (const x of fresh) { d.txns.unshift(x); if (x.amount > 0) { if (autoMatch(d, x)) matched++; else review++; } }
+        for (const x of fresh) { d.txns.unshift(x); if (autoMatch(d, x)) matched++; else review++; }
         d.bank.lastSync = new Date().toISOString();
-        audit(d, 'Bank synced', `${fresh.length} new transaction(s)`);
+        audit(d, auto ? 'Bank checked (scheduled)' : 'Bank checked', `${fresh.length} rent deposit(s) found`);
       });
-      toast(matched + review === 0 ? 'Synced. No new rent deposits.' : `Synced. ${matched} matched automatically${review ? `, ${review} need a look` : ''}.`);
+      if (auto && matched + review === 0) return;
+      toast(matched + review === 0 ? 'Checked. No new rent yet.' : `Rent found: ${matched} marked paid${review ? `, ${review} to confirm in To do` : ''}.`);
     },
-    /** e-Transfer email forwarding path. */
-    receiveTransferEmail(t: { payer: string; amount: number; memo: string; date: string }) {
-      let ok = false;
-      mut((d) => {
-        const txn: BankTxn = { id: uid('tx'), source: 'email', ...t, status: 'new' };
-        d.txns.unshift(txn);
-        ok = autoMatch(d, txn);
-        audit(d, 'e-Transfer email received', `${fmt(t.amount)} from ${t.payer}`);
-      });
-      toast(ok ? `${fmt(t.amount)} from ${t.payer} matched and logged.` : `${fmt(t.amount)} from ${t.payer} is in the tray for a look.`);
+    /** Switch to marking rent paid by hand. */
+    useManualTracking() {
+      mut((d) => { d.profile.rentArrival = 'manual'; if (d.bank) audit(d, 'Bank disconnected', d.bank.bank); d.bank = undefined; });
+      toast('Done. You will mark rent paid yourself.');
     },
     confirmMatch(txnId: string, leaseId: string, period: string, learnAlias: boolean) {
       mut((d) => {
@@ -302,6 +300,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const mut: Mut = useCallback((fn) => setState((s) => { const d = structuredClone(s); fn(d); return d; }), []);
   const act = useMemo(() => makeActions(mut, toast), [mut, toast]);
+  // The every-4-hours bank check. Stage 1 runs it while the app is open; Stage 2 runs it on the server.
+  const lastSync = state.bank?.status === 'connected' ? state.bank.lastSync : undefined;
+  useEffect(() => {
+    if (!lastSync) return;
+    const due = new Date(lastSync).getTime() + BANK_CHECK_HOURS * 3600_000 - Date.now();
+    const id = setTimeout(() => act.syncBank(true), Math.max(1000, due));
+    return () => clearTimeout(id);
+  }, [lastSync, act]);
   const today = todayISO();
   const value = useMemo(() => ({ state, act, today, toasts }), [state, act, today, toasts]);
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;

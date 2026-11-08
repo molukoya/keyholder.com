@@ -57,7 +57,7 @@ function Shell() {
       if (e.metaKey || e.ctrlKey || e.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || document.querySelector('.drawer')) return;
       if (e.key === 'p') { e.preventDefault(); setPay(true); }
       if (e.key === 'e') { e.preventDefault(); setCapture(true); }
-      if (e.key === 't') { e.preventDefault(); navigate('/tray'); }
+      if (e.key === 't') { e.preventDefault(); navigate('/todo'); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -75,14 +75,13 @@ function Shell() {
       <aside className="rail" aria-label="Main">
         <Link to="/today" className="brand"><KeyMark />Keyholder</Link>
         {nav.map((n) => <NavLink key={n.to} to={n.to} className="nav-link"><Icon name={n.icon} />{n.label}</NavLink>)}
-        <NavLink to="/tray" className="nav-link"><Icon name="tray" />Tray{count > 0 && <span className="badge" aria-label={`${count} items`}>{count}</span>}</NavLink>
+        <NavLink to="/todo" className="nav-link"><Icon name="tray" />To do{count > 0 && <span className="badge" aria-label={`${count} items`}>{count}</span>}</NavLink>
         <div style={{ height: 16 }} />
-        <button className="btn primary" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Snap a receipt</button>
-        <button className="btn" onClick={() => setPay(true)}><Icon name="check" size={18} />Confirm rent</button>
+        <button className="btn primary" onClick={() => setPay(true)}><Icon name="check" size={18} />Mark rent paid</button>
+        <button className="btn" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
           <Link to="/settings#phase" className="phase-chip">Preview: <strong>Phase {phase.id}</strong><br />{phase.name}</Link>
-          <span className="tiny faint" style={{ padding: '0 8px' }}>Shortcuts: P payment · E expense · T tray</span>
         </div>
       </aside>
 
@@ -91,7 +90,8 @@ function Shell() {
           <Link to="/today" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
           <div className="btn-row">
             <Link to="/settings#phase" className="pill">Phase {phase.id}</Link>
-            <Link to="/settings" className="btn ghost" aria-label="Settings"><Icon name="user" /></Link>
+            <Link to="/paperwork" className="btn ghost" aria-label="Paperwork"><Icon name="paper" /></Link>
+            <Link to="/settings" className="btn ghost" aria-label="Settings"><Icon name="settings" /></Link>
           </div>
         </div>
         <main>
@@ -106,7 +106,8 @@ function Shell() {
             <Route path="/money/:tab" element={<Money />} />
             <Route path="/paperwork" element={<Paperwork />} />
             <Route path="/paperwork/:tab" element={<Paperwork />} />
-            <Route path="/tray" element={<Tray />} />
+            <Route path="/todo" element={<Tray />} />
+            <Route path="/tray" element={<Navigate to="/todo" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
@@ -114,11 +115,11 @@ function Shell() {
       </div>
 
       <nav className="bottombar" aria-label="Main">
-        <NavLink to="/today"><Icon name="today" />Today{count > 0 && <span className="badge">{count}</span>}</NavLink>
+        <NavLink to="/today"><Icon name="today" />Today</NavLink>
         <NavLink to="/rent"><Icon name="rent" />Rent</NavLink>
-        <a href="#capture" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Snap a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Capture</a>
+        <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
         <NavLink to="/money"><Icon name="money" />Money</NavLink>
-        <NavLink to="/paperwork"><Icon name="paper" />Paperwork</NavLink>
+        <NavLink to="/todo"><Icon name="tray" />To do{count > 0 && <span className="badge">{count}</span>}</NavLink>
       </nav>
 
       {capture && <ExpenseForm onClose={() => setCapture(false)} />}

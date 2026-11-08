@@ -8,8 +8,7 @@ import { suggestMatch, type Suggestion } from './matching';
 export type TrayItem =
   | { kind: 'message'; id: string; message: Message }
   | { kind: 'reminder'; id: string; lease: Lease; line: LedgerLine; tone: Tone; stage: string }
-  | { kind: 'match'; id: string; txn: BankTxn; suggestion: Suggestion | null }
-  | { kind: 'withdrawal'; id: string; txn: BankTxn };
+  | { kind: 'match'; id: string; txn: BankTxn; suggestion: Suggestion | null };
 
 export function reminderStage(daysLate: number, grace: number, base: Tone): { tone: Tone; stage: string } | null {
   if (daysLate < 1) return null;
@@ -46,7 +45,6 @@ export function trayItems(state: AppState, today: string): TrayItem[] {
   for (const t of state.txns) {
     if (t.status !== 'new') continue;
     if (t.amount > 0) items.push({ kind: 'match', id: t.id, txn: t, suggestion: suggestMatch(state, t, today) });
-    else items.push({ kind: 'withdrawal', id: t.id, txn: t });
   }
   return items;
 }

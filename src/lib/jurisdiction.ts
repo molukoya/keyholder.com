@@ -121,4 +121,11 @@ export function regionData(p: Province, city: string): RegionData & { fallback: 
   return { ...REGION_DEFAULT, ...(r ?? {}), fallback: !r };
 }
 
-export const BANKS = ['RBC', 'TD', 'BMO', 'Scotiabank', 'CIBC'] as const;
+export const POPULAR_BANKS = ['RBC', 'TD', 'BMO', 'Scotiabank', 'CIBC', 'National Bank', 'Desjardins', 'Tangerine'];
+export const OTHER_BANKS = [
+  'ATB Financial', 'Simplii Financial', 'EQ Bank', 'HSBC Canada', 'Laurentian Bank', 'Manulife Bank', 'PC Financial',
+  'Coast Capital', 'Vancity', 'Meridian', 'Servus', 'Affinity Credit Union', 'Alterna', 'Conexus', 'Steinbach Credit Union',
+  'Other credit union',
+];
+/** How often a connected bank is checked for rent (Stage 2: a scheduled job). */
+export const BANK_CHECK_HOURS = 4;

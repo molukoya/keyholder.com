@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { Lease, Message, Tone } from '../data/types';
 import { useStore } from '../data/store';
-import { fmtDate, fmtPeriod } from '../lib/dates';
+import { fmtPeriod } from '../lib/dates';
 import { activeLease, leaseLedger } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { reminderDraft, TONES } from '../lib/templates';
 import { trayItems, type TrayItem } from '../lib/tray';
 import { Letterhead, MessageEditor } from '../components/domain';
-import { ExpenseForm } from '../components/forms';
 import { Drawer, Empty, Seg } from '../components/ui';
 import { Icon } from '../components/Icon';
 
@@ -20,25 +19,23 @@ export function Tray() {
   const [msg, setMsg] = useState<Message | null>(null);
   const [rem, setRem] = useState<Extract<TrayItem, { kind: 'reminder' }> | null>(null);
   const [match, setMatch] = useState<Extract<TrayItem, { kind: 'match' }> | null>(null);
-  const [expense, setExpense] = useState<string | null>(null);
   const file = (id: string, fn: () => void) => { setLeaving((s) => new Set(s).add(id)); setTimeout(fn, 280); };
   const p = state.profile;
   const offerAuto = !p.autoSend && !p.autoSendOffered && p.approvedUnchanged >= 10;
+  const name = (tenantId?: string) => state.tenants.find((x) => x.id === tenantId)?.names[0] ?? 'Tenant';
 
   return (
     <div className="page">
-      <div className="page-head"><div><div className="eyebrow">Tray</div><h1>{items.length ? `${items.length} thing${items.length > 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} a decision` : 'All clear'}</h1></div>
-        <span className="pill">{p.autoSend ? 'Receipts and reminders send automatically' : `Co-pilot · ${p.approvedUnchanged} approved unchanged`}</span>
-      </div>
+      <div className="page-head"><h1>{items.length ? 'To do' : 'All done'}</h1></div>
 
       {offerAuto && (
-        <div className="callout pine spread">
-          <span>You've approved {p.approvedUnchanged} messages without changes. <strong>Send receipts and reminders on your behalf from now on?</strong> Legal notices will still wait for you.</span>
-          <span className="btn-row"><button className="btn small ghost" onClick={() => act.setAutoSend(false)}>Not now</button><button className="btn small primary" onClick={() => act.setAutoSend(true)}>Yes, send them</button></span>
+        <div className="callout pine">
+          <p style={{ margin: '0 0 8px' }}><strong>Want Keyholder to send receipts and reminders for you?</strong> You've approved {p.approvedUnchanged} without changes.</p>
+          <div className="btn-row"><button className="btn primary" onClick={() => act.setAutoSend(true)}>Yes, send them</button><button className="btn ghost" onClick={() => act.setAutoSend(false)}>No, I'll keep checking</button></div>
         </div>
       )}
 
-      {items.length === 0 ? <div className="sheet"><Empty title="Nothing waiting on you.">New receipts, reminders and bank matches will appear here.</Empty></div> : (
+      {items.length === 0 ? <div className="sheet"><Empty title="Nothing to do.">We'll put things here when they need you.</Empty></div> : (
         <div className="tray">
           {items.map((it) => {
             const cls = `slip ${it.kind === 'reminder' ? 'urgent' : it.kind === 'match' ? 'info' : ''}${leaving.has(it.id) ? ' leaving' : ''}`;
@@ -48,8 +45,8 @@ export function Tray() {
               const pay = state.payments.find((x) => x.id === r?.paymentId);
               return (
                 <div key={it.id} className={cls}>
-                  <div><div className="what">Receipt #{r?.number} for {t?.names.join(' & ')}</div><div className="why">{pay ? `${fmt(pay.amount)} for ${fmtPeriod(pay.period)}, received ${fmtDate(pay.date)}` : ''}</div></div>
-                  <div className="btn-row"><button className="btn ghost small" onClick={() => setMsg(it.message)}>Preview / edit</button><button className="btn primary small" disabled={!t?.email} onClick={() => file(it.id, () => act.approveMessage(it.message.id))}>Approve</button></div>
+                  <div><div className="what">Send {t?.names[0]} a receipt</div><div className="why">{pay ? `${fmt(pay.amount)} for ${fmtPeriod(pay.period)}` : ''}</div></div>
+                  <div className="btn-row"><button className="btn ghost" onClick={() => setMsg(it.message)}>Look first</button><button className="btn primary" disabled={!t?.email} onClick={() => file(it.id, () => act.approveMessage(it.message.id))}>Send</button></div>
                 </div>
               );
             }
@@ -57,30 +54,23 @@ export function Tray() {
               const t = state.tenants.find((x) => x.id === it.lease.tenantId);
               return (
                 <div key={it.id} className={cls}>
-                  <div><div className="what">{t?.names[0]}'s rent is {it.line.daysLate} day{it.line.daysLate === 1 ? '' : 's'} late</div><div className="why">{fmt(it.line.charge - it.line.paid)} owing for {fmtPeriod(it.line.period)} · {it.stage}: {it.tone} reminder drafted</div></div>
-                  <div className="btn-row"><button className="btn ghost small" onClick={() => file(it.id, () => act.skipReminder(it.lease, it.line.period, it.tone))}>Skip</button><button className="btn ghost small" onClick={() => setRem(it)}>Preview / edit</button><button className="btn primary small" disabled={!t?.email} onClick={() => file(it.id, () => act.sendReminder(it.lease, it.line.period, it.tone))}>Send</button></div>
+                  <div><div className="what">Remind {t?.names[0]} about rent</div><div className="why">{fmt(it.line.charge - it.line.paid)} · {it.line.daysLate} day{it.line.daysLate === 1 ? '' : 's'} late</div></div>
+                  <div className="btn-row"><button className="btn ghost" onClick={() => file(it.id, () => act.skipReminder(it.lease, it.line.period, it.tone))}>Not now</button><button className="btn ghost" onClick={() => setRem(it)}>Look first</button><button className="btn primary" disabled={!t?.email} onClick={() => file(it.id, () => act.sendReminder(it.lease, it.line.period, it.tone))}>Send</button></div>
                 </div>
               );
             }
-            if (it.kind === 'match') {
-              const s = it.suggestion;
-              const lease = s ? state.leases.find((l) => l.id === s.leaseId) : undefined;
-              const t = state.tenants.find((x) => x.id === lease?.tenantId);
-              return (
-                <div key={it.id} className={cls}>
-                  <div>
-                    <div className="what">{fmt(it.txn.amount)} from {it.txn.payer} <span className="tiny soft">· {it.txn.source === 'bank' ? 'bank deposit' : 'e-Transfer email'} · {fmtDate(it.txn.date)}</span></div>
-                    <div className="why">{s ? <>Looks like {t?.names[0]}'s rent for {fmtPeriod(s.period)} <span className={`pill conf-${s.confidence}`}>{s.confidence} confidence</span></> : 'No matching tenant found'}</div>
-                  </div>
-                  <div className="btn-row"><button className="btn ghost small" onClick={() => setMatch(it)}>{s ? 'Choose another' : 'Match it'}</button>
-                    {s ? <button className="btn primary small" onClick={() => file(it.id, () => act.confirmMatch(it.txn.id, s.leaseId, s.period, true))}>Confirm</button> : <button className="btn small" onClick={() => file(it.id, () => act.ignoreTxn(it.txn.id))}>Not rent</button>}</div>
-                </div>
-              );
-            }
+            const s = it.suggestion;
+            const lease = s ? state.leases.find((l) => l.id === s.leaseId) : undefined;
             return (
               <div key={it.id} className={cls}>
-                <div><div className="what">{fmt(-it.txn.amount)} to {it.txn.payer}</div><div className="why">Is this a rental expense? · {fmtDate(it.txn.date)}</div></div>
-                <div className="btn-row"><button className="btn ghost small" onClick={() => file(it.id, () => act.ignoreTxn(it.txn.id))}>Not rental</button><button className="btn primary small" onClick={() => setExpense(it.txn.id)}>File as expense</button></div>
+                <div>
+                  <div className="what">{fmt(it.txn.amount)} came in from {it.txn.payer}</div>
+                  <div className="why">{s ? `Is this ${name(lease?.tenantId)}'s rent?` : 'Whose rent is this?'}</div>
+                </div>
+                <div className="btn-row">
+                  {s ? <><button className="btn ghost" onClick={() => setMatch(it)}>Someone else</button><button className="btn primary" onClick={() => file(it.id, () => act.confirmMatch(it.txn.id, s.leaseId, s.period, true))}>Yes</button></>
+                    : <><button className="btn ghost" onClick={() => file(it.id, () => act.ignoreTxn(it.txn.id))}>Not rent</button><button className="btn primary" onClick={() => setMatch(it)}>Choose tenant</button></>}
+                </div>
               </div>
             );
           })}
@@ -90,7 +80,6 @@ export function Tray() {
       {msg && <Drawer title="Receipt" onClose={() => setMsg(null)} wide><MessageEditor message={msg} onDone={() => setMsg(null)} /></Drawer>}
       {rem && <ReminderDrawer lease={rem.lease} period={rem.line.period} tone={rem.tone} onClose={() => setRem(null)} />}
       {match && <MatchDrawer item={match} onClose={() => setMatch(null)} />}
-      {expense && (() => { const t = state.txns.find((x) => x.id === expense)!; return <ExpenseForm onClose={() => setExpense(null)} fromTxn={t.id} prefill={{ amount: -t.amount, date: t.date, vendor: t.payer, category: /UTIL|HYDRO|ENBRIDGE|ALECTRA|WATER/i.test(t.payer) ? 'utilities' : 'repairs' }} />; })()}
     </div>
   );
 }
@@ -139,9 +128,8 @@ function MatchDrawer({ item, onClose }: { item: Extract<TrayItem, { kind: 'match
   return (
     <Drawer title={`${fmt(item.txn.amount)} from ${item.txn.payer}`} onClose={onClose} footer={<>
       <button className="btn ghost" onClick={() => { act.ignoreTxn(item.txn.id); onClose(); }}>Not rent</button>
-      <button className="btn primary" disabled={!sel} onClick={() => { act.confirmMatch(item.txn.id, leaseId, period, learn); onClose(); }}>Confirm match</button>
+      <button className="btn primary" disabled={!sel} onClick={() => { act.confirmMatch(item.txn.id, leaseId, period, learn); onClose(); }}>This is their rent</button>
     </>}>
-      {item.suggestion && <div className="callout"><strong>Why Keyholder suggested this:</strong><ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{item.suggestion.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div>}
       {options.length === 0 ? <Empty title="No unpaid rent to match against." /> : (
         <div className="stack" role="radiogroup">
           {options.map((o) => {
@@ -156,7 +144,7 @@ function MatchDrawer({ item, onClose }: { item: Extract<TrayItem, { kind: 'match
         </div>
       )}
       {chosen && !chosen.tenant.names.some((n) => n.toLowerCase() === item.txn.payer.toLowerCase()) && (
-        <label className="check" style={{ marginTop: 16 }}><input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} /><span>Remember “{item.txn.payer}” as a payer for {chosen.tenant.names[0]}<span className="tiny soft" style={{ display: 'block' }}>Future deposits from this name match automatically.</span></span></label>
+        <label className="check" style={{ marginTop: 16 }}><input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} /><span>Next time, match “{item.txn.payer}” to {chosen.tenant.names[0]} automatically</span></label>
       )}
     </Drawer>
   );

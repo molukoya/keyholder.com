@@ -36,38 +36,44 @@ export function PaymentForm({ leaseId, onClose, correct }: { leaseId?: string; o
     onClose();
   };
 
+  const [more, setMore] = useState(!!correct);
   return (
-    <Drawer title={correct ? 'Correct a payment' : 'Confirm rent received'} onClose={onClose}
-      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!lease || !amount} onClick={submit}>{correct ? 'Save correction' : 'Log payment'}</button></>}>
-      {correct && <div className="callout">The original entry stays in the ledger as voided, and its receipt is marked superseded. Nothing is silently overwritten.</div>}
+    <Drawer title={correct ? 'Fix a payment' : 'Mark rent paid'} onClose={onClose}
+      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!lease || !amount} onClick={submit}>{correct ? 'Save' : 'Mark paid'}</button></>}>
+      {correct && <p className="small soft">The old entry is kept and marked as replaced.</p>}
       {!leaseId && !correct && (
-        <Field label="Who paid?" htmlFor="pf-lease">
-          <select id="pf-lease" className="input" value={lid} onChange={(e) => { setLid(e.target.value); const l = state.leases.find((x) => x.id === e.target.value); setAmount(l?.rent); }}>
+        <div className="field">
+          <span className="label">Who paid?</span>
+          <div className="choices" role="radiogroup">
             {leases.map((l) => {
               const t = state.tenants.find((x) => x.id === l.tenantId); const u = state.units.find((x) => x.id === l.unitId);
-              return <option key={l.id} value={l.id}>{t?.names.join(' & ')} — Unit {u?.label}</option>;
+              return <button key={l.id} role="radio" aria-checked={lid === l.id} className="choice" onClick={() => { setLid(l.id); setAmount(l.rent); const o = leaseLedger(l, state.payments, today, periodOf(addMonths(today, 1))).find((x) => x.paid < x.charge); if (o) setPeriod(o.period); }}>
+                <span className="t">{t?.names.join(' & ')}</span><span className="s">Unit {u?.label}</span>
+              </button>;
             })}
-          </select>
-        </Field>
+          </div>
+        </div>
       )}
       {lease && (
         <>
-          <Field label="For which month?" htmlFor="pf-period" hint={line ? (owing > 0 ? `${fmt(owing)} owing for ${fmtPeriod(period)}` : `${fmtPeriod(period)} is already paid — this will be a credit`) : undefined}>
-            <select id="pf-period" className="input" value={period} onChange={(e) => { setPeriod(e.target.value); const l = open.find((x) => x.period === e.target.value); if (l) setAmount(Math.max(0, l.charge - l.paid) || l.charge); }}>
-              {open.slice().reverse().map((l) => <option key={l.period} value={l.period}>{fmtPeriod(l.period)} {l.paid >= l.charge ? '(paid)' : l.paid > 0 ? '(partial)' : ''}</option>)}
-            </select>
-          </Field>
           <div className="grid2">
-            <Field label="Amount" htmlFor="pf-amt" hint={amount && owing && amount < owing ? 'Partial payment — the rest stays owing' : amount && owing && amount > owing ? 'Overpayment — the extra becomes a credit' : undefined}>
+            <Field label="Amount" htmlFor="pf-amt" hint={amount && owing && amount < owing ? `${fmt(owing - amount)} will still be owed` : undefined}>
               <MoneyInput id="pf-amt" value={amount} onChange={setAmount} />
             </Field>
-            <Field label="Date received" htmlFor="pf-date"><input id="pf-date" type="date" className="input" value={date} max={today} onChange={(e) => setDate(e.target.value)} /></Field>
+            <Field label="Date" htmlFor="pf-date"><input id="pf-date" type="date" className="input" value={date} max={today} onChange={(e) => setDate(e.target.value)} /></Field>
           </div>
-          <Field label="How was it paid?">
-            <Seg label="Method" value={method} onChange={setMethod} options={[{ id: 'etransfer', label: 'e-Transfer' }, { id: 'cheque', label: 'Cheque' }, { id: 'cash', label: 'Cash' }, { id: 'direct-deposit', label: 'Deposit' }]} />
+          <Field label="Rent for" htmlFor="pf-period">
+            <select id="pf-period" className="input" value={period} onChange={(e) => { setPeriod(e.target.value); const l = open.find((x) => x.period === e.target.value); if (l) setAmount(Math.max(0, l.charge - l.paid) || l.charge); }}>
+              {open.slice().reverse().map((l) => <option key={l.period} value={l.period}>{fmtPeriod(l.period)} {l.paid >= l.charge ? '(paid)' : l.paid > 0 ? '(part paid)' : ''}</option>)}
+            </select>
           </Field>
-          <Field label="Note (optional)" htmlFor="pf-note"><input id="pf-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Cheque #, who handed it over…" /></Field>
-          <p className="small soft">{state.profile.autoSend ? 'A receipt goes to the tenant automatically.' : 'A receipt will be drafted for you to approve.'}</p>
+          {more ? (
+            <>
+              <Field label="Paid by"><Seg label="Method" value={method} onChange={setMethod} options={[{ id: 'etransfer', label: 'e-Transfer' }, { id: 'cheque', label: 'Cheque' }, { id: 'cash', label: 'Cash' }, { id: 'direct-deposit', label: 'Deposit' }]} /></Field>
+              <Field label="Note" htmlFor="pf-note"><input id="pf-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+            </>
+          ) : <button className="btn ghost small" onClick={() => setMore(true)}>More details</button>}
+          <p className="small soft" style={{ marginTop: 16 }}>{state.profile.autoSend ? 'A receipt is sent to the tenant.' : 'A receipt will be ready for you to send.'}</p>
         </>
       )}
     </Drawer>
@@ -99,6 +105,7 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
   });
   const [flash, setFlash] = useState(false);
   const [step, setStep] = useState<'snap' | 'details'>(expense || prefill ? 'details' : 'snap');
+  const [more, setMore] = useState(!!expense?.unitId || !!expense?.note);
   const set = (p: Partial<Expense>) => setE((x) => ({ ...x, ...p }));
   const prop = props.find((p) => p.id === e.propertyId);
   const units = state.units.filter((u) => u.propertyId === e.propertyId);
@@ -119,31 +126,29 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
 
   if (step === 'snap') {
     return (
-      <Drawer title="Snap a receipt" onClose={onClose}>
+      <Drawer title="Add a receipt" onClose={onClose}>
         <label className={`capture-frame${flash ? ' flash' : ''}`} style={{ cursor: 'pointer' }}>
           <div className="edges" />
           <div style={{ textAlign: 'center', zIndex: 1 }}>
             <Icon name="camera" size={40} />
-            <div style={{ marginTop: 8 }}>Tap to take a photo</div>
-            <div className="tiny" style={{ opacity: .7 }}>Line up the edges of the receipt</div>
+            <div style={{ marginTop: 8, fontSize: 'var(--t-20)' }}>Take a photo</div>
           </div>
           <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(ev) => onPhoto(ev.target.files?.[0])} />
         </label>
         <div className="btn-row" style={{ justifyContent: 'center' }}>
-          <button className="btn ghost" onClick={() => setStep('details')}>No receipt — type it in</button>
+          <button className="btn" onClick={() => setStep('details')}>No photo, just type it</button>
         </div>
-        <p className="tiny soft" style={{ textAlign: 'center', marginTop: 16 }}>Stage 1 preview: photos stay in this browser. Text recognition (EX-7) arrives with the backend.</p>
       </Drawer>
     );
   }
 
   const valid = e.amount > 0 && e.propertyId && e.date;
   return (
-    <Drawer title={expense ? 'Edit expense' : 'File an expense'} onClose={onClose}
+    <Drawer title={expense ? 'Edit expense' : 'Add a receipt'} onClose={onClose}
       footer={<>
         {expense && <button className="btn ghost danger" onClick={() => { act.deleteExpense(expense.id); onClose(); }}><Icon name="trash" size={16} />Delete</button>}
         <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" disabled={!valid} onClick={() => { act.saveExpense(e, fromTxn); onClose(); }}>File it</button>
+        <button className="btn primary" disabled={!valid} onClick={() => { act.saveExpense(e, fromTxn); onClose(); }}>Save</button>
       </>}>
       {e.receiptImage ? (
         <div style={{ position: 'relative', marginBottom: 16 }}>
@@ -157,35 +162,29 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
         <Field label="Amount" htmlFor="ex-amt"><MoneyInput id="ex-amt" value={e.amount || undefined} onChange={(c) => set({ amount: c ?? 0 })} autoFocus /></Field>
         <Field label="Date" htmlFor="ex-date"><input id="ex-date" type="date" className="input" value={e.date} onChange={(x) => set({ date: x.target.value })} /></Field>
       </div>
-      <Field label="Where from?" htmlFor="ex-vendor"><input id="ex-vendor" className="input" value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder="Home Depot, plumber, city…" /></Field>
+      <Field label="Paid to" htmlFor="ex-vendor"><input id="ex-vendor" className="input" value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder="Home Depot, plumber, city…" /></Field>
       <div className="grid2">
         <Field label="Property" htmlFor="ex-prop">
           <select id="ex-prop" className="input" value={e.propertyId} onChange={(x) => set({ propertyId: x.target.value, unitId: undefined })}>
             {props.map((p) => <option key={p.id} value={p.id}>{p.nickname}</option>)}
           </select>
         </Field>
-        <Field label="Unit (optional)" htmlFor="ex-unit">
-          <select id="ex-unit" className="input" value={e.unitId ?? ''} onChange={(x) => set({ unitId: x.target.value || undefined })}>
-            <option value="">Whole property</option>
-            {units.map((u) => <option key={u.id} value={u.id}>Unit {u.label}</option>)}
+        <Field label="What for?" htmlFor="ex-cat">
+          <select id="ex-cat" className="input" value={e.category} onChange={(x) => { const c = x.target.value as ExpenseCategory; set({ category: c, scope: part ? (category(c).sharedByDefault ? 'shared' : 'direct') : e.scope }); }}>
+            {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </Field>
       </div>
-      <Field label="What was it for?" htmlFor="ex-cat" hint={category(e.category).hint}>
-        <select id="ex-cat" className="input" value={e.category} onChange={(x) => { const c = x.target.value as ExpenseCategory; set({ category: c, scope: part ? (category(c).sharedByDefault ? 'shared' : 'direct') : e.scope }); }}>
-          {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </select>
-      </Field>
 
       {enabled('repair-or-improvement', phase) && (
         <div className="field">
-          <span className="label">Did this replace something, or make it better?</span>
-          <div className="choices" role="radiogroup">
+          <span className="label">Was it a fix or an upgrade?</span>
+          <div className="choices two" role="radiogroup">
             <button type="button" role="radio" className="choice" aria-checked={e.kind === 'current'} onClick={() => set({ kind: 'current', ccaClass: undefined })}>
-              <span className="t">It fixed or replaced like-for-like</span><span className="s">A repair. Deducted in full this year.</span>
+              <span className="t">A fix</span><span className="s">Repaired or replaced like for like</span>
             </button>
             <button type="button" role="radio" className="choice" aria-checked={e.kind === 'capital'} onClick={() => set({ kind: 'capital' })}>
-              <span className="t">It made the place better or longer-lasting</span><span className="s">An improvement. Added to the property's cost and claimed over time.</span>
+              <span className="t">An upgrade</span><span className="s">Made it better or last longer</span>
             </button>
           </div>
         </div>
@@ -202,13 +201,23 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
 
       {part && (
         <div className="field">
-          <span className="label">Who does this cost belong to?</span>
-          <Seg label="Scope" value={e.scope} onChange={(scope) => set({ scope })} options={[{ id: 'shared', label: `Whole house (${prop!.rentalSharePct}%)` }, { id: 'direct', label: 'Only the rental (100%)' }, { id: 'personal', label: 'Only my part (0%)' }]} />
-          <span className="hint">You rent out {prop!.rentalSharePct}% of this property. {e.amount > 0 && <>Counts toward the rental: <strong className="mono">{fmt(deductible)}</strong></>}</span>
+          <span className="label">Who was it for?</span>
+          <Seg label="Scope" value={e.scope} onChange={(scope) => set({ scope })} options={[{ id: 'shared', label: 'Whole house' }, { id: 'direct', label: 'Rental only' }, { id: 'personal', label: 'My part only' }]} />
+          {e.amount > 0 && <span className="hint">Counts for the rental: <strong className="mono">{fmt(deductible)}</strong></span>}
         </div>
       )}
-      <Field label="Note (optional)" htmlFor="ex-note"><input id="ex-note" className="input" value={e.note ?? ''} onChange={(x) => set({ note: x.target.value })} /></Field>
-      <label className="check"><input type="checkbox" checked={!!e.recurring} onChange={(x) => set({ recurring: x.target.checked })} /> <span>This repeats (insurance, tax instalment, lawn care)</span></label>
+      {more ? (
+        <>
+          <Field label="Which unit?" htmlFor="ex-unit">
+            <select id="ex-unit" className="input" value={e.unitId ?? ''} onChange={(x) => set({ unitId: x.target.value || undefined })}>
+              <option value="">Whole property</option>
+              {units.map((u) => <option key={u.id} value={u.id}>Unit {u.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Note" htmlFor="ex-note"><input id="ex-note" className="input" value={e.note ?? ''} onChange={(x) => set({ note: x.target.value })} /></Field>
+          <label className="check"><input type="checkbox" checked={!!e.recurring} onChange={(x) => set({ recurring: x.target.checked })} /> <span>This bill repeats</span></label>
+        </>
+      ) : <button className="btn ghost small" onClick={() => setMore(true)}>More details</button>}
     </Drawer>
   );
 }

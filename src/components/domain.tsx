@@ -7,14 +7,52 @@ import { leaseLedger, type ChargeState } from '../lib/finance';
 import { fmt, fmt0 } from '../lib/money';
 import { messageBody } from '../lib/templates';
 import { Icon } from './Icon';
-import { Initials, Stamp, embedded } from './ui';
+import { Stamp, embedded } from './ui';
+import { Link } from 'react-router-dom';
+import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
+
+function ago(iso: string): string {
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 2) return 'just now';
+  if (m < 60) return `${m} minutes ago`;
+  const h = Math.round(m / 60);
+  return `${h} hour${h === 1 ? '' : 's'} ago`;
+}
+function until(iso: string): string {
+  const m = Math.round((new Date(iso).getTime() + BANK_CHECK_HOURS * 3600_000 - Date.now()) / 60000);
+  if (m <= 1) return 'in a moment';
+  if (m < 60) return `in ${m} minutes`;
+  const h = Math.round(m / 60);
+  return `in about ${h} hour${h === 1 ? '' : 's'}`;
+}
+
+// ---------- How rent is tracked: one line that says it plainly ----------
+export function BankStatus({ compact }: { compact?: boolean }) {
+  const { state, act } = useStore();
+  const b = state.bank;
+  if (!b) {
+    return (
+      <div className={`track-line${compact ? ' compact' : ''}`}>
+        <Icon name="check" size={18} />
+        <span>You mark rent paid yourself.</span>
+        <Link to="/money/bank">Check my bank automatically instead</Link>
+      </div>
+    );
+  }
+  return (
+    <div className={`track-line${compact ? ' compact' : ''}`}>
+      <Icon name="bank" size={18} />
+      <span>Checking <strong>{b.bank}</strong> for rent every {BANK_CHECK_HOURS} hours. Last check {ago(b.lastSync)}, next {until(b.lastSync)}.</span>
+      <button className="btn small" onClick={() => act.syncBank()}>Check now</button>
+    </div>
+  );
+}
 
 const STATE_LABEL: Record<ChargeState, string> = { paid: 'Paid', late: 'Late', partial: 'Partial', due: 'Due', upcoming: 'Upcoming' };
 
 // ---------- Door plate ----------
 export function DoorPlate({ unit }: { unit: Unit }) {
   const { state, today } = useStore();
-  const [flipped, setFlipped] = useState(false);
   const nav = useNavigate();
   const prop = state.properties.find((p) => p.id === unit.propertyId);
   const { lease, tenant } = unitTenant(state, unit.id, today);
@@ -38,25 +76,15 @@ export function DoorPlate({ unit }: { unit: Unit }) {
     );
   }
   return (
-    <button className={`plate${flipped ? ' flipped' : ''}`} onClick={() => setFlipped((f) => !f)} onDoubleClick={() => nav(`/rent/tenant/${tenant.id}`)}
-      aria-label={`Unit ${unit.label}, ${tenant.names.join(' and ')}, ${line ? STATE_LABEL[line.state] : ''}. Press to flip.`}>
+    <button className="plate" onClick={() => nav(`/rent/tenant/${tenant.id}`)} aria-label={`Unit ${unit.label}, ${tenant.names.join(' and ')}, ${line ? STATE_LABEL[line.state] : ''}`}>
       <div className="plate-inner">
         <div className="plate-face">
-          <div className="num">{unit.label}</div>
+          <div className="spread" style={{ alignItems: 'flex-start' }}><div className="num">{unit.label}</div>{line && <Stamp kind={line.state}>{STATE_LABEL[line.state]}</Stamp>}</div>
           <div className="prop">{prop?.nickname}</div>
-          <div className="who">
-            <span className="initials"><Initials names={tenant.names} /></span>
-            {line && <Stamp kind={line.state}>{STATE_LABEL[line.state]}</Stamp>}
+          <div className="who" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0 }}>
+            <strong>{tenant.names.join(' & ')}</strong>
+            <span className="mono small soft">{fmt(lease.rent)} a month</span>
           </div>
-        </div>
-        <div className="plate-face back">
-          <strong>{tenant.names.join(' & ')}</strong>
-          <span className="mono">{fmt(lease.rent)} on the {ordinal(lease.dueDay)}</span>
-          <span className="soft">Since {fmtDate(lease.start)}</span>
-          <span className="soft">{lease.emailNoticeConsent ? 'Email notices OK' : 'Paper notices only'}</span>
-          <span className="who" style={{ marginTop: 'auto' }}>
-            <span role="link" tabIndex={0} style={{ color: 'var(--ink-blue)', textDecoration: 'underline' }} onClick={(e) => { e.stopPropagation(); nav(`/rent/tenant/${tenant.id}`); }}>Open ledger →</span>
-          </span>
         </div>
       </div>
     </button>

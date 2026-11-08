@@ -16,7 +16,8 @@ export type SetupKind = 'single' | 'part-home' | 'few' | 'many';
 export type RentMethod = 'etransfer' | 'cheque' | 'cash' | 'mix';
 export type Tone = 'gentle' | 'standard' | 'firm';
 export type Goal = 'no-chasing' | 'makes-money' | 'fill-unit' | 'tax-ready';
-export type RentArrival = 'manual' | 'email' | 'bank';
+/** How Keyholder learns rent has arrived: the owner marks it, or a connected bank is checked every few hours. */
+export type RentArrival = 'manual' | 'bank';
 
 export interface Profile {
   onboarded: boolean;
@@ -147,7 +148,8 @@ export interface Receipt {
   note?: string;
 }
 
-export type BankName = 'RBC' | 'TD' | 'BMO' | 'Scotiabank' | 'CIBC';
+/** Any Canadian bank or credit union the bank-data provider supports. */
+export type BankName = string;
 
 export interface BankConnection {
   id: ID;

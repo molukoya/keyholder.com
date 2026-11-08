@@ -151,7 +151,7 @@ function PlanLetter({ a, name, email, setName, setEmail, onBack, onFinish }: {
   const lines: string[] = [];
   const d = a.dreads ?? [];
   if (d.includes('chasing')) lines.push(`You said you dread chasing late rent. Keyholder will draft a ${d.includes('awkward') ? 'gentle' : 'polite'} reminder the day after rent is due and stop the moment it lands.`);
-  if (d.includes('who-paid')) lines.push(a.rentMethod === 'etransfer' || a.rentMethod === 'mix' ? 'You said you wonder who has paid. Keyholder will watch for e-Transfers — from your bank or forwarded emails — and tick each unit off as rent arrives.' : 'You said you wonder who has paid. Your Today screen will lead with a rent roll: one glance shows who is paid and who is not.');
+  if (d.includes('who-paid')) lines.push(a.rentMethod === 'etransfer' || a.rentMethod === 'mix' ? 'You said you wonder who has paid. Connect your bank and Keyholder checks for rent every 4 hours, then marks each tenant paid.' : 'You said you wonder who has paid. Your home screen shows every tenant as Paid or Late, at a glance.');
   if (d.includes('receipts')) lines.push('You said you hate writing receipts. Every payment gets a receipt drafted automatically. You approve it with one tap, or let Keyholder send them for you once you trust it.');
   if (d.includes('which-notice')) lines.push(`You said you are not sure which notice to send. Keyholder will tell you, in plain steps, what ${province(a.province ?? 'ON').tribunal} expects — notice preparation is on the roadmap.`);
   if (d.includes('awkward')) lines.push('You said the conversations are awkward. Reminders are written for you, in the tone you choose, and you see every word before it goes.');
@@ -173,7 +173,7 @@ function PlanLetter({ a, name, email, setName, setEmail, onBack, onFinish }: {
         <h1 className="serif" style={{ fontSize: 'var(--t-28)', marginBottom: 16 }}>Here's what Keyholder will take off your plate</h1>
         <ol style={{ paddingLeft: 20, lineHeight: 1.6 }}>{shown.map((l) => <li key={l} style={{ marginBottom: 10 }}>{l}</li>)}</ol>
         <p style={{ marginTop: 24 }}><strong>Three things to set up</strong> — the rest is asked when it is first needed:</p>
-        <ol style={{ paddingLeft: 20 }}><li>Add the property</li><li>Add the tenant</li><li>Choose how rent reaches the app</li></ol>
+        <ol style={{ paddingLeft: 20 }}><li>Add the property</li><li>Add the tenant</li><li>Choose how rent is tracked</li></ol>
         <p className="tiny" style={{ color: '#55605B' }}>Rules set for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
       </div>
       <div className="sheet" style={{ maxWidth: 720, width: '100%', margin: '24px auto 0' }}>
