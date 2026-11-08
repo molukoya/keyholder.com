@@ -1,51 +1,178 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Mortgage, MortgageFrequency, Property } from '../data/types';
 import { uid, useStore } from '../data/store';
 import { addMonths } from '../lib/dates';
-import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
-import { mortgagePayment } from '../lib/finance';
-import { fmt } from '../lib/money';
+import { hasSilver, levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
+import { byValue, keyholderScore, propertyCompletion } from '../lib/score';
+import { mortgagePayment, propertyValue, worthIt } from '../lib/finance';
+import { fmt, fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
-import { Icon } from './Icon';
 
-// ---------- Badge: three key marks, filled up to the level ----------
+// ---------- Stage chip: a small metal swatch with the stage name ----------
 export function LevelBadge({ level, plain }: { level: Level; plain?: boolean }) {
   const info = levelInfo(level);
   return (
     <span className={`level-badge ${level}`} title={`${info.name}: ${info.gives}`}>
-      <span className="keys" aria-hidden>
-        {[1, 2, 3].map((n) => (
-          <svg key={n} width="14" height="14" viewBox="0 0 24 24" className={n <= info.rank ? 'on' : ''}>
-            <circle cx="8" cy="12" r="5" fill="none" strokeWidth="3" />
-            <path d="M13 12h9M19 12v4" strokeWidth="3" fill="none" />
-          </svg>
-        ))}
-      </span>
+      <span className="swatch" aria-hidden />
       {!plain && <span>{info.name}</span>}
     </span>
   );
 }
 
-// ---------- The one suggested next step ----------
-export function NextStepCard({ propertyId }: { propertyId?: string }) {
-  const { state } = useStore();
-  const [open, setOpen] = useState<Property | null>(null);
-  const props = state.properties.filter((p) => !p.archived && (!propertyId || p.id === propertyId));
-  const p = props.find((x) => nextStep(state, x));
-  if (!p) return null;
-  const step = nextStep(state, p)!;
+// ---------- % ring ----------
+function Ring({ pct, size = 52 }: { pct: number; size?: number }) {
+  const r = size / 2 - 4, c = 2 * Math.PI * r;
+  return (
+    <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${pct}% complete`}>
+      <circle cx={size / 2} cy={size / 2} r={r} className="ring-track" />
+      <circle cx={size / 2} cy={size / 2} r={r} className="ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle">{pct}%</text>
+    </svg>
+  );
+}
+
+// Remember each card's last stage across renders so an upgrade can play its glow once.
+const seenStage = new Map<string, Level>();
+
+// ---------- The living property card: metal changes with its stage ----------
+export function PropertyCard({ property, suggested, active, compact }: { property: Property; suggested?: boolean; active?: boolean; compact?: boolean }) {
+  const { state, today } = useStore();
+  const nav = useNavigate();
+  const [open, setOpen] = useState(false);
+  const level = propertyLevel(state, property);
+  const pct = propertyCompletion(state, property, today);
+  const pv = propertyValue(state, property, today);
+  const earned = worthIt(state, today, { propertyId: property.id }).total;
+  // This property's biggest missing item (same list as the Keyholder score).
+  const item = keyholderScore(state, today).todo.find((i) => i.propertyId === property.id);
+  const formTo: Level | null = item?.levelUp ? (item.levelUp === 'gold' && !hasSilver(property) ? 'silver' : item.levelUp) : null;
+  const ref = useRef<HTMLDivElement>(null);
+  const [upgraded, setUpgraded] = useState(false);
+
+  useEffect(() => {
+    const was = seenStage.get(property.id);
+    seenStage.set(property.id, level);
+    if (was && levelInfo(level).rank > levelInfo(was).rank) {
+      setUpgraded(true);
+      const t = setTimeout(() => setUpgraded(false), 2600);
+      return () => clearTimeout(t);
+    }
+  }, [level, property.id]);
+
+  // 3D tilt toward the pointer, with a moving highlight. Mouse and pen only; touch keeps the card flat.
+  const onMove = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    ref.current.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
+    ref.current.style.setProperty('--rx', `${(0.5 - y) * 10}deg`);
+    ref.current.style.setProperty('--mx', `${x * 100}%`);
+    ref.current.style.setProperty('--my', `${y * 100}%`);
+  };
+  const onLeave = () => { ref.current?.style.setProperty('--rx', '0deg'); ref.current?.style.setProperty('--ry', '0deg'); };
+
   return (
     <>
-      <div className={`next-step ${step.to}`}>
-        <div className="next-step-text">
-          <div className="next-step-level"><LevelBadge level={propertyLevel(state, p)} /> <Icon name="next" size={14} /> <LevelBadge level={step.to} /></div>
-          <div className="what">{step.title}</div>
-          <div className="why">{step.why} About 1 minute.</div>
+      <div ref={ref} className={`pcard ${level}${suggested ? ' suggested' : ''}${active ? ' active' : ''}${upgraded ? ' upgraded' : ''}${compact ? ' compact' : ''}`}
+        onPointerMove={onMove} onPointerLeave={onLeave}>
+        <div className="pcard-light" aria-hidden />
+        <div className="pcard-top">
+          <button className="pcard-name" onClick={() => nav(`/rent/property/${property.id}`)}>
+            <span className="pcard-stage">{levelInfo(level).name}{suggested ? ' · Suggested next' : ''}</span>
+            <span className="pcard-title">{property.nickname}</span>
+            <span className="pcard-addr">{property.address}, {property.city}</span>
+          </button>
+          <Ring pct={pct} />
         </div>
-        <button className="btn primary" onClick={() => setOpen(p)}>{step.action}</button>
+        <div className="pcard-figs">
+          <div><span>Worth about</span><strong>{pv.basis === 'rent' ? '~' : ''}{fmtShort(pv.value)}</strong></div>
+          <div><span>Earned, 12 months</span><strong>{fmtShort(earned)}</strong></div>
+        </div>
+        {item && !compact && (
+          <div className="pcard-next">
+            <span>{item.text.replace(` for ${property.nickname}`, '').replace(` at ${property.nickname}`, '')} <em>+{item.points - item.earned} points</em></span>
+            <button className="btn small" onClick={() => (formTo ? setOpen(true) : nav(item.to))}>Add</button>
+          </div>
+        )}
+        {!item && !compact && <div className="pcard-next done"><span>Every detail added. Nice work.</span></div>}
       </div>
-      {open && <LevelUpForm property={open} to={step.to} onClose={() => setOpen(null)} />}
+      {open && formTo && <LevelUpForm property={property} to={formTo} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** Property cards, most valuable first; the first one still missing details is marked "Suggested next". */
+export function PropertyCards() {
+  const { state, today } = useStore();
+  const props = byValue(state, today);
+  const todo = keyholderScore(state, today).todo;
+  const suggested = props.find((p) => todo.some((i) => i.propertyId === p.id));
+  if (!props.length) return null;
+  return <div className="pcards">{props.map((p) => <PropertyCard key={p.id} property={p} suggested={p.id === suggested?.id} />)}</div>;
+}
+
+// ---------- Keyholder score: small chip, opens what to do next ----------
+export function ScoreChip() {
+  const { state, today } = useStore();
+  const { score, todo } = useMemo(() => keyholderScore(state, today), [state, today]);
+  const [open, setOpen] = useState(false);
+  const shown = useCountUp(score);
+  const prev = useRef(score);
+  const [bump, setBump] = useState(false);
+  useEffect(() => {
+    if (score > prev.current) { setBump(true); const t = setTimeout(() => setBump(false), 1200); prev.current = score; return () => clearTimeout(t); }
+    prev.current = score;
+  }, [score]);
+  const next = todo[0];
+  return (
+    <>
+      <button className={`score-chip${bump ? ' bump' : ''}`} onClick={() => setOpen(true)} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
+        <span className="score-ring" style={{ ['--p' as string]: `${score}` }}><span>{shown}</span></span>
+        <span className="score-label">Keyholder score</span>
+        {next && <span className="score-next">+{next.points - next.earned} next</span>}
+      </button>
+      {open && <ScoreDrawer onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function useCountUp(target: number) {
+  const [v, setV] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    const start = from.current, d = target - start;
+    if (!d || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setV(target); from.current = target; return; }
+    let raf = 0; const t0 = performance.now();
+    const tick = (t: number) => { const k = Math.min(1, (t - t0) / 600); setV(Math.round(start + d * (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(tick); else from.current = target; };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return v;
+}
+
+function ScoreDrawer({ onClose }: { onClose: () => void }) {
+  const { state, today } = useStore();
+  const nav = useNavigate();
+  const { score, todo } = keyholderScore(state, today);
+  const [form, setForm] = useState<{ p: Property; to: Level } | null>(null);
+  return (
+    <Drawer title="Keyholder score" onClose={onClose}>
+      <div className="score-hero"><span className="score-ring big" style={{ ['--p' as string]: `${score}` }}><span>{score}</span></span>
+        <p style={{ margin: 0 }}>{score >= 100 ? 'Everything is complete.' : 'Complete these to raise your score. Bigger wins first.'}</p></div>
+      <ul className="rows">{todo.slice(0, 12).map((i) => (
+        <li key={i.id} className="row" style={{ gridTemplateColumns: '56px 1fr auto' }}>
+          <span className="pts">+{i.points - i.earned}</span>
+          <span className="title">{i.text}</span>
+          <button className="btn small" onClick={() => {
+            const p = state.properties.find((x) => x.id === i.propertyId);
+            if (i.levelUp && p) setForm({ p, to: i.levelUp === 'gold' && !hasSilver(p) ? 'silver' : i.levelUp });
+            else { onClose(); nav(i.to); }
+          }}>Do it</button>
+        </li>
+      ))}</ul>
+      {form && <LevelUpForm property={form.p} to={form.to} onClose={() => setForm(null)} />}
+    </Drawer>
   );
 }
 

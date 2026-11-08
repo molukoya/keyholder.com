@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { propertyLevel, atLeast } from '../lib/levels';
-import { LevelBadge, LevelInvite, NextStepCard } from '../components/levels';
+import { LevelInvite, PropertyCard } from '../components/levels';
 import { addDays, daysBetween, fmtDate, todayISO, yearOf } from '../lib/dates';
 import {
   adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, picture, rentBasedValue,
@@ -27,11 +27,12 @@ export function PropertyDetail() {
       <div className="page-head">
         <div>
           <div className="eyebrow">{p.type} · {province(p.province).name}{p.ownerOccupied ? ' · you live here' : ''}</div>
-          <h1>{p.nickname} <LevelBadge level={propertyLevel(state, p)} /></h1>
+          <h1>{p.nickname}</h1>
           <div className="soft">{p.address}, {p.city}</div>
         </div>
         <button className="btn" onClick={() => setEdit(true)}><Icon name="edit" size={16} />Edit details</button>
       </div>
+      <div className="pcard-solo"><PropertyCard property={p} active /></div>
       <nav className="tabs" aria-label="Property sections">
         <NavLink end to={`/rent/property/${p.id}`} className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to={`/rent/property/${p.id}/value`}>Value</NavLink>
@@ -55,7 +56,6 @@ function Overview({ id }: { id: string }) {
   const yr = useMemo(() => picture(state, addDays(today, -364), today, { propertyId: id }), [state, today, id]);
   return (
     <>
-      <NextStepCard propertyId={id} />
       <section className="section">
         <h2 className="section-title">Units <button className="btn small ghost" onClick={() => setUnitEdit('new')}><Icon name="plus" size={14} />Add unit</button></h2>
         {units.length ? <div className="plates">{units.map((u) => <div key={u.id} className="plate-wrap"><DoorPlate unit={u} /><button className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button></div>)}</div>

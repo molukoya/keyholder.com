@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { daysBetween, fmtDate, fmtDay, fmtPeriod, fmtWeekday, periodOf } from '../lib/dates';
 import { activeLease, leaseLedger, picture, verdict, verdictTag, worthIt } from '../lib/finance';
 import { fmt, fmt0 } from '../lib/money';
-import { NextStepCard } from '../components/levels';
+import { PropertyCards, ScoreChip } from '../components/levels';
 import { trayItems } from '../lib/tray';
 import { PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
@@ -65,7 +65,7 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
 
   return (
     <div className="page">
-      <div className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</div>
+      <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
       <p className="pulse">{headline}</p>
 
       <section className="section">
@@ -142,7 +142,10 @@ export function Today({ onCapture }: { onPay: () => void; onCapture: () => void 
       </section>
 
       <EarningsCard />
-      <NextStepCard />
+      <section className="section">
+        <h2 className="section-title">Your properties</h2>
+        <PropertyCards />
+      </section>
 
       {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
     </div>

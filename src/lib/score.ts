@@ -1,0 +1,77 @@
+import type { AppState, Property } from '../data/types';
+import { propertyValue } from './finance';
+import { activeLease } from './finance';
+import { hasSilver } from './levels';
+
+// Keyholder score: how complete the owner's records are, 0–100. Each item is worth points;
+// some give partial credit (e.g. receipt photos). Property items count toward that property's %.
+
+export interface ScoreItem {
+  id: string;
+  text: string;
+  points: number;
+  earned: number;
+  propertyId?: string;
+  /** Where to go to complete it. */
+  to: string;
+  /** Opens the level-up form for this property instead of navigating. */
+  levelUp?: 'silver' | 'gold';
+}
+
+/** Properties, most valuable first. Suggestions follow this order. */
+export function byValue(state: AppState, today: string): Property[] {
+  return state.properties.filter((p) => !p.archived)
+    .map((p) => ({ p, v: propertyValue(state, p, today).value }))
+    .sort((a, b) => b.v - a.v)
+    .map((x) => x.p);
+}
+
+export function scoreItems(state: AppState, today: string): ScoreItem[] {
+  const items: ScoreItem[] = [];
+  const pr = state.profile;
+  const add = (i: Omit<ScoreItem, 'earned'> & { done: boolean | number }) => {
+    const earned = typeof i.done === 'number' ? Math.round(i.points * Math.max(0, Math.min(1, i.done))) : i.done ? i.points : 0;
+    const { done: _ignored, ...rest } = i; void _ignored;
+    items.push({ ...rest, earned });
+  };
+
+  add({ id: 'name', text: 'Add your name and email for receipts', points: 4, done: !!pr.name && !!pr.email, to: '/settings' });
+  add({ id: 'bank', text: 'Connect your bank to spot rent automatically', points: 8, done: !!state.bank, to: '/money/bank' });
+
+  for (const p of byValue(state, today)) {
+    const units = state.units.filter((u) => u.propertyId === p.id);
+    const tenants = units.map((u) => activeLease(state, u.id, today)).filter(Boolean).map((l) => state.tenants.find((t) => t.id === l!.tenantId)!).filter(Boolean);
+    add({ id: `${p.id}-tenants`, text: `Add the tenants at ${p.nickname}`, points: 4, done: units.length ? units.filter((u) => activeLease(state, u.id, today)).length / units.length : 0, propertyId: p.id, to: '/rent' });
+    for (const t of tenants) {
+      add({ id: `${t.id}-email`, text: `Add ${t.names[0].split(' ')[0]}'s email so receipts can be sent`, points: 3, done: !!t.email, propertyId: p.id, to: `/rent/tenant/${t.id}` });
+      add({ id: `${t.id}-phone`, text: `Add ${t.names[0].split(' ')[0]}'s phone number`, points: 1, done: !!t.phone, propertyId: p.id, to: `/rent/tenant/${t.id}` });
+    }
+    add({ id: `${p.id}-paid`, text: `Add what you paid for ${p.nickname}`, points: 10, done: hasSilver(p), propertyId: p.id, to: `/rent/property/${p.id}`, levelUp: 'silver' });
+    add({ id: `${p.id}-costs`, text: `Add closing costs and land transfer tax for ${p.nickname}`, points: 4, done: p.closingCosts !== undefined && p.landTransferTax !== undefined, propertyId: p.id, to: `/rent/property/${p.id}/mortgage`, levelUp: 'gold' });
+    add({ id: `${p.id}-mortgage`, text: `Add the mortgage for ${p.nickname}`, points: 6, done: !!p.mortgageFree || state.mortgages.some((m) => m.propertyId === p.id), propertyId: p.id, to: `/rent/property/${p.id}/mortgage`, levelUp: 'gold' });
+    const exps = state.expenses.filter((e) => e.propertyId === p.id);
+    if (exps.length) {
+      const withPhoto = exps.filter((e) => e.receiptImage).length;
+      add({ id: `${p.id}-photos`, text: `Add photos to ${exps.length - withPhoto} receipt${exps.length - withPhoto === 1 ? '' : 's'} at ${p.nickname}`, points: 4, done: withPhoto / exps.length, propertyId: p.id, to: '/money/expenses' });
+      const typed = exps.filter((e) => e.category !== 'other').length;
+      add({ id: `${p.id}-types`, text: `Pick a type for ${exps.length - typed} expense${exps.length - typed === 1 ? '' : 's'} at ${p.nickname}`, points: 2, done: typed / exps.length, propertyId: p.id, to: '/money/expenses' });
+    }
+  }
+  return items;
+}
+
+export function keyholderScore(state: AppState, today: string): { score: number; todo: ScoreItem[] } {
+  const items = scoreItems(state, today);
+  const total = items.reduce((a, i) => a + i.points, 0);
+  const earned = items.reduce((a, i) => a + i.earned, 0);
+  // Biggest gain first; ties keep the property-value order they were built in.
+  const todo = items.filter((i) => i.earned < i.points).map((i, n) => ({ i, n })).sort((a, b) => (b.i.points - b.i.earned) - (a.i.points - a.i.earned) || a.n - b.n).map((x) => x.i);
+  return { score: total ? Math.round((earned / total) * 100) : 0, todo };
+}
+
+/** How complete one property's records are, 0–100. */
+export function propertyCompletion(state: AppState, p: Property, today: string): number {
+  const items = scoreItems(state, today).filter((i) => i.propertyId === p.id);
+  const total = items.reduce((a, i) => a + i.points, 0);
+  return total ? Math.round((items.reduce((a, i) => a + i.earned, 0) / total) * 100) : 0;
+}

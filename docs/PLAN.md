@@ -14,6 +14,16 @@ Rules live in `src/lib/levels.ts`; the app shows a level badge on each property 
 
 Earnings always include estimated value growth: today's value × the area's 5-year price trend.
 
+**Property cards.** Each property is a card in its stage's metal (bronze, silver, gold) with a % complete
+ring, value, 12-month earnings and its single biggest missing item. Cards are ordered by value; the first
+one with something missing is marked "Suggested next". Desktop: 3D tilt toward the pointer and a light
+sweep; the suggested or open card glows in its own metal; moving up a stage replays the gleam and glow.
+
+**Keyholder score** (`src/lib/score.ts`): 0–100 from weighted items (name and email, bank connected,
+tenants and their contact details, purchase price, purchase costs, mortgage, receipt photos, expense types),
+with partial credit. A small chip on Today shows the score and the next gain; tapping it lists items,
+biggest gain first. A property's % complete uses the same items.
+
 ## Release phases (how we build it) — Phase 1 = Bronze, Phase 2 = Silver, Phase 3 = Gold
 
 | | Stage 1 — front end on sample data | Stage 2 — backend, real data |
