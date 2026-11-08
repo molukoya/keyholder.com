@@ -36,7 +36,7 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
   };
 
   add({ id: 'name', text: 'Add your name and email for receipts', points: 4, done: !!pr.name && !!pr.email, to: '/settings' });
-  add({ id: 'bank', text: 'Connect your bank to spot rent automatically', points: 8, done: !!state.bank, to: '/money/bank' });
+  add({ id: 'bank', text: 'Connect your bank to spot rent automatically', points: 8, done: (state.banks ?? []).length > 0, to: '/settings#rent-tracking' });
 
   for (const p of byValue(state, today)) {
     const units = state.units.filter((u) => u.propertyId === p.id);

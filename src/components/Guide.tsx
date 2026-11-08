@@ -1,0 +1,116 @@
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useStore } from '../data/store';
+
+// Small helpers that make the app explain itself: page subtitles, the sample banner,
+// status pills you can tap for a meaning, and a five-step guided tour.
+
+/** One line under a page title: what this page is for. */
+export function PageSub({ children }: { children: React.ReactNode }) {
+  return <p className="page-sub">{children}</p>;
+}
+
+/** Shown while the app holds the sample properties. */
+export function SampleBanner() {
+  const { state, act } = useStore();
+  const nav = useNavigate();
+  if (!state.profile.sample || !state.properties.length) return null;
+  return (
+    <div className="sample-banner" role="status">
+      <span>You're looking at <strong>sample properties</strong>. Click around, nothing here is real.</span>
+      <span className="btn-row">
+        <button className="btn small ghost" onClick={() => act.setProfile({ tourDone: false })}>Show me around</button>
+        <button className="btn small primary" onClick={() => { act.startOwn(); nav('/start'); }}>Start with my own</button>
+      </span>
+    </div>
+  );
+}
+
+const MEANING: Record<string, string> = {
+  paid: 'Rent for this month is in. Send a receipt so your tenant has a record.',
+  late: 'The due date has passed and the full rent has not arrived. Start with a friendly reminder.',
+  due: 'Rent is coming up or a payment needs a quick look. Nothing is late yet.',
+  vacant: 'Nobody lives here right now. Share the application link to find a tenant.',
+};
+
+/** A status pill that explains itself when tapped. */
+export function StatusPill({ tone, children }: { tone: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const text = MEANING[tone];
+  if (!text) return <span className={`status ${tone}`}>{children}</span>;
+  return (
+    <span className="pill-wrap">
+      <button type="button" className={`status ${tone} pill-btn`} aria-expanded={open} onClick={() => setOpen((o) => !o)} onBlur={() => setOpen(false)} title="What does this mean?">{children}</button>
+      {open && <span className="pill-tip" role="tooltip">{text}</span>}
+    </span>
+  );
+}
+
+// ---------- The guided tour ----------
+const STEPS: { sel: string; title: string; body: string; path?: string }[] = [
+  { sel: '[data-tour="rent"]', title: 'Your rent, at a glance', body: 'Each unit shows who has paid. The one button beside it is the next thing to do: send a receipt, send a reminder, or review applications.', path: '/today' },
+  { sel: '[data-tour="score"]', title: 'Your Keyholder score', body: 'It rises as you set things up. Pick any item from the list below to raise it, or hide the ones you don\'t care about.', path: '/today' },
+  { sel: '[data-tour="portfolio"]', title: 'Is it worth it?', body: 'Portfolio shows what your properties are worth, what you earn a year, and how that compares with a GIC and the stock market.' },
+  { sel: '[data-tour="rentals"]', title: 'Your rentals', body: 'Properties, units, tenants, applications and notices. Rent increase suggestions show up here too.' },
+  { sel: '[data-tour="receipt"]', title: 'Snap a receipt', body: 'Add a receipt any time. Bills from your connected banks are filed for you; you just confirm.' },
+];
+
+export function Tour() {
+  const { state, act } = useStore();
+  const nav = useNavigate();
+  const [i, setI] = useState(0);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const active = !!state.profile.onboarded && state.properties.length > 0 && state.profile.tourDone === false;
+  const step = STEPS[i];
+
+  useEffect(() => { if (active) { setI(0); nav('/today'); } }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    const find = () => {
+      const el = [...document.querySelectorAll<HTMLElement>(step.sel)].find((e) => e.offsetParent !== null || e.getClientRects().length);
+      if (el) {
+        const r0 = el.getBoundingClientRect();
+        if (r0.top < 0 || r0.bottom > window.innerHeight) el.scrollIntoView({ block: r0.height > window.innerHeight * 0.5 ? 'start' : 'center', behavior: 'instant' as ScrollBehavior });
+        setRect(el.getBoundingClientRect());
+      } else setRect(null);
+    };
+    find();
+    const t = setTimeout(find, 60);
+    window.addEventListener('resize', find);
+    window.addEventListener('scroll', find, { passive: true });
+    return () => { clearTimeout(t); window.removeEventListener('resize', find); window.removeEventListener('scroll', find); };
+  }, [active, i, step.sel]);
+
+  useEffect(() => {
+    if (!active) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') done(); };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  });
+
+  if (!active) return null;
+  const done = () => act.setProfile({ tourDone: true });
+  const last = i === STEPS.length - 1;
+  const pad = 8;
+  // Put the card below the highlight, else above it, else pinned to the bottom of the screen.
+  const room = 240;
+  const place = !rect ? 'middle' : window.innerHeight - rect.bottom > room ? 'below' : rect.top > room ? 'above' : 'bottom';
+  const cardTop = place === 'below' ? rect!.bottom + pad + 12 : place === 'above' ? rect!.top - pad - 12 : undefined;
+
+  return (
+    <div className="tour" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      {rect ? <div className="tour-hole" style={{ top: rect.top - pad, left: rect.left - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} /> : <div className="tour-dim" />}
+      <div className={`tour-card ${place}`} style={cardTop !== undefined ? { top: cardTop } : undefined}>
+        <p className="tiny soft">Step {i + 1} of {STEPS.length}</p>
+        <h2 id="tour-title">{step.title}</h2>
+        <p>{step.body}</p>
+        <div className="btn-row">
+          <button className="btn ghost" onClick={done}>Skip tour</button>
+          {i > 0 && <button className="btn" onClick={() => setI(i - 1)}>Back</button>}
+          <button className="btn primary" autoFocus onClick={() => (last ? done() : setI(i + 1))}>{last ? 'Got it' : 'Next'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -8,7 +8,7 @@ const results = [];
 const ok = (tag, name, pass, note = '') => results.push({ tag, name, pass, note });
 
 async function onboard(pg, sample) {
-  await pg.goto(BASE);
+  await pg.goto(BASE + '#/start');
   await pg.click('text=Ontario'); await pg.click('text=Continue');
   await pg.click('text=A few doors (2 to 5)'); await pg.click('text=Continue');
   await pg.click('text=Interac e-Transfer'); await pg.click('text=Continue');
@@ -18,6 +18,7 @@ async function onboard(pg, sample) {
   await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex@example.com');
   await pg.click(sample ? 'text=Explore with sample properties' : 'text=Start empty');
   await pg.waitForTimeout(300);
+  if (sample) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
 const state = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')));
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(250); };
@@ -32,9 +33,9 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     let pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errors.push(`A ${e.message}`));
     pg.on('console', (m) => { if (m.type() === 'error' && !/fonts/.test(m.text())) errors.push(`A console: ${m.text()}`); });
-    await step(tag, 'A1 Signup → empty Home shows 3 setup steps', async () => { await onboard(pg, false); await pg.waitForSelector('text=Add your property'); });
+    await step(tag, 'A1 Signup → empty Home shows 3 setup steps', async () => { await onboard(pg, false); await pg.waitForSelector('text=Start here'); await pg.waitForSelector('text=Add your property'); });
     await step(tag, 'A2 Home "Add" → Rentals → add a property', async () => {
-      await pg.locator('.row a.btn:has-text("Add")').first().click(); await pg.waitForSelector('h1:has-text("Rentals")');
+      await pg.locator('.start-steps a.btn:has-text("Add property")').click(); await pg.waitForSelector('h1:has-text("Rentals")');
       await pg.locator('text=Add your first property').click();
       await pg.fill('#pp-nick', 'Oak house'); await pg.fill('#pp-addr', '9 Oak St'); await pg.locator('.drawer-foot >> text=Save property').click(); await pg.waitForTimeout(250);
       await pg.waitForSelector('text=Oak house');
@@ -98,8 +99,8 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
     await step(tag, 'A14 Portfolio shows net worth and the property card', async () => { await go(pg, 'portfolio'); await pg.waitForSelector('text=Your net worth in property'); await pg.waitForSelector('.pcard:has-text("Oak house")'); });
     await step(tag, 'A15 Taxes shows the property', async () => { await go(pg, 'taxes'); await pg.waitForSelector('text=rental income · Oak house'); });
     await step(tag, 'A16 Settings → connect a bank → "Check now"', async () => {
-      await go(pg, 'settings'); await pg.locator('text=Check my bank for me').click(); await pg.locator('.drawer .choice:has-text("TD")').click(); await pg.locator('text=Connect TD').click(); await pg.waitForTimeout(1400);
-      await pg.locator('text=Check now').first().click(); await pg.waitForTimeout(300);
+      await go(pg, 'settings'); await pg.locator('text=Check my banks for me').click(); await pg.locator('.drawer .choice:has-text("TD")').click(); await pg.locator('text=Connect TD').click(); await pg.waitForTimeout(1400);
+      await pg.locator('text=/Check (all )?now/').first().click(); await pg.waitForTimeout(300);
     });
     ok(tag, 'A errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
@@ -184,6 +185,26 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       await go(pg, 'rentals'); const n = await pg.locator('text=Late rent options').count(); return `${n} "Late rent options" buttons`;
     });
 
+    await step(tag, 'B14 Bank review: Enbridge → Add expense (filed to a property)', async () => {
+      await go(pg, 'paperwork/expenses'); await pg.waitForSelector('#bank');
+      const r0 = pg.locator('.bank-row:has-text("ENBRIDGE")'); await r0.locator('text=Add expense').click(); await pg.waitForTimeout(250);
+      const st = await state(pg); if (!st.expenses.some((e) => Math.abs(e.amount) === 21240)) throw new Error('no expense created');
+    });
+    await step(tag, 'B15 Bank review: RBC mortgage payment → Tick off', async () => {
+      await pg.locator('.bank-row:has-text("RBC MORTGAGE") >> text=/Tick off/').click(); await pg.waitForTimeout(250);
+      const st = await state(pg); if (st.txns.find((t) => t.id === 'tx-rbcm').status !== 'mortgage') throw new Error('not reconciled');
+    });
+    await step(tag, 'B16 Bank review: TD mortgage with no mortgage on file → Set up mortgage form', async () => {
+      await pg.locator('.bank-row:has-text("TD MORTGAGE") >> text=Set up mortgage').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+      if (await pg.locator('.drawer').count()) await pg.locator('.drawer >> text=Cancel').first().click();
+    });
+    await step(tag, 'B17 Settings: two banks connected, "Add another bank" available', async () => {
+      await go(pg, 'settings'); await pg.waitForSelector('text=Add another bank'); const st = await state(pg); if (st.banks.length !== 2) throw new Error(`${st.banks.length} banks`);
+    });
+    await step(tag, 'B18 Portfolio: "Your money compared" with GIC always shows', async () => {
+      await go(pg, 'portfolio'); await pg.waitForSelector('text=Your money compared'); await pg.waitForSelector('.compare >> text=GIC');
+    });
+
     // ---------------- C. Every link on every page ----------------
     const pages = ['today', 'rentals', 'rent/property/p-maple', 'rent/property/p-maple/find', 'rent/property/p-maple/notices', 'rent/property/p-maple/value', 'rent/property/p-maple/mortgage', 'rent/property/p-birch/value', 'rent/tenant/t-maya', 'portfolio', 'portfolio/cash-flow', 'taxes', 'paperwork/expenses', 'paperwork/income', 'paperwork/leases', 'paperwork/notices', 'paperwork/forms', 'settings', 'more'];
     const bad = [];
@@ -209,6 +230,35 @@ const step = async (tag, name, fn) => { try { const note = await fn(); ok(tag, n
       if (tag === 'phone') for (const l of ['Taxes', 'Paperwork', 'Settings']) { await go(pg, 'more'); await pg.locator(`.more-item:has-text("${l}")`).click(); await pg.waitForSelector(`h1:has-text("${l === 'Settings' ? 'Your Keyholder' : l}")`); }
     });
     ok(tag, 'B/C errors', errsB.length === 0, errsB.slice(0, 3).join(' | '));
+
+    // ---------------- D. Landing page, demo, tour and guide ----------------
+    const errsD = [];
+    pg = await (await b.newContext({ viewport: vp })).newPage();
+    pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
+    await step(tag, 'D1 First visit shows the landing page with both buttons', async () => {
+      await pg.goto(BASE); await pg.waitForSelector('.lp-h1'); await pg.waitForSelector('.lp-hero >> text=Get started, free'); await pg.waitForSelector('.lp-hero >> text=See it in action');
+      if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
+    });
+    await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
+    await step(tag, 'D3 Province map: tap BC → BC forms', async () => { await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
+    await step(tag, 'D4 Section links scroll to the section', async () => { if (tag === 'phone') return 'links hidden on phone'; await pg.locator('.lp-links >> text=Pricing').click(); await pg.waitForTimeout(800); if (!(await pg.locator('#pricing').isVisible())) throw new Error('no pricing'); });
+    await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Get started, free').click(); await pg.waitForSelector('.q-question'); });
+    await step(tag, 'D6 "See it in action" → sample Home, banner and tour (5 steps)', async () => {
+      await pg.goto(BASE); await pg.locator('.lp-hero >> text=See it in action').click(); await pg.waitForSelector('.sample-banner'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
+      for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
+      await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200); if (await pg.locator('.tour').count()) throw new Error('tour still open');
+    });
+    await step(tag, 'D7 Tap a status pill → plain explanation', async () => { await pg.locator('.rent-row .pill-btn').first().click(); await pg.waitForSelector('.pill-tip'); });
+    await step(tag, 'D8 Every main page has a one-line subtitle', async () => {
+      for (const p of ['portfolio', 'rentals', 'taxes', 'paperwork', 'settings']) { await go(pg, p); if (!(await pg.locator('.page-sub').count())) throw new Error(p); }
+    });
+    await step(tag, 'D9 Settings → "What is Keyholder?" → landing → back to dashboard', async () => {
+      await go(pg, 'settings'); await pg.locator('text=What is Keyholder?').click(); await pg.waitForSelector('.lp-h1');
+      await pg.locator('.lp-nav >> text=Open my dashboard').click(); await pg.waitForSelector('.rent-row');
+    });
+    await step(tag, 'D10 Settings → "Show the tour again" replays it', async () => { await go(pg, 'settings'); await pg.locator('text=Show the tour again').click(); await pg.waitForSelector('.tour-card'); await pg.locator('.tour-card >> text=Skip tour').click(); });
+    await step(tag, 'D11 Sample banner → "Start with my own" → signup questions', async () => { await pg.locator('.sample-banner >> text=Start with my own').click(); await pg.waitForSelector('.q-question'); const st = await state(pg); if (st.properties.length) throw new Error('sample not cleared'); });
+    ok(tag, 'D errors', errsD.length === 0, errsD.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;

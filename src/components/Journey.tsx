@@ -1,3 +1,4 @@
+import { StatusPill } from './Guide';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Lease, Unit } from '../data/types';
@@ -8,6 +9,7 @@ import { allJourneyCards, isHidden, prefKey, propertySteps, unitStep, type Journ
 import { keyholderScore, scoreKey } from '../lib/score';
 import { hasSilver, type Level } from '../lib/levels';
 import { fmt } from '../lib/money';
+import { bankToSort } from '../lib/bankrules';
 import { FormWizard } from './FormWizard';
 import { LevelUpForm, ScoreRing } from './levels';
 import { PaymentForm } from './forms';
@@ -130,7 +132,7 @@ function UnitLine({ unit }: { unit: Unit }) {
           <div className="where">{prop?.nickname}</div>
         </Link>
       )}
-      <span className={`status ${st.tone}`}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</span>
+      <StatusPill tone={st.tone}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</StatusPill>
       <span className="row-act">
         {visible ? <StepButton c={visible} /> : fallback}
         {visible && <RowMenu k={prefKey(visible)} />}
@@ -149,7 +151,7 @@ export function RentRows() {
   const tucked = allJourneyCards(state, today).filter((c) => isHidden(state, prefKey(c), today));
   const [showTucked, setShowTucked] = useState(false);
   return (
-    <section className="section">
+    <section className="section" data-tour="rent">
       <h2 className="section-title">Rent for {fmtPeriod(periodOf(today))}</h2>
       <div className="sheet tight">
         <ul className="rent-list">{units.map((u) => <UnitLine key={u.id} unit={u} />)}</ul>
@@ -159,6 +161,12 @@ export function RentRows() {
             <span className="row-act"><StepButton c={c} /><RowMenu k={prefKey(c)} /></span>
           </div>
         ))}
+        {bankToSort(state).length > 0 && (
+          <div className="prop-line">
+            <span><Icon name="bank" size={18} /> {bankToSort(state).length} bank transaction{bankToSort(state).length > 1 ? 's' : ''} to sort (bills, mortgage)</span>
+            <span className="row-act"><Link className="btn primary" to="/paperwork/expenses">Review</Link></span>
+          </div>
+        )}
       </div>
       {tucked.length > 0 && (
         <p className="small soft" style={{ marginTop: 10 }}>{tucked.length} hidden or ignored · <button className="linkish" onClick={() => setShowTucked((x) => !x)}>{showTucked ? 'Done' : 'Show'}</button></p>

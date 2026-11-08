@@ -410,9 +410,9 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
 // =====================================================================================
 // Mortgage (Phase 3, PS-2)
 // =====================================================================================
-export function MortgageForm({ propertyId, mortgage, onClose }: { propertyId: string; mortgage?: Mortgage; onClose: () => void }) {
+export function MortgageForm({ propertyId, mortgage, prefill, onClose }: { propertyId: string; mortgage?: Mortgage; prefill?: Partial<Mortgage>; onClose: () => void }) {
   const { act, today } = useStore();
-  const [m, setM] = useState<Mortgage>(() => mortgage ?? newMortgage(propertyId, today));
+  const [m, setM] = useState<Mortgage>(() => mortgage ?? { ...newMortgage(propertyId, today), ...prefill });
   return (
     <Drawer title={mortgage ? 'Edit mortgage' : 'Add a mortgage'} onClose={onClose}
       footer={<>

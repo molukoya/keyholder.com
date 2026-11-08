@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
-  AppState, Applicant, BankName, BankTxn, Listing, Notice, TodoPref, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
+  AppState, Applicant, BankName, BankTxn, ExpenseCategory, Listing, Notice, TodoPref, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
 } from './types';
 import { emptyState, seedState, STATE_VERSION, defaultProfile } from './seed';
 import { addDays, dueDate, periodOf, todayISO } from '../lib/dates';
@@ -11,6 +11,8 @@ import { fmt } from '../lib/money';
 import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
 import { levelInfo, propertyLevel, type Level } from '../lib/levels';
 import { formById } from '../lib/forms';
+import { vendorKey } from '../lib/bankrules';
+import { CATEGORIES } from '../lib/jurisdiction';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -91,11 +93,17 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
       mut((d) => {
         const profile = { ...d.profile, ...p, onboarded: true };
         const next = withSample ? seedState(profile) : emptyState(profile);
-        if (!withSample) next.bank = undefined;
+        if (!withSample) next.banks = [];
+        next.profile.sample = withSample;
+        if (withSample) next.profile.tourDone = false;
         Object.assign(d, next);
         audit(d, 'Signed up', `Province ${profile.province}, ${withSample ? 'with sample data' : 'starting empty'}`);
       });
     },
+    /** "See it in action": skip the questions, load the two sample properties and start the tour. */
+    startDemo() { mut((d) => { const profile = { ...defaultProfile(), ...d.profile, onboarded: true, sample: true, tourDone: false }; Object.assign(d, seedState(profile)); }); },
+    /** From the sample banner: clear the sample and go back to the questions. */
+    startOwn() { mut((d) => { Object.assign(d, emptyState(defaultProfile())); }); },
     setProfile(p: Partial<Profile>) { mut((d) => { Object.assign(d.profile, p); }); },
     resetDemo() { mut((d) => { const prof = { ...d.profile }; Object.assign(d, seedState(prof)); }); toast('Sample data restored.'); },
     clearAll() { mut((d) => { Object.assign(d, emptyState({ ...d.profile })); }); toast('All data cleared. Start by adding a property.'); },
@@ -211,13 +219,36 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     // ---- Bank & email ----
     connectBank(bank: BankName) {
       mut((d) => {
-        d.bank = { id: uid('bank'), bank, accountMask: `•••• ${Math.floor(1000 + Math.random() * 8999)}`, status: 'connected', lastSync: new Date().toISOString() };
+        d.banks = d.banks ?? [];
+        d.banks.push({ id: uid('bank'), bank, accountMask: `•••• ${Math.floor(1000 + Math.random() * 8999)}`, status: 'connected', lastSync: new Date().toISOString() });
         d.profile.rentArrival = 'bank';
         audit(d, 'Bank connected', `${bank} (read-only)`);
       });
       toast(`${bank} connected. Keyholder will check for rent every ${BANK_CHECK_HOURS} hours.`);
     },
-    reauthBank() { mut((d) => { if (d.bank) { d.bank.status = 'connected'; d.bank.lastSync = new Date().toISOString(); } }); toast('Connection renewed.'); },
+    reauthBank(id: string) { mut((d) => { const b = d.banks.find((x) => x.id === id); if (b) { b.status = 'connected'; b.lastSync = new Date().toISOString(); } }); toast('Connection renewed.'); },
+    disconnectBank(id: string) {
+      mut((d) => { const b = d.banks.find((x) => x.id === id); d.banks = d.banks.filter((x) => x.id !== id); if (!d.banks.length) d.profile.rentArrival = 'manual'; if (b) audit(d, 'Bank disconnected', b.bank); });
+      toast('Disconnected. Keyholder no longer sees that account.');
+    },
+    /** File a bank withdrawal as a rental expense, and remember the vendor for next time. */
+    fileBankExpense(txnId: string, propertyId: string, category: ExpenseCategory, remember: boolean) {
+      mut((d) => {
+        const t = d.txns.find((x) => x.id === txnId); if (!t) return;
+        const shared = CATEGORIES.find((c) => c.id === category)?.sharedByDefault ?? false;
+        const e: Expense = { id: uid('exp'), propertyId, date: t.date, amount: -t.amount, vendor: t.payer, category, kind: 'current', scope: shared ? 'shared' : 'direct', createdAt: new Date().toISOString(), note: 'From your bank' };
+        d.expenses.unshift(e); d.expenses.sort((a, b) => b.date.localeCompare(a.date));
+        t.status = 'expense'; t.expenseId = e.id;
+        if (remember) { d.profile.vendorRules = { ...(d.profile.vendorRules ?? {}), [vendorKey(t.payer)]: { propertyId, category } }; }
+        audit(d, 'Expense filed from bank', `${fmt(-t.amount)} ${t.payer}`);
+      });
+      toast(remember ? 'Filed. Future payments to this vendor file themselves.' : 'Filed as an expense.');
+    },
+    /** Tick a bank withdrawal off as a mortgage payment. */
+    reconcileMortgage(txnId: string, mortgageId: string) {
+      mut((d) => { const t = d.txns.find((x) => x.id === txnId); if (t) { t.status = 'mortgage'; t.mortgageId = mortgageId; audit(d, 'Mortgage payment matched', `${fmt(-t.amount)} ${t.payer}`); } });
+      toast('Mortgage payment ticked off.');
+    },
     /**
      * Checks the bank for new rent deposits. Stage 1 simulates what the bank-data provider returns;
      * in Stage 2 a scheduled job runs this every BANK_CHECK_HOURS hours for every connected bank.
@@ -226,7 +257,8 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
     syncBank(auto = false) {
       let matched = 0, review = 0;
       mut((d) => {
-        if (!d.bank) return;
+        const connected = (d.banks ?? []).filter((b) => b.status === 'connected');
+        if (!connected.length) return;
         const t = today();
         const fresh: BankTxn[] = [];
         for (const u of d.units) {
@@ -235,18 +267,24 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
           const already = d.txns.some((x) => x.status === 'new' && x.amount > 0 && suggestMatch(d, x, t)?.leaseId === l.id);
           if (!open.length || already || Math.random() < 0.35) continue;
           const ten = d.tenants.find((x) => x.id === l.tenantId)!;
-          fresh.push({ id: uid('tx'), source: 'bank', date: t, amount: open[0].charge - open[0].paid, payer: ten.names[0].toUpperCase(), memo: 'rent', status: 'new' });
+          fresh.push({ id: uid('tx'), source: 'bank', bankId: connected[0].id, date: t, amount: open[0].charge - open[0].paid, payer: ten.names[0].toUpperCase(), memo: 'rent', status: 'new' });
         }
         for (const x of fresh) { d.txns.unshift(x); if (autoMatch(d, x)) matched++; else review++; }
-        d.bank.lastSync = new Date().toISOString();
-        audit(d, auto ? 'Bank checked (scheduled)' : 'Bank checked', `${fresh.length} rent deposit(s) found`);
+        // Withdrawals from vendors filed before go straight to expenses.
+        for (const x of d.txns) {
+          if (x.amount >= 0 || x.status !== 'new') continue;
+          const rule = d.profile.vendorRules?.[vendorKey(x.payer)];
+          if (rule) { const e: Expense = { id: uid('exp'), propertyId: rule.propertyId, date: x.date, amount: -x.amount, vendor: x.payer, category: rule.category, kind: 'current', scope: CATEGORIES.find((c) => c.id === rule.category)?.sharedByDefault ? 'shared' : 'direct', createdAt: new Date().toISOString(), note: 'From your bank (filed automatically)' }; d.expenses.unshift(e); x.status = 'expense'; x.expenseId = e.id; }
+        }
+        for (const b of connected) b.lastSync = new Date().toISOString();
+        audit(d, auto ? 'Banks checked (scheduled)' : 'Banks checked', `${connected.length} bank(s), ${fresh.length} rent deposit(s) found`);
       });
       if (auto && matched + review === 0) return;
       toast(matched + review === 0 ? 'Checked. No new rent yet.' : `Rent found: ${matched} marked paid${review ? `, ${review} to confirm in To do` : ''}.`);
     },
     /** Switch to marking rent paid by hand. */
     useManualTracking() {
-      mut((d) => { d.profile.rentArrival = 'manual'; if (d.bank) audit(d, 'Bank disconnected', d.bank.bank); d.bank = undefined; });
+      mut((d) => { d.profile.rentArrival = 'manual'; for (const b of d.banks ?? []) audit(d, 'Bank disconnected', b.bank); d.banks = []; });
       toast('Done. You will mark rent paid yourself.');
     },
     confirmMatch(txnId: string, leaseId: string, period: string, learnAlias: boolean) {
@@ -351,7 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const mut: Mut = useCallback((fn) => setState((s) => { const d = structuredClone(s); fn(d); return d; }), []);
   const act = useMemo(() => makeActions(mut, toast), [mut, toast]);
   // The every-4-hours bank check. Stage 1 runs it while the app is open; Stage 2 runs it on the server.
-  const lastSync = state.bank?.status === 'connected' ? state.bank.lastSync : undefined;
+  const lastSync = (state.banks ?? []).filter((b) => b.status === 'connected').map((b) => b.lastSync).sort()[0];
   useEffect(() => {
     if (!lastSync) return;
     const due = new Date(lastSync).getTime() + BANK_CHECK_HOURS * 3600_000 - Date.now();

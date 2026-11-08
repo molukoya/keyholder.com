@@ -21,17 +21,30 @@ export function Today() {
   const pending = new Set(todo.flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
   const units = state.units.filter((u) => state.properties.some((x) => x.id === u.propertyId && !x.archived));
 
-  if (!state.properties.length) {
+  if (!state.properties.length || !state.tenants.length) {
+    // Start here: three steps with a progress bar, for people starting with their own data.
+    const steps = [
+      { done: state.properties.length > 0, title: 'Add your property', sub: 'The address and how many units.', to: '/rentals', btn: 'Add property' },
+      { done: state.tenants.length > 0, title: 'Add your tenant', sub: 'Their name, rent and the day it is due.', to: state.properties[0] ? `/rent/property/${state.properties[0].id}` : '/rentals', btn: 'Add tenant' },
+      { done: state.banks.some((b) => b.status === 'connected') || state.profile.rentArrival === 'manual', title: 'Choose how rent is tracked', sub: 'Connect your banks, or tap "Mark paid" yourself.', to: '/settings#rent-tracking', btn: 'Choose' },
+    ];
+    const n = steps.filter((x) => x.done).length;
+    const next = steps.findIndex((x) => !x.done);
     return (
       <div className="page">
-        <h1 style={{ marginBottom: 24 }}>Welcome{state.profile.name ? `, ${state.profile.name.split(' ')[0]}` : ''}.</h1>
-        <div className="sheet">
-          <h2 style={{ marginBottom: 12 }}>Let's get you set up</h2>
-          <ul className="rows">
-            <li className="row"><span className="margin">Step 1</span><span className="title">Add your property</span><Link className="btn primary" to="/rentals">Add</Link></li>
-            <li className="row"><span className="margin">Step 2</span><span className="title soft">Add your tenant</span><span /></li>
-            <li className="row"><span className="margin">Step 3</span><span className="title soft">Choose how rent is tracked</span><Link className="btn" to="/settings#rent-tracking">Choose</Link></li>
-          </ul>
+        <h1 style={{ marginBottom: 8 }}>Welcome{state.profile.name ? `, ${state.profile.name.split(' ')[0]}` : ''}.</h1>
+        <p className="page-sub">Three steps and Keyholder starts tracking your rent for you.</p>
+        <div className="sheet start-here">
+          <div className="start-head"><h2>Start here</h2><span className="small soft">{n} of 3 done</span></div>
+          <div className="start-bar" role="progressbar" aria-valuemin={0} aria-valuemax={3} aria-valuenow={n}><i style={{ width: `${(n / 3) * 100}%` }} /></div>
+          <ol className="start-steps">{steps.map((x, i) => (
+            <li key={x.title} className={x.done ? 'done' : i === next ? 'now' : ''}>
+              <span className="start-n">{x.done ? '✓' : i + 1}</span>
+              <span><strong>{x.title}</strong><span className="small soft">{x.sub}</span></span>
+              {!x.done && <Link className={`btn${i === next ? ' primary' : ''}`} to={x.to}>{x.btn}</Link>}
+            </li>
+          ))}</ol>
+          <p className="small soft">Want to look around first? <Link to="/welcome">See what Keyholder does</Link></p>
         </div>
       </div>
     );

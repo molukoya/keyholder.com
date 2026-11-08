@@ -1,3 +1,4 @@
+import { PageSub } from '../components/Guide';
 import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import type { Lease, Message, Province, Receipt } from '../data/types';
@@ -19,7 +20,7 @@ export function Paperwork() {
   const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
   return (
     <div className="page">
-      <div className="page-head"><h1>Paperwork</h1></div>
+      <div className="page-head"><div><h1>Paperwork</h1><PageSub>Every receipt, rent record, lease and notice, kept in one place.</PageSub></div></div>
       <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
       {cur === 'expenses' && <Expenses />}
       {cur === 'income' && <Income />}

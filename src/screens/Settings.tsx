@@ -1,5 +1,6 @@
+import { PageSub } from '../components/Guide';
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 
 import { LEVELS } from '../lib/levels';
@@ -14,11 +15,12 @@ export function Settings() {
   const { state, act } = useStore();
   const p = state.profile;
   const loc = useLocation();
+  const nav = useNavigate();
   useEffect(() => { if (loc.hash) document.getElementById(loc.hash.slice(1))?.scrollIntoView(); }, [loc.hash]);
 
   return (
     <div className="page">
-      <div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1></div></div>
+      <div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
 
       <section className="section" id="levels">
         <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
@@ -80,6 +82,8 @@ export function Settings() {
           <div className="btn-row">
             <button className="btn" onClick={act.resetDemo}>Restore sample data</button>
             <button className="btn" onClick={act.restartOnboarding}>Replay the signup questions</button>
+            <button className="btn" onClick={() => { act.setProfile({ tourDone: false }); nav('/today'); }}>Show the tour again</button>
+            <Link className="btn ghost" to="/welcome">What is Keyholder?</Link>
           </div>
           <div className="callout warn">Clearing removes every property, tenant, payment and expense in this browser. It cannot be undone.</div>
           <SlideToConfirm label="Slide to clear all data" onConfirm={act.clearAll} />

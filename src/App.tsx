@@ -14,6 +14,8 @@ import { Taxes } from './screens/Money';
 import { Rentals } from './screens/Rentals';
 import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
+import { Landing } from './screens/Landing';
+import { SampleBanner, Tour, PageSub } from './components/Guide';
 
 export function App() {
   return (
@@ -34,7 +36,10 @@ function useTheme() {
 
 function Root() {
   const { state } = useStore();
+  const loc = useLocation();
   useTheme();
+  // The landing page is the front door; /welcome shows it again from inside the app.
+  if (loc.pathname === '/welcome' || (!state.profile.onboarded && loc.pathname !== '/start')) return <Landing />;
   if (!state.profile.onboarded) return <Onboarding />;
   return <Shell />;
 }
@@ -73,10 +78,10 @@ function Shell() {
   return (
     <div className="shell">
       <aside className="rail" aria-label="Main">
-        <Link to="/today" className="brand"><KeyMark />Keyholder</Link>
-        {nav.map((n) => <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
+        <Link to="/welcome" className="brand" title="About Keyholder"><KeyMark />Keyholder</Link>
+        {nav.map((n) => <NavLink key={n.to} to={n.to} data-tour={n.to.slice(1)} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
         <div style={{ height: 16 }} />
-        <button className="btn primary" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
+        <button className="btn primary" data-tour="receipt" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
         </div>
@@ -84,9 +89,10 @@ function Shell() {
 
       <div className="main">
         <div className="mobile-top">
-          <Link to="/today" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
+          <Link to="/welcome" className="brand" style={{ margin: 0 }}><KeyMark size={24} />Keyholder</Link>
         </div>
         <main>
+          <SampleBanner />
           <Routes>
             <Route path="/" element={<Navigate to="/today" replace />} />
             <Route path="/today" element={<Today />} />
@@ -118,14 +124,15 @@ function Shell() {
 
       <nav className="bottombar" aria-label="Main">
         <NavLink to="/today"><Icon name="home" />Home{count > 0 && <span className="badge">{count}</span>}</NavLink>
-        <NavLink to="/portfolio"><Icon name="chart" />Portfolio</NavLink>
-        <a href="#receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
-        <NavLink to="/rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
+        <NavLink to="/portfolio" data-tour="portfolio"><Icon name="chart" />Portfolio</NavLink>
+        <a href="#receipt" data-tour="receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
+        <NavLink to="/rentals" data-tour="rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
         <NavLink to="/more" className={['/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
 
       {capture && <ExpenseForm onClose={() => setCapture(false)} />}
       {pay && <PaymentForm onClose={() => setPay(false)} />}
+      <Tour />
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div className="toast" key={t.id}>{t.text}</div>)}</div>
     </div>
   );
@@ -140,7 +147,7 @@ function More() {
   ];
   return (
     <div className="page">
-      <div className="page-head"><h1>More</h1></div>
+      <div className="page-head"><div><h1>More</h1><PageSub>Taxes, paperwork and your settings.</PageSub></div></div>
       <div className="more-list">{items.map((i) => (
         <Link key={i.to} to={i.to} className="more-item"><Icon name={i.icon} size={26} /><span><strong>{i.label}</strong><span>{i.sub}</span></span><Icon name="next" /></Link>
       ))}</div>

@@ -1,15 +1,16 @@
+import { PageSub } from '../components/Guide';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import type { BankName, Expense } from '../data/types';
+import type { BankName, BankTxn, Expense, ExpenseCategory, Property } from '../data/types';
+import { bankToSort, readWithdrawal } from '../lib/bankrules';
 import { useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, rentalPortion, taxPack } from '../lib/finance';
-import { BANK_CHECK_HOURS, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
+import { BANK_CHECK_HOURS, CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
 import { fmt, fmt0 } from '../lib/money';
-import { ExpenseForm } from '../components/forms';
+import { ExpenseForm, MortgageForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
-import { BankStatus } from '../components/domain';
 import { Icon } from '../components/Icon';
 
 export function Money() {
@@ -31,13 +32,58 @@ export function Money() {
 export function Taxes() {
   return (
     <div className="page">
-      <div className="page-head"><h1>Taxes</h1></div>
+      <div className="page-head"><div><h1>Taxes</h1><PageSub>Your rental income and costs for the year, ready for the CRA T776 form.</PageSub></div></div>
       <TaxPackPage />
     </div>
   );
 }
 
 // =====================================================================================
+/** Withdrawals from connected banks, waiting to be sorted: expense (which property, which type) or mortgage. */
+export function BankReview() {
+  const { state, act, today } = useStore();
+  const list = bankToSort(state);
+  const [setup, setSetup] = useState<{ pid: string; txn: BankTxn } | null>(null);
+  if (!list.length) return null;
+  const props = state.properties.filter((p) => !p.archived);
+  return (
+    <section className="section" id="bank">
+      <h2 className="section-title">From your banks · {list.length} to sort</h2>
+      <div className="sheet tight"><ul className="unit-list">{list.map((t) => {
+        const r = readWithdrawal(state, t);
+        const bank = state.banks.find((b) => b.id === t.bankId)?.bank;
+        return <BankRow key={t.id} t={t} r={r} bank={bank} props={props} onSetup={(pid) => setSetup({ pid, txn: t })} onFile={(pid, cat) => act.fileBankExpense(t.id, pid, cat, true)} onMortgage={(mid) => act.reconcileMortgage(t.id, mid)} onIgnore={() => act.ignoreTxn(t.id)} />;
+      })}</ul></div>
+      <p className="tiny soft" style={{ marginTop: 8 }}>Once you file a vendor, its future payments file themselves. Checked {today}.</p>
+      {setup && <MortgageForm propertyId={setup.pid} prefill={{ lender: state.banks.find((b) => b.id === setup.txn.bankId)?.bank ?? setup.txn.payer.split(' ')[0], paymentOverride: -setup.txn.amount, frequency: 'monthly' }} onClose={() => setSetup(null)} />}
+    </section>
+  );
+}
+
+function BankRow({ t, r, bank, props, onFile, onMortgage, onSetup, onIgnore }: { t: BankTxn; r: ReturnType<typeof readWithdrawal>; bank?: string; props: Property[]; onFile: (pid: string, cat: ExpenseCategory) => void; onMortgage: (mid: string) => void; onSetup: (pid: string) => void; onIgnore: () => void }) {
+  const [pid, setPid] = useState(r.propertyId ?? props[0]?.id ?? '');
+  const [cat, setCat] = useState<ExpenseCategory>(r.category ?? 'other');
+  const name = props.find((p) => p.id === r.propertyId)?.nickname;
+  return (
+    <li className="unit-row bank-row">
+      <span className="unit-label long">{bank ?? 'Bank'}</span>
+      <span className="unit-who"><strong>{fmt(-t.amount)} to {t.payer}</strong><span>{fmtDate(t.date)} · {r.kind === 'mortgage' ? (r.mortgageId ? `${r.why} (${name})` : r.why) : r.why}</span></span>
+      {r.kind === 'expense' ? (
+        <span className="bank-choose">
+          <select className="input" aria-label="Property" value={pid} onChange={(e) => setPid(e.target.value)}>{props.map((p) => <option key={p.id} value={p.id}>{p.nickname}</option>)}</select>
+          <select className="input" aria-label="Type" value={cat} onChange={(e) => setCat(e.target.value as ExpenseCategory)}>{CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+        </span>
+      ) : <span />}
+      <span className="row-act">
+        {r.kind === 'expense' && <button className="btn primary" disabled={!pid} onClick={() => onFile(pid, cat)}>Add expense</button>}
+        {r.kind === 'mortgage' && r.mortgageId && <button className="btn primary" onClick={() => onMortgage(r.mortgageId!)}>{r.matchesSchedule ? 'Tick off' : 'Tick off anyway'}</button>}
+        {r.kind === 'mortgage' && !r.mortgageId && <button className="btn primary" disabled={!r.propertyId && !pid} onClick={() => onSetup(r.propertyId ?? pid)}>Set up mortgage</button>}
+        <button className="btn ghost" onClick={onIgnore}>Not rental</button>
+      </span>
+    </li>
+  );
+}
+
 export function Expenses() {
   const { state } = useStore();
   const [form, setForm] = useState<Expense | 'new' | null>(null);
@@ -50,6 +96,7 @@ export function Expenses() {
 
   return (
     <>
+      <BankReview />
       <div className="spread" style={{ marginBottom: 16 }}>
         <div className="btn-row">
           <select className="input" style={{ width: 'auto' }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property filter">
@@ -99,8 +146,9 @@ export function Expenses() {
 export function RentTracking() {
   const { state, act } = useStore();
   const [connect, setConnect] = useState(false);
+  const banks = state.banks ?? [];
   const deposits = state.txns.filter((t) => t.amount > 0 && t.status !== 'ignored').slice(0, 20);
-  const manual = !state.bank;
+  const manual = banks.length === 0;
 
   return (
     <>
@@ -113,22 +161,31 @@ export function RentTracking() {
         </button>
         <button role="radio" aria-checked={!manual} className="choice big" onClick={() => manual && setConnect(true)}>
           <Icon name="bank" size={28} />
-          <span className="t">Check my bank for me</span>
-          <span className="s">Any Canadian bank or credit union. Checked every {BANK_CHECK_HOURS} hours.</span>
+          <span className="t">Check my banks for me</span>
+          <span className="s">Any Canadian banks or credit unions. Rent, bills and mortgage payments, every {BANK_CHECK_HOURS} hours.</span>
         </button>
       </div>
 
-      {state.bank && (
+      {!manual && (
         <div className="sheet" style={{ marginTop: 24 }}>
-          <BankStatus />
-          {state.bank.status === 'needs-reauth' && <div className="callout warn">Your bank needs you to sign in again. <button className="btn small" onClick={act.reauthBank}>Sign in</button></div>}
-          <p className="small soft" style={{ marginTop: 12 }}>View only. Keyholder can see deposits. It can never move money.</p>
+          <div className="spread" style={{ marginBottom: 8 }}><h3>Connected banks</h3><button className="btn small" onClick={() => setConnect(true)}><Icon name="plus" size={14} />Add another bank</button></div>
+          <ul className="rows">{banks.map((b) => (
+            <li key={b.id} className="row" style={{ gridTemplateColumns: '1fr auto' }}>
+              <span><span className="title">{b.bank} {b.accountMask}</span><span className="sub" style={{ display: 'block' }}>{b.status === 'connected' ? `Last checked ${new Date(b.lastSync).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Needs you to sign in again'}</span></span>
+              <span className="row-act">
+                {b.status === 'needs-reauth' && <button className="btn small primary" onClick={() => act.reauthBank(b.id)}>Sign in</button>}
+                <button className="btn small ghost" onClick={() => act.disconnectBank(b.id)}>Disconnect</button>
+              </span>
+            </li>
+          ))}</ul>
+          <div className="btn-row" style={{ marginTop: 8 }}><button className="btn" onClick={() => act.syncBank()}><Icon name="sync" size={16} />Check all now</button></div>
+          <p className="small soft" style={{ marginTop: 12 }}>View only. Keyholder can see deposits and payments. It can never move money.</p>
         </div>
       )}
 
-      {state.bank && (
+      {!manual && (
         <section className="section" style={{ marginTop: 24 }}>
-          <h2 className="section-title">Rent found in your bank</h2>
+          <h2 className="section-title">Rent found in your banks</h2>
           {deposits.length === 0 ? <div className="sheet"><Empty title="No rent found yet.">The next check is automatic.</Empty></div> : (
             <div className="sheet"><ul className="rows">{deposits.map((t) => {
               const pay = state.payments.find((p) => p.id === t.paymentId);

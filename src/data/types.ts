@@ -41,6 +41,11 @@ export interface Profile {
   phase: Phase;
   theme: 'system' | 'light' | 'dark';
   paperGrain: boolean;
+  /** Withdrawals the owner has filed before: payer → property and type, so future ones file themselves. */
+  vendorRules?: Record<string, { propertyId: string; category: ExpenseCategory }>;
+  /** Showing the sample properties (demo). */
+  sample?: boolean;
+  tourDone?: boolean;
 }
 
 export type PropertyType = 'house' | 'duplex' | 'triplex' | 'condo' | 'townhouse' | 'other';
@@ -162,7 +167,7 @@ export interface BankConnection {
   lastSync: string;
 }
 
-export type TxnStatus = 'new' | 'matched' | 'suggested' | 'ignored' | 'expense';
+export type TxnStatus = 'new' | 'matched' | 'suggested' | 'ignored' | 'expense' | 'mortgage';
 
 export interface BankTxn {
   id: ID;
@@ -172,8 +177,10 @@ export interface BankTxn {
   payer: string;
   memo: string;
   status: TxnStatus;
+  bankId?: ID;
   paymentId?: ID;
   expenseId?: ID;
+  mortgageId?: ID;
   suggestion?: { leaseId: ID; period: Period; confidence: 'high' | 'medium' | 'low'; reasons: string[] };
 }
 
@@ -366,7 +373,8 @@ export interface AppState {
   payments: Payment[];
   receipts: Receipt[];
   messages: Message[];
-  bank?: BankConnection;
+  /** Every connected bank or credit union (view-only). */
+  banks: BankConnection[];
   txns: BankTxn[];
   expenses: Expense[];
   valuations: Valuation[];

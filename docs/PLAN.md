@@ -106,6 +106,14 @@ application form, tenant magic-link page, receipt OCR, accountant share link, fo
 Larger type (17px body, 48px buttons), one main action per row, plain labels ("Mark paid", "Left over",
 "To do"), extra fields behind "More details", and later-phase screens hidden rather than shown locked.
 
+## Front door and guidance
+
+- **Landing page** (`#/`, and `#/welcome` from inside the app): hero with a live mini demo, the problem, 3 steps, six feature panels, the GIC comparison, Bronze/Silver/Gold cards, a province tile map with each province's forms, trust, early-access pricing (prices not final), FAQ, final call to action.
+- **Ways in:** "Get started" opens the signup questions (`#/start`). "See it in action" loads the two sample properties straight away and starts the tour. Returning users go to Home. The logo and Settings → "What is Keyholder?" open the landing page again.
+- **Guidance in the app:** a 5-step tour (skippable, replay from Settings), a one-line subtitle under each page title, a sample-data banner with "Start with my own", a "Start here" card with progress for new users, and status pills you can tap for a plain explanation.
+- **Banks:** connect several banks at once. Withdrawals are read too: bills become expenses (learned per payee), mortgage payments are ticked off against the mortgage, or offer to set one up. Review lives at the top of Paperwork → Expense receipts.
+- **Portfolio:** "Your money compared" always shows your return next to savings, a GIC and a stock index fund, using the properties that have a purchase price and listing the ones that don't yet.
+
 ## Stage 1 notes
 - All data is in `localStorage`. Sample data is dated relative to today.
 - Bank linking, email forwarding and sending are **simulated**. The matcher and parser are real code with tests.

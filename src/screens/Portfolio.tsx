@@ -1,13 +1,15 @@
+import { PageSub } from '../components/Guide';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { addDays, fmtDate, yearOf } from '../lib/dates';
-import { netWorthHistory, portfolio, verdict, worthIt } from '../lib/finance';
+import { netWorthHistory, portfolio, worthIt } from '../lib/finance';
 import { fmt0, fmtShort } from '../lib/money';
 import { PropertyCard } from '../components/levels';
 import { PropertyForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
-import { BenchmarkRuler, ThePicture } from './Money';
+import { ThePicture } from './Money';
+import { portfolioReturn } from '../lib/silver';
 
 // Portfolio: what you own and whether it is working, at a glance.
 
@@ -15,7 +17,7 @@ export function Portfolio() {
   const { tab = 'overview' } = useParams();
   return (
     <div className="page">
-      <div className="page-head"><h1>Portfolio</h1></div>
+      <div className="page-head"><div><h1>Portfolio</h1><PageSub>What your properties are worth, what they earn, and how that compares with a GIC.</PageSub></div></div>
       <nav className="tabs" aria-label="Portfolio sections">
         <NavLink end to="/portfolio" className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to="/portfolio/cash-flow">Cash flow</NavLink>
@@ -32,6 +34,8 @@ function Overview() {
   const pf = useMemo(() => portfolio(state, today), [state, today]);
   const w = useMemo(() => worthIt(state, today), [state, today]);
   const history = useMemo(() => netWorthHistory(state, today), [state, today]);
+  const pr = useMemo(() => portfolioReturn(state, today), [state, today]);
+  const cmpMax = Math.max(pr.pct ?? 0, ...pr.rows.map((r) => r.pct), 1);
 
   if (!pf.rows.length) {
     return (
@@ -62,18 +66,28 @@ function Overview() {
         <div className="sheet pf-return">
           <div className="small soft">Earned, last 12 months</div>
           <Figure cents={w.total} className={w.total < 0 ? 'urgent' : 'in'} />
-          {w.returnPct !== null ? (
-            <>
-              <p style={{ margin: '4px 0 0' }}><strong>{w.returnPct.toFixed(1)}% a year.</strong> <span className="soft">{verdict(w).split('. ')[1]}</span></p>
-              <BenchmarkRuler value={w.returnPct} compact />
-            </>
-          ) : <p className="small soft" style={{ margin: '4px 0 0' }}>The % return shows once every property has its purchase price.</p>}
+          {pr.pct !== null && <p style={{ margin: '4px 0 0' }}><strong>{pr.pct.toFixed(1)}% a year</strong> <span className="soft">on your money{pr.missing.length ? ` (${pr.included.map((p) => p.nickname).join(', ')})` : ''}</span></p>}
           <div className="split-bar" role="img" aria-label={parts.map((p) => `${p.label} ${fmt0(p.v)}`).join(', ')}>
             {parts.filter((p) => p.v > 0).map((p) => <span key={p.label} className={p.cls} style={{ width: `${(p.v / pos) * 100}%` }} />)}
           </div>
           <ul className="split-legend">{parts.map((p) => <li key={p.label}><i className={p.cls} />{p.label}<span className="mono">{fmt0(p.v)}</span></li>)}</ul>
         </div>
       </div>
+
+      <section className="section">
+        <h2 className="section-title">Your money compared</h2>
+        <div className="sheet compare">
+          <ul className="bars-h big">
+            <li className="you"><span>{pr.included.length > 1 || !pr.missing.length ? 'Your properties' : pr.included[0]?.nickname ?? 'Your properties'}</span><i style={{ width: `${pr.pct === null ? 0 : (Math.max(0, pr.pct) / cmpMax) * 100}%` }} /><strong>{pr.pct === null ? '—' : `${pr.pct.toFixed(1)}%`}</strong></li>
+            {pr.rows.map((r) => <li key={r.label}><span>{r.label}</span><i style={{ width: `${(r.pct / cmpMax) * 100}%` }} /><strong>{r.pct.toFixed(1)}%</strong></li>)}
+          </ul>
+          <p className="small" style={{ margin: '12px 0 0' }}>
+            {pr.pct === null ? 'Add what you paid and what is owed on a property to compare it.' : pr.pct >= pr.rows[1].pct ? `Your properties are beating a 5-year GIC by ${(pr.pct - pr.rows[1].pct).toFixed(1)} points.` : `A 5-year GIC is ahead by ${(pr.rows[1].pct - pr.pct).toFixed(1)} points this year.`}
+            {pr.missing.length > 0 && <> {' '}<span className="soft">Not included yet: {pr.missing.map((p, i) => <span key={p.id}>{i ? ', ' : ''}<Link to={`/rent/property/${p.id}/value`}>{p.nickname}</Link></span>)} (add what you paid).</span></>}
+          </p>
+          <p className="tiny soft" style={{ margin: '6px 0 0' }}>A year of rent left over, mortgage paid off and value growth, divided by your money in the property. Comparison rates are placeholders.</p>
+        </div>
+      </section>
 
       {history.length > 1 && (
         <section className="section">

@@ -1,3 +1,4 @@
+import { PageSub } from '../components/Guide';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
@@ -27,7 +28,7 @@ export function Rentals() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Rentals</h1>
+        <div><h1>Rentals</h1><PageSub>Your properties, units and tenants. Find tenants, raise rent and send notices here.</PageSub></div>
         <button className="btn" onClick={() => setAddProp(true)}><Icon name="plus" size={16} />Add property</button>
       </div>
       {!props.length && <div className="sheet"><Empty title="No properties yet." action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Units and tenants come next.</Empty></div>}

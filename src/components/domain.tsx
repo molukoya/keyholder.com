@@ -29,7 +29,8 @@ function until(iso: string): string {
 // ---------- How rent is tracked: one line that says it plainly ----------
 export function BankStatus({ compact }: { compact?: boolean }) {
   const { state, act } = useStore();
-  const b = state.bank;
+  const banks = (state.banks ?? []).filter((x) => x.status === 'connected');
+  const b = banks.map((x) => x).sort((p, q) => p.lastSync.localeCompare(q.lastSync))[0];
   if (!b) {
     return (
       <div className={`track-line${compact ? ' compact' : ''}`}>
@@ -42,7 +43,7 @@ export function BankStatus({ compact }: { compact?: boolean }) {
   return (
     <div className={`track-line${compact ? ' compact' : ''}`}>
       <Icon name="bank" size={18} />
-      <span>Checking <strong>{b.bank}</strong> for rent every {BANK_CHECK_HOURS} hours. Last check {ago(b.lastSync)}, next {until(b.lastSync)}.</span>
+      <span>Checking <strong>{banks.map((x) => x.bank).join(' and ')}</strong> every {BANK_CHECK_HOURS} hours for rent, bills and mortgage payments. Last check {ago(b.lastSync)}, next {until(b.lastSync)}.</span>
       <button className="btn small" onClick={() => act.syncBank()}>Check now</button>
     </div>
   );

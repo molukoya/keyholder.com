@@ -5,7 +5,7 @@ import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '..
 // Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
 // (owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 export function defaultProfile(): Profile {
   return {
@@ -37,7 +37,7 @@ export function emptyState(profile?: Profile): AppState {
     version: STATE_VERSION,
     profile: profile ?? defaultProfile(),
     properties: [], units: [], tenants: [], leases: [], payments: [], receipts: [], messages: [],
-    txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], listings: [], applicants: [], notices: [], todoPrefs: {}, audit: [],
+    banks: [], txns: [], expenses: [], valuations: [], comparables: [], mortgages: [], listings: [], applicants: [], notices: [], todoPrefs: {}, audit: [],
   };
 }
 
@@ -152,11 +152,21 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
   s.messages = messages;
 
   // Bank connected; Sam's deposit came from a joint account and needs a look.
-  s.bank = { id: 'bank-1', bank: 'RBC', accountMask: '•••• 4417', status: 'connected', lastSync: new Date(Date.now() - 3 * 3600_000).toISOString() };
+  const synced = new Date(Date.now() - 3 * 3600_000).toISOString();
+  s.banks = [
+    { id: 'bank-1', bank: 'RBC', accountMask: '•••• 4417', status: 'connected', lastSync: synced },
+    { id: 'bank-2', bank: 'TD', accountMask: '•••• 9031', status: 'connected', lastSync: synced },
+  ];
   s.txns = [
     { id: 'tx-maya', source: 'bank', date: mayaDate, amount: 165_000, payer: 'MAYA CHEN', memo: 'rent unit A', status: 'matched', paymentId: mayaId },
     { id: 'tx-sam', source: 'bank', date: addDays(dueDate(thisPeriod, 1), 1) <= today ? addDays(dueDate(thisPeriod, 1), 1) : today, amount: 150_000, payer: 'S OKAFOR-BELL', memo: '', status: 'new' },
     { id: 'tx-payroll', source: 'bank', date: addDays(today, -3), amount: 412_500, payer: 'ACME PAYROLL', memo: 'Salary', status: 'ignored' },
+    // Withdrawals the banks found this month, waiting to be sorted (expenses and mortgage payments).
+    { id: 'tx-tax', source: 'bank', bankId: 'bank-1', date: addDays(today, -5), amount: -130_000, payer: 'CITY OF HAMILTON TAX', memo: 'Pre-authorized debit', status: 'new' },
+    { id: 'tx-enb', source: 'bank', bankId: 'bank-2', date: addDays(today, -4), amount: -21_240, payer: 'ENBRIDGE GAS', memo: 'Pre-authorized debit', status: 'new' },
+    { id: 'tx-hd', source: 'bank', bankId: 'bank-1', date: addDays(today, -2), amount: -8_645, payer: 'HOME DEPOT #7011', memo: 'Debit purchase', status: 'new' },
+    { id: 'tx-rbcm', source: 'bank', bankId: 'bank-1', date: `${thisPeriod}-01`, amount: -230_069, payer: 'RBC MORTGAGE PMT', memo: 'Mortgage payment', status: 'new' },
+    { id: 'tx-tdm', source: 'bank', bankId: 'bank-2', date: `${thisPeriod}-01`, amount: -445_000, payer: 'TD MORTGAGE PMT', memo: 'Mortgage payment', status: 'new' },
   ];
 
   // Expenses across the last year.

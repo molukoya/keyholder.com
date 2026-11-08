@@ -6,6 +6,7 @@ import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
 import { keyholderScore } from '../lib/score';
 import { portfolio } from '../lib/finance';
 import { monthChange } from '../lib/silver';
+import { RETURN_PRESETS } from '../lib/jurisdiction';
 import { fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
 import { MortgageFields, newMortgage } from './forms';
@@ -71,7 +72,7 @@ export function PropertyCard({ property, active, banner }: { property: Property;
       <div className="pcard-figs">
         <div><span>Worth about</span><strong>{rough ? '~' : ''}{fmtShort(row.value)}</strong></div>
         <div><span>Yours</span><strong>{row.owedKnown ? fmtShort(row.yours) : '—'}</strong></div>
-        <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong></div>
+        <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong>{row.returnPct !== null && <em className="vs-gic">GIC {RETURN_PRESETS.typical}%</em>}</div>
       </div>
       <div className="pcard-source">{month !== null && level !== 'bronze' ? <><strong>{month >= 0 ? '+' : '−'}{fmtShort(Math.abs(month))} this month</strong> · </> : null}{row.valueInfo.source}</div>
     </div>
@@ -92,7 +93,7 @@ export function ScoreChip() {
   }, [score]);
   const next = todo[0];
   return (
-    <button className={`score-chip${bump ? ' bump' : ''}`} onClick={() => { if (location.hash.includes('/today')) document.getElementById('score')?.scrollIntoView({ behavior: 'smooth' }); else nav('/today'); }} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
+    <button data-tour="score" className={`score-chip${bump ? ' bump' : ''}`} onClick={() => { if (location.hash.includes('/today')) document.getElementById('score')?.scrollIntoView({ behavior: 'smooth' }); else nav('/today'); }} aria-label={`Keyholder score ${score} out of 100. See how to raise it.`}>
       <ScoreRing score={shown} />
       <span className="score-label">Keyholder score</span>
       {next && <span className="score-next">+{next.points - next.earned} next</span>}

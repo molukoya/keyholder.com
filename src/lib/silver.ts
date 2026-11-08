@@ -73,3 +73,16 @@ export function roughSale(state: AppState, p: Property, today: ISODate): { value
   const costs = Math.round((value * SELLING_COST_PCT) / 100);
   return { value, costs, owed: o.owed, net: value - costs - o.owed };
 }
+
+/** Return on your money across the properties that have enough detail (purchase price and what is owed). */
+export function portfolioReturn(state: AppState, today: ISODate) {
+  const props = state.properties.filter((p) => !p.archived);
+  let total = 0, equity = 0;
+  const included: Property[] = [], missing: Property[] = [];
+  for (const p of props) {
+    const w = worthIt(state, today, { propertyId: p.id });
+    if (w.returnPct === null) { missing.push(p); continue; }
+    total += w.total; equity += w.equity; included.push(p);
+  }
+  return { pct: equity > 0 ? (total / equity) * 100 : null, included, missing, rows: returnComparison(state, props[0], today).rows };
+}
