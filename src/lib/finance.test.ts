@@ -197,7 +197,7 @@ describe('portfolio and net worth history', () => {
   it('sums worth, owed and yours; history starts when value and mortgage are both known', async () => {
     const { seedState } = await import('../data/seed');
     const { portfolio, netWorthHistory } = await import('./finance');
-    const s = seedState();
+    const s = seedState(undefined, '2026-11-08');
     const pf = portfolio(s, '2026-11-08');
     expect(pf.yours).toBe(pf.value - pf.owed);
     expect(pf.rows[0].value).toBeGreaterThanOrEqual(pf.rows[1].value);
@@ -218,7 +218,7 @@ describe('late-rent notices', () => {
   it('claims rent only, for periods already due', async () => {
     const { seedState } = await import('../data/seed');
     const { arrears } = await import('./notices');
-    const s = seedState();
+    const s = seedState(undefined, '2026-11-08');
     const lease = s.leases.find((l) => l.id === 'l-patel')!;
     const a = arrears(s, lease, '2026-11-08');
     expect(a.total).toBe(145_000);

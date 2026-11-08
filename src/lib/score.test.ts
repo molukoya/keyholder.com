@@ -6,7 +6,7 @@ const today = '2026-11-08';
 
 describe('Keyholder score', () => {
   it('is between 0 and 100 and lists what to do, biggest gain first', () => {
-    const s = seedState();
+    const s = seedState(undefined, '2026-11-08');
     const { score, todo } = keyholderScore(s, today);
     expect(score).toBeGreaterThan(0);
     expect(score).toBeLessThan(100);
@@ -15,7 +15,7 @@ describe('Keyholder score', () => {
   });
 
   it('goes up when a property gets its purchase price', () => {
-    const s = seedState();
+    const s = seedState(undefined, '2026-11-08');
     const before = keyholderScore(s, today).score;
     const birch = s.properties.find((p) => p.id === 'p-birch')!;
     const pctBefore = propertyCompletion(s, birch, today);
@@ -25,7 +25,7 @@ describe('Keyholder score', () => {
   });
 
   it('orders properties by value, most valuable first', () => {
-    const s = seedState();
+    const s = seedState(undefined, '2026-11-08');
     const order = byValue(s, today).map((p) => p.id);
     expect(order[0]).toBe('p-maple'); // $700k+ duplex vs a ~$460k rent-based basement estimate
     s.properties.find((p) => p.id === 'p-birch')!.purchasePrice = 200_000_000;

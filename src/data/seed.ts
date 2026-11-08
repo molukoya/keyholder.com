@@ -41,8 +41,9 @@ export function emptyState(profile?: Profile): AppState {
   };
 }
 
-export function seedState(profile?: Profile): AppState {
-  const today = todayISO();
+/** `asOf` lets tests pin the sample data to a fixed date. */
+export function seedState(profile?: Profile, asOf?: string): AppState {
+  const today = asOf ?? todayISO();
   const thisPeriod = periodOf(today);
   const s = emptyState(profile);
   const now = new Date().toISOString();
