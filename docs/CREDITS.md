@@ -11,6 +11,9 @@ All photos come from [Unsplash](https://unsplash.com) and are used under the [Un
 
 Only homes, rooms and objects are used: no identifiable people, so no real person appears to endorse Keyholder.
 
+## App screenshots
+The screens in the website's "Take a closer look" tour are taken from Keyholder itself, using the sample properties, by `scripts/capture-screens.cjs` (`npm run screens`). They are stored in `src/assets/screens/`.
+
 ## Illustrations and icons
 All illustrations (people, homes, scenes, signup pictures, avatars) and icons were drawn for Keyholder as SVG in `src/components/Art.tsx` and `src/components/Icon.tsx`.
 

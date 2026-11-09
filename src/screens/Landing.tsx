@@ -1,18 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
-import { Avatar, Bust, LOOKS, SceneAddHome, SceneBank, SceneTap, SceneWelcome } from '../components/Art';
+import { Avatar, Bust, LOOKS } from '../components/Art';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 import heroPhoto from '../assets/photos/home-hero.webp';
 import keysPhoto from '../assets/photos/keys.webp';
 import aptPhoto from '../assets/photos/apartment.webp';
+import shotRent from '../assets/screens/rent.webp';
+import shotReceipt from '../assets/screens/receipt.webp';
+import shotReminder from '../assets/screens/reminder.webp';
+import shotBills from '../assets/screens/bills.webp';
+import shotValue from '../assets/screens/value.webp';
+import shotTaxes from '../assets/screens/taxes.webp';
+import shotNotice from '../assets/screens/notice.webp';
+import shotTenants from '../assets/screens/tenants.webp';
+import SPOTS from '../assets/screens/hotspots.json';
 
-// The public site: bright and friendly. White pages built from cards, real photos of homes,
-// illustrations for how things work, indigo only for things you can tap.
+// The public site: light and airy. Plain white pages, thin borders instead of heavy shadows,
+// real screens of the app, indigo only for things you can tap.
 
 const PAGES = [
   { id: '', label: 'Overview', icon: 'home' },
@@ -23,6 +33,8 @@ const PAGES = [
 ] as const;
 type PageId = (typeof PAGES)[number]['id'];
 const href = (id: string) => (id ? `/welcome/${id}` : '/welcome');
+/** "Features" is the tour on the Overview page, not a page of its own. */
+const toTour = () => requestAnimationFrame(() => document.getElementById('tour')?.scrollIntoView({ block: 'start' }));
 
 /** Adds "shown" to every .reveal element as it scrolls into view. */
 function useReveal(key: string) {
@@ -48,9 +60,11 @@ export function Landing() {
   const signedIn = state.profile.onboarded && !(state.profile.account && !state.profile.account.signedIn);
   const demo = () => { act.startDemo(); nav('/today'); };
   const start = () => nav(signedIn ? '/today' : '/start');
+  // Tapping the page you are already on: back to its top (or to the tour, for Features).
+  const same = (id: string) => { setMenu(false); if (id !== page) return; if (id === 'features') toTour(); else window.scrollTo(0, 0); };
 
   useEffect(() => { const on = () => setSolid(window.scrollY > 12); on(); window.addEventListener('scroll', on, { passive: true }); return () => window.removeEventListener('scroll', on); }, []);
-  useEffect(() => { window.scrollTo(0, 0); setMenu(false); }, [page]);
+  useEffect(() => { setMenu(false); if (page === 'features') toTour(); else window.scrollTo(0, 0); }, [page]);
   useEffect(() => { document.title = idx === 0 ? 'Keyholder · Rental automation for Canadian landlords' : `${PAGES[idx].label} · Keyholder`; }, [idx]);
   useEffect(() => { document.body.style.overflow = menu ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [menu]);
   useReveal(page);
@@ -63,9 +77,9 @@ export function Landing() {
     <div className={`lp${signedIn ? '' : ' has-sticky'}`}>
       <header className={`lp-nav${solid || menu ? ' solid' : ''}`}>
         <div className="lp-wrap lp-nav-in">
-          <Link to="/welcome" className="lp-brand" aria-label="Keyholder home"><Brand size={28} /></Link>
+          <Link to="/welcome" className="lp-brand" aria-label="Keyholder home" onClick={() => same('')}><Brand size={28} /></Link>
           <nav aria-label="Site" className="lp-links">
-            {PAGES.map((p) => <NavLink key={p.id} end to={href(p.id)} className={({ isActive }) => (isActive ? 'on' : '')}>{p.label}</NavLink>)}
+            {PAGES.map((p) => <NavLink key={p.id} end to={href(p.id)} onClick={() => same(p.id)} className={({ isActive }) => (isActive ? 'on' : '')}>{p.label}</NavLink>)}
           </nav>
           <div className="btn-row lp-nav-cta">{ctas}</div>
           <button className="btn lp-burger" aria-expanded={menu} aria-controls="lp-menu" onClick={() => setMenu((m) => !m)}><Icon name={menu ? 'close' : 'menu'} size={20} /><span>Menu</span></button>
@@ -74,14 +88,13 @@ export function Landing() {
       {/* Outside the header on purpose: the header's frosted-glass effect would trap a full-screen menu inside its 72px. */}
       {menu && (
         <div className="lp-menu" id="lp-menu">
-          {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={p.id === page ? 'on' : ''} onClick={() => { setMenu(false); if (p.id === page) window.scrollTo(0, 0); }}><span className="lp-menu-ic"><Icon name={p.icon} size={20} /></span>{p.label}<Icon name="next" size={18} /></Link>)}
+          {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={p.id === page ? 'on' : ''} onClick={() => same(p.id)}><span className="lp-menu-ic"><Icon name={p.icon} size={20} /></span>{p.label}<Icon name="next" size={18} /></Link>)}
           <div className="btn-row">{ctas}</div>
         </div>
       )}
 
       <main>
-        {page === '' && <Overview start={start} demo={demo} signedIn={signedIn} />}
-        {page === 'features' && <Features />}
+        {(page === '' || page === 'features') && <Overview start={start} demo={demo} signedIn={signedIn} />}
         {page === 'provinces' && <Provinces />}
         {page === 'pricing' && <Pricing start={start} />}
         {page === 'questions' && <Questions />}
@@ -89,15 +102,14 @@ export function Landing() {
         <section className="lp-sec lp-cta-sec">
           <div className="lp-wrap">
             <div className="lp-cta-card reveal">
-              <div className="lp-cta-copy">
+              <div>
                 <h2 className="lp-h2">Ready to automate your rental?</h2>
-                <p className="lp-lede">Answer 6 quick questions, about 2 minutes. Free for 1 rental unit, no card needed.</p>
-                <div className="btn-row">
-                  <button className="btn lp-big lp-on-grad" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
-                  {!signedIn && <button className="btn lp-big lp-on-grad-ghost" onClick={demo}>Try a demo first</button>}
-                </div>
+                <p className="lp-lede">Free for 1 rental unit. No card needed.</p>
               </div>
-              <div className="lp-cta-art"><SceneWelcome /></div>
+              <div className="btn-row">
+                <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
+                {!signedIn && <button className="btn lp-big lp-cta-ghost" onClick={demo}>Try a demo first</button>}
+              </div>
             </div>
           </div>
         </section>
@@ -107,12 +119,12 @@ export function Landing() {
         <div className="lp-wrap lp-foot-grid">
           <div><Brand size={26} /><p className="lp-foot-tag">Rental automation for Canadian landlords: receipts, reminders, tracking, valuation and taxes.</p></div>
           <nav aria-label="Footer">
-            <p>Product</p>{PAGES.map((p) => <Link key={p.id} to={href(p.id)}>{p.label}</Link>)}
+            <p>Product</p>{PAGES.map((p) => <Link key={p.id} to={href(p.id)} onClick={() => same(p.id)}>{p.label}</Link>)}
           </nav>
           <nav aria-label="Get started">
             <p>Start</p><Link to="/start">Create a free account</Link><Link to="/signin">Sign in</Link><button className="lp-link" onClick={demo}>Try a demo</button>
           </nav>
-          <p className="lp-legal">Keyholder prepares documents and information. It does not give legal or tax advice, file returns, or hold or move money. Notice periods, forms and rates in this preview are being verified with each province. Photos from Unsplash. © 2026 Keyholder.</p>
+          <p className="lp-legal">Keyholder prepares documents and information. It does not give legal or tax advice, file returns, or hold or move money. Notice periods, forms and rates in this preview are being verified with each province. Screens show sample properties. Photos from Unsplash. © 2026 Keyholder.</p>
         </div>
       </footer>
 
@@ -142,9 +154,9 @@ function PageHead({ kicker, icon, title, children, aside }: { kicker: string; ic
   );
 }
 
-function SecHead({ kicker, title, children, center }: { kicker: string; title: React.ReactNode; children?: React.ReactNode; center?: boolean }) {
+function SecHead({ kicker, title, children }: { kicker: string; title: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className={`lp-sechead reveal${center ? ' center' : ''}`}>
+    <div className="lp-sechead reveal">
       <p className="lp-kicker">{kicker}</p>
       <h2 className="lp-h2">{title}</h2>
       {children && <p className="lp-lede">{children}</p>}
@@ -183,6 +195,21 @@ const TONES = ['lilac', 'mint', 'sky', 'peach', 'sun', 'rose'] as const;
 const AUTO: [string, string, string][] = [['receipt', 'Receipts', 'mint'], ['bell', 'Reminders', 'peach'], ['trend', 'Valuation', 'lilac'], ['print', 'Taxes', 'sun']];
 const ModeBadge = ({ mode }: { mode: 'auto' | 'approve' }) => <span className={`mode-badge ${mode}`}><Icon name={mode === 'auto' ? 'sparkle' : 'check'} size={13} />{mode === 'auto' ? 'Automatic' : 'You approve'}</span>;
 
+/** Sharp line icons for the three set-up steps (24 px grid, even stroke). */
+function StepIcon({ name }: { name: 'home' | 'bank' | 'tap' }) {
+  const d = {
+    home: 'M3.5 10.5 12 3.75l8.5 6.75M5.75 9v11.25h7.5M18.25 9v4.5M18.5 16v5.5M15.75 18.75h5.5',
+    bank: 'M3.5 9.25 12 4l8.5 5.25M5.5 10.75v6.5M9.83 10.75v6.5M14.17 10.75v6.5M18.5 10.75v6.5M3.5 20.25h17',
+    tap: 'M9.25 9.25 19.75 13l-4.5 1.75-1.75 4.5zM4.5 4.5l2 2M9.25 2.75V5.5M2.75 9.25H5.5M4.75 13.75l1.75-1.75M13.75 4.75 12 6.5',
+  }[name];
+  return <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>;
+}
+const STEPS: ['home' | 'bank' | 'tap', string, string][] = [
+  ['home', 'Add your property', 'Address, units and tenants.'],
+  ['bank', 'Connect your bank', 'View only. Or skip it.'],
+  ['tap', 'Tap to approve', 'Nothing is sent without you.'],
+];
+
 function Overview({ start, demo, signedIn }: { start: () => void; demo: () => void; signedIn: boolean }) {
   return (
     <>
@@ -191,7 +218,6 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
           <div className="lp-hero-copy">
             <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
             <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
-            <p className="lp-lede">Keyholder automates the busywork of renting: receipts, reminders, rent tracking, valuation and taxes. You approve, it does the rest.</p>
             <ul className="lp-auto" aria-label="What Keyholder automates">
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
@@ -209,18 +235,14 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         </div>
       </section>
 
-      <section className="lp-sec">
+      <section className="lp-sec lp-how">
         <div className="lp-wrap">
-          <SecHead kicker="How it works" title="Set up in about fifteen minutes." center />
+          <SecHead kicker="How it works" title="3 steps. 15 minutes." />
           <ol className="lp-steps">
-            {[
-              [<SceneAddHome key="a" />, 'Add your property', 'The address, the units and your tenants. A home with a rented basement works too.'],
-              [<SceneBank key="b" />, 'Connect your bank, or skip it', 'Keyholder can only look, never move your money. Or skip this and tap "Mark paid" yourself.'],
-              [<SceneTap key="c" />, 'Tap the next step', 'Each tenant gets one button, like "Send receipt". Nothing is sent until you tap it.'],
-            ].map(([art, t, d], i) => (
-              <li key={t as string} className="lp-step reveal" style={{ transitionDelay: `${i * 90}ms` }}>
-                <div className="lp-step-art">{art}</div>
-                <span className="lp-step-n">Step {i + 1}</span>
+            {STEPS.map(([ic, t, d], i) => (
+              <li key={t} className="lp-step reveal" style={{ transitionDelay: `${i * 80}ms` }}>
+                <span className="lp-step-ic"><StepIcon name={ic} /></span>
+                <span className="lp-step-n">0{i + 1}</span>
                 <h3>{t}</h3>
                 <p>{d}</p>
               </li>
@@ -229,47 +251,97 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         </div>
       </section>
 
+      <Tour />
     </>
   );
 }
 
-// ================================================================ Features (tabs)
-const FEATURES: { t: string; icon: string; mode: 'auto' | 'approve'; short: string; d: string; art: React.ReactNode }[] = [
-  { t: 'Rent tracking', icon: 'bank', mode: 'auto', short: 'Your banks are checked every 4 hours. Rent is matched to the right tenant.', d: 'Keyholder checks your banks every 4 hours (view only) and matches each deposit to the right tenant and month. Every unit shows Paid, Late or Due at a glance. No bank? Tap "Mark paid" instead.', art: <div className="art-rows"><div><Avatar name="Maya Chen" size={30} /><span>Maya</span><b className="status paid">Paid</b></div><div><Avatar name="Jordan Patel" size={30} /><span>Jordan</span><b className="status late">Late</b></div><div><Avatar name="Sam Okafor" size={30} /><span>Sam</span><b className="status due">Found</b></div></div> },
-  { t: 'Rent receipts', icon: 'receipt', mode: 'auto', short: 'A receipt is written for every payment. Send it with one tap, or automatically.', d: 'Every payment gets a proper rent receipt, numbered and dated. Send it with one tap, or switch on automatic sending once you trust it. Every receipt is kept for you and your tenant.', art: <div className="art-sheet"><b>Receipt</b><i /><i /><i className="s" /><span className="stamp paid">Sent</span></div> },
-  { t: 'Friendly reminders', icon: 'bell', mode: 'auto', short: 'Written the day after rent is due. They stop the moment rent arrives.', d: 'If rent is late, a polite reminder is written for you the day after it is due, in the tone you choose. It stops the moment rent arrives, so you never chase someone who already paid.', art: <div className="art-msgs"><p className="out">Hi Jordan, a friendly reminder that November rent of $1,450 was due on the 1st.</p><p className="in">Sorry! Sent it just now.</p><span className="status paid">Paid</span></div> },
-  { t: 'Bills and mortgage', icon: 'cash', mode: 'auto', short: 'Bills are filed to the right property. Mortgage payments are checked off.', d: 'Connect one bank or several. Bills like gas and property tax are saved to the right property, learned from what you filed before, and mortgage payments are checked off on their own.', art: <div className="art-receipts"><span><i className="lp-tile-ic peach"><Icon name="flame" size={14} /></i>Enbridge gas · $212</span><span><i className="lp-tile-ic sky"><Icon name="home" size={14} /></i>City tax · $1,300</span><span><i className="lp-tile-ic mint"><Icon name="check" size={14} /></i>RBC mortgage · paid</span></div> },
-  { t: 'Property valuation', icon: 'trend', mode: 'auto', short: 'A value estimate every month, and your return next to a GIC.', d: 'Keyholder estimates what your property is worth each month, shows what you have gained, and compares your yearly return with savings, a GIC and the stock market. Estimates, clearly labelled with their source.', art: <div className="art-bars"><i style={{ ['--h' as string]: '92%' }} className="you" /><i style={{ ['--h' as string]: '30%' }} /><i style={{ ['--h' as string]: '38%' }} /><i style={{ ['--h' as string]: '70%' }} /></div> },
-  { t: 'Tax summary', icon: 'print', mode: 'auto', short: 'Your rental tax numbers build themselves as you go.', d: 'Every rent payment and cost is sorted as it happens. At tax time, the numbers for the rental part of your return (CRA form T776) are ready, with a list of anything missing. Keyholder does not file for you.', art: <div className="art-sheet"><b>T776</b><i /><i /><i /><span className="stamp paid">Ready</span></div> },
-  { t: 'Late-rent notices', icon: 'paper', mode: 'approve', short: 'The right official notice, filled in. Nothing is served without you.', d: "If reminders don't work, Keyholder fills in your province's official notice for unpaid rent (in Ontario, the N4) and works out the dates. Legal notices always wait for your sign-off.", art: <div className="art-sheet"><b>N4</b><i /><i /><i className="s" /><span className="stamp served">Ready to sign</span></div> },
-  { t: 'Finding tenants', icon: 'users', mode: 'approve', short: 'People apply online. You compare and choose.', d: 'Share a link for people to apply. See everyone side by side and check references. You make the choice, and Keyholder turns it into a tenant and a lease in one step.', art: <div className="art-apps"><div><Bust look={LOOKS.sam} size={34} bg="#FEF7C3" /><b>Daniel</b><i style={{ width: '70%' }} /></div><div className="pick"><Bust look={LOOKS.lena} size={34} bg="#EBE9FE" /><b>Lena &amp; Tom</b><i style={{ width: '90%' }} /></div></div> },
+// ================================================================ Take a closer look (the features tour)
+type Stop = { id: keyof typeof SPOTS; t: string; icon: string; mode: 'auto' | 'approve'; d: string; spot: string; img: string; alt: string };
+const TOUR: Stop[] = [
+  { id: 'rent', t: 'Rent tracking', icon: 'bank', mode: 'auto', d: 'See who has paid at a glance. Rent from your bank is matched for you.', spot: 'Send receipt', img: shotRent, alt: 'Keyholder home screen: rent collected this month, with each tenant marked Paid or Late' },
+  { id: 'receipt', t: 'Rent receipts', icon: 'receipt', mode: 'auto', d: 'A numbered receipt for every payment, ready to send.', spot: 'Paid in full', img: shotReceipt, alt: 'A rent receipt for Maya Chen, marked Paid' },
+  { id: 'reminder', t: 'Friendly reminders', icon: 'bell', mode: 'auto', d: 'Written for you in a friendly tone. Cancelled if rent arrives first.', spot: 'Send now', img: shotReminder, alt: 'A friendly rent reminder written for Jordan and Priya, ready to send' },
+  { id: 'bills', t: 'Bills and mortgage', icon: 'cash', mode: 'auto', d: 'Bills from your banks, sorted to the right property.', spot: 'Add expense', img: shotBills, alt: 'Bills found in the bank, such as property tax and gas, ready to file' },
+  { id: 'value', t: 'Property valuation', icon: 'trend', mode: 'auto', d: "What it's worth, and your return next to a GIC.", spot: 'Your return', img: shotValue, alt: 'Portfolio: net worth in property and the yearly return compared with savings, a GIC and stocks' },
+  { id: 'taxes', t: 'Tax summary', icon: 'print', mode: 'auto', d: 'Your rental tax numbers, ready for your accountant.', spot: 'Print for accountant', img: shotTaxes, alt: 'Taxes page: the year’s rental income and costs, with a list of anything to fix' },
+  { id: 'notice', t: 'Late-rent notices', icon: 'paper', mode: 'approve', d: 'The official notice, filled in and checked. You sign off.', spot: 'You approve', img: shotNotice, alt: 'An N4 notice for unpaid rent, filled in and checked, waiting for the landlord to approve' },
+  { id: 'tenants', t: 'Finding tenants', icon: 'users', mode: 'approve', d: 'Compare applicants side by side, then choose.', spot: 'Side by side', img: shotTenants, alt: 'Two rental applications compared side by side' },
 ];
 
-function Features() {
-  const [tab, setTab] = useState(0);
-  const f = FEATURES[tab];
+function Tour() {
+  const [i, setI] = useState(0);
+  const [zoom, setZoom] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; moved: boolean } | null>(null);
+  const n = TOUR.length;
+  const s = TOUR[i];
+  const spot = SPOTS[s.id];
+  const go = (k: number, focus = false) => {
+    const next = (k + n) % n;
+    setI(next);
+    const tab = list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next];
+    tab?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    if (focus) tab?.focus();
+  };
+  useEffect(() => {
+    if (!zoom) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoom(false); };
+    document.addEventListener('keydown', k); document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', k); document.body.style.overflow = ''; };
+  }, [zoom]);
+
   return (
-    <>
-      <PageHead kicker="Features" icon="sparkle" title={<>What Keyholder <em>automates.</em></>} aside={<div className="lp-aside-art"><SceneTap /></div>}>Eight jobs taken off your plate. Six run on their own; the two that need a decision always wait for you. Pick one to see how it works.</PageHead>
-      <section className="lp-sec lp-sec-top0">
-        <div className="lp-wrap lp-tabs">
-          <div className="lp-tablist" role="tablist" aria-label="Features" aria-orientation="vertical">
-            {FEATURES.map((x, i) => (
-              <button key={x.t} role="tab" id={`ft-${i}`} aria-selected={tab === i} aria-controls="ft-panel" tabIndex={tab === i ? 0 : -1} className={`lp-tab${tab === i ? ' on' : ''}`} onClick={() => setTab(i)}
-                onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); setTab((tab + 1) % FEATURES.length); } if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); setTab((tab + FEATURES.length - 1) % FEATURES.length); } }}>
-                <span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={x.icon} size={18} /></span>
-                <span><strong>{x.t} <ModeBadge mode={x.mode} /></strong><span>{x.short}</span></span>
+    <section className="lp-sec lp-tour" id="tour" aria-label="Take a closer look">
+      <div className="lp-wrap">
+        <SecHead kicker="Take a closer look" title="See Keyholder at work.">Real screens, with sample properties.</SecHead>
+        <div className="lp-tour-grid reveal">
+          <div className="lp-tour-list" role="tablist" aria-label="Features" ref={list}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); go(i + 1, true); }
+              if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1, true); }
+              if (e.key === 'Home') { e.preventDefault(); go(0, true); }
+              if (e.key === 'End') { e.preventDefault(); go(n - 1, true); }
+            }}>
+            {TOUR.map((x, k) => (
+              <button key={x.id} role="tab" id={`tour-tab-${x.id}`} aria-selected={k === i} aria-controls="tour-panel" tabIndex={k === i ? 0 : -1} className={`lp-tour-tab${k === i ? ' on' : ''}`} onClick={() => go(k)}>
+                <span className={`lp-tile-ic ${TONES[k % TONES.length]}`}><Icon name={x.icon} size={16} /></span>{x.t}
               </button>
             ))}
           </div>
-          <div className="lp-tabpanel" role="tabpanel" id="ft-panel" aria-labelledby={`ft-${tab}`} key={tab}>
-            <div className="lp-art" aria-hidden>{f.art}</div>
-            <div className="lp-panel-head"><h2>{f.t}</h2><ModeBadge mode={f.mode} /></div>
-            <p>{f.d}</p>
+          <div className="lp-tour-stage" role="tabpanel" id="tour-panel" aria-labelledby={`tour-tab-${s.id}`}>
+            <div className="mac">
+              <div className="mac-bar" aria-hidden><span className="mac-dots"><i /><i /><i /></span><span className="mac-url"><Icon name="lock" size={11} />keyholder.com</span></div>
+              <button className="mac-screen" aria-label={`Enlarge screen: ${s.alt}`}
+                onClick={() => { if (!touch.current?.moved) setZoom(true); }}
+                onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, moved: false }; }}
+                onTouchEnd={(e) => { const t = touch.current; if (!t) return; const dx = e.changedTouches[0].clientX - t.x; if (Math.abs(dx) > 40) { t.moved = true; go(dx < 0 ? i + 1 : i - 1); } }}>
+                {TOUR.map((x, k) => <img key={x.id} src={x.img} alt={k === i ? x.alt : ''} aria-hidden={k !== i} className={k === i ? 'on' : ''} loading="lazy" decoding="async" width={1600} height={1000} />)}
+                <span key={s.id} className="mac-spot" style={{ left: `${spot.x}%`, top: `${spot.y}%`, width: `${spot.w}%`, height: `${spot.h}%` }} aria-hidden>
+                  <b className={`${spot.y < 14 ? 'below' : ''} ${spot.x + spot.w / 2 > 70 ? 'r' : spot.x + spot.w / 2 < 25 ? 'l' : ''}`}>{s.spot}</b>
+                </span>
+              </button>
+            </div>
+            <div className="lp-tour-cap">
+              <p aria-live="polite"><ModeBadge mode={s.mode} /><span><strong>{s.t}.</strong> {s.d}</span></p>
+              <div className="lp-tour-nav">
+                <button onClick={() => go(i - 1)} aria-label="Previous feature"><Icon name="back" size={18} /></button>
+                <span className="lp-tour-count">{i + 1} of {n}</span>
+                <button onClick={() => go(i + 1)} aria-label="Next feature"><Icon name="next" size={18} /></button>
+              </div>
+            </div>
+            <p className="lp-tour-hint">Tap the screen to enlarge. Swipe for the next one.</p>
           </div>
         </div>
-      </section>
-    </>
+      </div>
+      {zoom && createPortal(
+        <div className="lp-zoom" role="dialog" aria-modal="true" aria-label={`${s.t}, enlarged`} onClick={() => setZoom(false)}>
+          <button className="lp-zoom-close" onClick={() => setZoom(false)} aria-label="Close" autoFocus><Icon name="close" size={22} /></button>
+          <div className="lp-zoom-scroll" onClick={(e) => e.stopPropagation()}><img src={s.img} alt={s.alt} /></div>
+        </div>,
+        document.body,
+      )}
+    </section>
   );
 }
 
@@ -321,28 +393,29 @@ function Pricing({ start }: { start: () => void }) {
     <>
       <PageHead kicker="Pricing · early access" icon="cash" title={<>Simple pricing. <em>Free to start.</em></>} aside={<Photo src={keysPhoto} alt="House keys next to a small model house on a table" className="aside" />}>Early-access prices are not final and will be confirmed before you are ever charged.</PageHead>
       <section className="lp-sec lp-sec-top0">
-        <div className="lp-wrap"><div className="lp-prices">
-          <div className="lp-price reveal">
-            <span className="lp-tile-ic big mint"><Icon name="home" size={22} /></span>
-            <h3>Starter</h3>
-            <p className="lp-amt">Free</p><p className="lp-per">Automation for one rental unit</p>
-            <ul><li>Rent tracking and receipts</li><li>Reminders</li><li>Expenses and receipt photos</li><li>Tax summary</li></ul>
-            <button className="btn lp-big" onClick={start}>Start free</button>
+        <div className="lp-wrap">
+          <div className="lp-prices">
+            <div className="lp-price reveal">
+              <span className="lp-tile-ic big mint"><Icon name="home" size={22} /></span>
+              <h3>Starter</h3>
+              <p className="lp-amt">Free</p><p className="lp-per">Automation for one rental unit</p>
+              <ul><li>Rent tracking and receipts</li><li>Reminders</li><li>Expenses and receipt photos</li><li>Tax summary</li></ul>
+              <button className="btn lp-big" onClick={start}>Start free</button>
+            </div>
+            <div className="lp-price best reveal">
+              <span className="lp-flag">Most landlords pick this</span>
+              <span className="lp-tile-ic big lilac"><Icon name="users" size={22} /></span>
+              <h3>Landlord</h3>
+              <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
+              <ul><li>Everything in Starter</li><li>Several banks: rent, bills and mortgage read for you</li><li>Notices and forms for your province</li><li>Applications and tenant screening tools</li><li>Silver and Gold insights, full tax pack</li></ul>
+              <button className="btn primary lp-big" onClick={start}>Get started</button>
+            </div>
           </div>
-          <div className="lp-price best reveal">
-            <span className="lp-flag">Most landlords pick this</span>
-            <span className="lp-tile-ic big lilac"><Icon name="users" size={22} /></span>
-            <h3>Landlord</h3>
-            <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
-            <ul><li>Everything in Starter</li><li>Several banks: rent, bills and mortgage read for you</li><li>Notices and forms for your province</li><li>Applications and tenant screening tools</li><li>Silver and Gold insights, full tax pack</li></ul>
-            <button className="btn primary lp-big" onClick={start}>Get started</button>
+          <div className="lp-trust-row lp-trust-under">
+            {[['lock', 'View-only bank access'], ['check', 'You approve everything'], ['shield', 'Data kept in Canada'], ['heart', 'Plain words, large text']].map(([ic, t], i) => (
+              <div key={t} className="lp-trust-item reveal" style={{ transitionDelay: `${i * 60}ms` }}><span className={`lp-tile-ic ${TONES[i]}`}><Icon name={ic} size={18} /></span>{t}</div>
+            ))}
           </div>
-        </div>
-        <div className="lp-trust-row lp-trust-under">
-          {[['lock', 'View-only bank access'], ['check', 'You approve everything'], ['shield', 'Data kept in Canada'], ['heart', 'Plain words, large text']].map(([ic, t], i) => (
-            <div key={t} className="lp-trust-item reveal" style={{ transitionDelay: `${i * 60}ms` }}><span className={`lp-tile-ic ${TONES[i]}`}><Icon name={ic} size={18} /></span>{t}</div>
-          ))}
-        </div>
         </div>
       </section>
     </>

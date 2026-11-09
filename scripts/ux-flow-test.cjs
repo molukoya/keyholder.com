@@ -251,9 +251,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const menuOpen = async () => { await pg.locator('.lp-burger').click(); const box = await pg.locator('.lp-menu').boundingBox(); if (!box || box.height < vp.height * 0.6) throw new Error(`menu only ${box ? Math.round(box.height) : 0}px tall`); };
     const menuGo = async (label) => { if (tag === 'phone') { await menuOpen(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
     await step(tag, 'D3 Menu → Provinces page → tap BC → BC forms', async () => { await menuGo('Provinces'); await pg.waitForSelector('h1:has-text("Built for every province")'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
-    await step(tag, 'D4 Every menu page opens and browser back works', async () => {
-      for (const [l, h] of [['Features', 'What Keyholder automates'], ['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Rental automation']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
-      await menuGo('Features'); await pg.waitForSelector('h1:has-text("What Keyholder automates")');
+    const tourInView = () => pg.waitForFunction(() => { const r = document.getElementById('tour')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.top < window.innerHeight / 2; }, null, { timeout: 5000 });
+    await step(tag, 'D4 Every menu page opens, Features jumps to the tour, browser back works', async () => {
+      for (const [l, h] of [['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Rental automation']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
+      await menuGo('Features'); await pg.waitForSelector('h1:has-text("Rental automation")'); await tourInView();
+      await pg.evaluate(() => window.scrollTo(0, 0)); await menuGo('Features'); await tourInView();
+      await menuGo('Pricing'); await pg.waitForSelector('h1:has-text("Simple pricing")');
       await pg.goBack(); await pg.waitForSelector('h1:has-text("Rental automation")');
       await menuGo('Overview');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
@@ -327,11 +330,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     await step(tag, 'F1 Website photos and pictures load', async () => {
       for (const p of ['', 'provinces', 'pricing']) {
         await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(400);
-        const broken = await pg.$$eval('.lp img', (ims) => ims.filter((i) => i.complete && i.naturalWidth === 0).length);
-        const count = await pg.locator('.lp img').count();
-        if (!count || broken) throw new Error(`${p || 'overview'}: ${count} photos, ${broken} broken`);
+        await pg.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 400) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 40)); } });
+        await pg.waitForFunction(() => [...document.querySelectorAll('.lp img')].every((i) => i.complete), null, { timeout: 8000 });
+        const res = await pg.$$eval('.lp img', (ims) => ({ count: ims.length, broken: ims.filter((i) => i.naturalWidth === 0).length }));
+        if (!res.count || res.broken) throw new Error(`${p || 'overview'}: ${res.count} images, ${res.broken} broken`);
       }
-      await pg.goto(BASE); if (!(await pg.locator('.lp-step-art svg').count())) throw new Error('no step illustrations');
+      await pg.goto(BASE); if ((await pg.locator('.lp-step-ic svg').count()) !== 3) throw new Error('step icons missing');
     });
     await step(tag, 'F2 Phones: a Start free bar stays at the bottom of the website', async () => {
       if (tag !== 'phone') return 'phone only';
@@ -355,6 +359,66 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'rent/tenant/t-maya'); await pg.waitForSelector('h1 .avatar');
     });
     ok(tag, 'F errors', errsF.length === 0, errsF.slice(0, 3).join(' | '));
+
+    // ---------------- G. Overview: simpler steps, Take a closer look tour, lighter closing card ----------------
+    const errsG = [];
+    pg = await (await b.newContext({ viewport: vp, hasTouch: tag === 'phone' })).newPage();
+    pg.on('pageerror', (e) => errsG.push(`G ${e.message}`));
+    const tour = async () => { await pg.goto(BASE + '#/welcome'); await pg.locator('#tour').scrollIntoViewIfNeeded(); await pg.waitForTimeout(500); };
+    const active = () => pg.evaluate(() => { const on = document.querySelector('.mac-screen img.on'); const sel = document.querySelector('.lp-tour-tab[aria-selected="true"]'); return { alt: on?.getAttribute('alt') || '', loaded: !!on && on.complete && on.naturalWidth > 0, tab: sel?.textContent || '', count: document.querySelector('.lp-tour-count')?.textContent || '' }; });
+    await step(tag, 'G1 Overview is short: no long hero sentence; How it works is 3 short steps with icons', async () => {
+      await pg.goto(BASE + '#/welcome'); await pg.waitForSelector('.lp-hero-h');
+      if (await pg.locator('.lp-hero >> text=automates the busywork').count()) throw new Error('hero sentence still there');
+      await pg.waitForSelector('.lp-how h2:has-text("3 steps. 15 minutes.")');
+      if ((await pg.locator('.lp-step').count()) !== 3 || (await pg.locator('.lp-step-ic svg').count()) !== 3) throw new Error('steps or icons missing');
+      const longest = await pg.$$eval('.lp-step p', (ps) => Math.max(...ps.map((x) => x.textContent.length))); if (longest > 40) throw new Error('step text too long: ' + longest);
+    });
+    await step(tag, 'G2 Tour: each of the 8 features shows its own screen, counter follows', async () => {
+      await tour(); if ((await pg.locator('.lp-tour-tab').count()) !== 8) throw new Error('not 8 features');
+      const seen = new Set();
+      for (let k = 0; k < 8; k++) {
+        await pg.locator('.lp-tour-tab').nth(k).click(); await pg.waitForTimeout(250);
+        const a = await active(); if (!a.loaded || !a.alt || a.count !== `${k + 1} of 8`) throw new Error(`stop ${k + 1}: ${JSON.stringify(a)}`);
+        if (!(await pg.locator('.mac-spot b').textContent())) throw new Error(`stop ${k + 1}: no highlight label`);
+        seen.add(a.alt);
+      }
+      if (seen.size !== 8) throw new Error('screens repeat');
+    });
+    await step(tag, 'G3 Tour: Next and Previous wrap around', async () => {
+      await pg.locator('.lp-tour-nav [aria-label="Next feature"]').click(); await pg.waitForTimeout(200);
+      if ((await active()).count !== '1 of 8') throw new Error('next from 8 did not wrap');
+      await pg.locator('.lp-tour-nav [aria-label="Previous feature"]').click(); await pg.waitForTimeout(200);
+      if ((await active()).count !== '8 of 8') throw new Error('previous from 1 did not wrap');
+    });
+    await step(tag, 'G4 Tour: arrow keys move between features', async () => {
+      await pg.locator('.lp-tour-tab[aria-selected="true"]').focus(); await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(200);
+      const a = await active(); if (a.count !== '1 of 8' || !(await pg.evaluate(() => document.activeElement?.getAttribute('aria-selected') === 'true'))) throw new Error(JSON.stringify(a));
+    });
+    await step(tag, 'G5 Tour: tap the screen to enlarge; Esc and the close button both close it', async () => {
+      await pg.locator('.mac-screen').click(); await pg.waitForSelector('.lp-zoom img');
+      if (tag === 'phone' && !(await pg.evaluate(() => document.querySelector('.lp-zoom img').getBoundingClientRect().width > window.innerWidth))) throw new Error('phone: enlarged screen not wider than the phone');
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(150); if (await pg.locator('.lp-zoom').count()) throw new Error('Esc did not close');
+      await pg.locator('.mac-screen').click(); await pg.locator('.lp-zoom-close').click(); await pg.waitForTimeout(150); if (await pg.locator('.lp-zoom').count()) throw new Error('close button did not close');
+    });
+    await step(tag, 'G6 Phones: swipe the screen to go to the next feature', async () => {
+      if (tag !== 'phone') return 'phone only';
+      const before = (await active()).count;
+      await pg.locator('.mac-screen').evaluate((el) => {
+        const r = el.getBoundingClientRect(); const y = r.top + r.height / 2;
+        const t = (x) => new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+        el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [t(r.right - 30)], changedTouches: [t(r.right - 30)] }));
+        el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [t(r.left + 30)] }));
+      });
+      await pg.waitForTimeout(250);
+      const after = (await active()).count; if (after === before) throw new Error('swipe did nothing: ' + after);
+      if (await pg.locator('.lp-zoom').count()) throw new Error('swipe opened the enlarged view');
+    });
+    await step(tag, 'G7 The closing card is light (no gradient)', async () => {
+      const bg = await pg.locator('.lp-cta-card').evaluate((el) => { const c = getComputedStyle(el); return { img: c.backgroundImage, color: c.backgroundColor }; });
+      if (bg.img !== 'none') throw new Error('still a gradient');
+      const rgb = bg.color.match(/\d+/g).map(Number); if (rgb.slice(0, 3).some((v) => v < 235)) throw new Error('not light: ' + bg.color);
+    });
+    ok(tag, 'G errors', errsG.length === 0, errsG.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;

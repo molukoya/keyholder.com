@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "preview:claude": "vite build && node scripts/build-artifact.mjs",
-    "test:ux": "node scripts/ux-flow-test.cjs"
+    "test:ux": "node scripts/ux-flow-test.cjs",
+    "screens": "node scripts/capture-screens.cjs"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

@@ -37,7 +37,7 @@ export function ReminderDrawer({ lease, period, tone: initial, onClose }: { leas
         <textarea aria-label="Message" value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
       </div>
       <p className="letter-foot">Sends now. Cancels automatically if payment arrives first.</p>
-      {tone === 'firm' && <div className="callout">A reminder is not a legal notice. If rent stays unpaid, the formal step in Ontario is an N4 — Keyholder will prepare it once notices are added.</div>}
+      {tone === 'firm' && <div className="callout">A reminder is not a legal notice. If rent stays unpaid, Keyholder can prepare your province's official notice next.</div>}
     </Drawer>
   );
 }

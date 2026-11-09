@@ -330,7 +330,7 @@ input[type=range] { accent-color: var(--brass); width: 100%; }
 .q-lines span { flex: 1; height: 0; border-top: 2px solid var(--rule); transition: border-color var(--dur-trans); }
 .q-lines span.done { border-color: var(--ink); }
 .q-lines span.now { border-color: var(--brass); }
-.q-question { font-family: var(--font-display); font-size: clamp(1.9rem, 4.6vw, 2.6rem); line-height: 1.12; margin-bottom: var(--s-3); font-weight: 800; letter-spacing: -0.025em; }
+.q-question { font-family: var(--font-display); font-size: clamp(1.9rem, 4.6vw, 2.6rem); line-height: 1.12; margin-bottom: var(--s-3); font-weight: 700; letter-spacing: -0.025em; }
 .q-aside { color: var(--ink-soft); font-size: var(--t-16); margin-bottom: var(--s-6); display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
 .q-aside svg { flex: none; margin-top: 3px; color: var(--primary); }
 .q-count { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--primary); }
