@@ -17,10 +17,12 @@ async function onboard(pg) {
   await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
   await pg.waitForTimeout(300);
 }
-// The sample properties open only through Admin sign in (admin / admin).
+// One sign-in form: test / test opens the demo (sample properties), admin / admin the support dashboard.
+async function login(pg, user, pass) {
+  await pg.goto(BASE + '#/signin'); await pg.fill('#login-user', user); await pg.fill('#login-pass', pass); await pg.click('.acct-login >> text=Sign in');
+}
 async function adminIn(pg, skipTour = true) {
-  await pg.goto(BASE + '#/signin'); await pg.click('text=Admin sign in');
-  await pg.fill('#admin-user', 'admin'); await pg.fill('#admin-pass', 'admin'); await pg.click('text=Sign in as admin');
+  await login(pg, 'test', 'test');
   await pg.waitForSelector('.rent-row');
   if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
@@ -280,8 +282,8 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question'); });
-    await step(tag, 'D6 Admin sign in → sample Home, admin banner and tour (5 steps)', async () => {
-      await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Admin preview'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
+    await step(tag, 'D6 test / test → sample Home, demo banner and tour (5 steps)', async () => {
+      await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Demo:'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
       for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
       await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200); if (await pg.locator('.tour').count()) throw new Error('tour still open');
     });
@@ -345,7 +347,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
     await step(tag, 'E5 Sign in with an unknown email offers to create an account', async () => {
       await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
-      await pg.goto(BASE + '#/signin'); await pg.fill('#ob-email', 'someone@else.ca'); await pg.click('text=Email me a sign-in link'); await pg.click('text=Open the link (preview)');
+      await login(pg, 'someone@else.ca', 'anything');
       await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
     });
     ok(tag, 'E errors', errsE.length === 0, errsE.slice(0, 3).join(' | '));
@@ -455,12 +457,15 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const errsH = [];
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsH.push(`H ${e.message}`));
-    await step(tag, 'H1 Admin sign in: a wrong password is refused; admin / admin opens the sample', async () => {
-      await pg.goto(BASE + '#/signin'); await pg.click('text=Admin sign in');
-      await pg.fill('#admin-user', 'admin'); await pg.fill('#admin-pass', 'letmein'); await pg.click('text=Sign in as admin');
-      await pg.waitForSelector('.acct-error >> text=not right'); if (await pg.locator('.rent-row').count()) throw new Error('opened with a wrong password');
-      await pg.fill('#admin-pass', 'admin'); await pg.click('text=Sign in as admin'); await pg.waitForSelector('.sample-banner >> text=Admin preview');
+    await step(tag, 'H1 One sign-in form: wrong passwords refused; test / test opens the demo; no Admin sign in link', async () => {
+      await pg.goto(BASE + '#/signin'); if (await pg.locator('text=Admin sign in').count()) throw new Error('old Admin sign in link still there');
+      for (const [u, pw] of [['test', 'nope'], ['admin', 'letmein'], ['not-an-email', 'x']]) {
+        await login(pg, u, pw); await pg.waitForSelector('.acct-error >> text=not right');
+        if (await pg.locator('.rent-row, .sp').count()) throw new Error(`${u} opened with a wrong password`);
+      }
+      await login(pg, 'test', 'test'); await pg.waitForSelector('.sample-banner >> text=Demo:');
       await pg.locator('.tour-card >> text=Skip tour').click();
+      await pg.goto(BASE + '#/support'); await pg.waitForTimeout(300); if (await pg.locator('.sp').count()) throw new Error('the demo reached the support dashboard');
       await go(pg, 'settings'); for (const t of ['Restore sample data', 'Replay the signup questions']) if (!(await pg.locator(`text=${t}`).count())) throw new Error(`admin has no "${t}"`);
       await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
     });
@@ -473,7 +478,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await adminIn(pg); await go(pg, 'rentals'); await pg.waitForSelector('text=Maple triplex');
       if (await pg.locator('text=Oak house').count()) throw new Error('own data mixed into the sample');
       await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
-      await pg.goto(BASE + '#/signin'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Email me a sign-in link'); await pg.click('text=Open the link (preview)');
+      await login(pg, 'alex.morgan@example.com', 'my-password');
       await pg.waitForSelector('.rent-card, .start-steps'); await go(pg, 'rentals'); await pg.waitForSelector('text=Oak house');
       if (await pg.locator('text=Maple triplex').count()) throw new Error('sample left behind in the account');
     });
@@ -557,6 +562,61 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (first !== 'Sign in (main)') throw new Error('first button: ' + first);
     });
     ok(tag, 'I errors', errsI.length === 0, errsI.slice(0, 3).join(' | '));
+
+    // ---------------- J. Support dashboard (admin / admin) ----------------
+    const errsJ = [];
+    pg = await (await b.newContext({ viewport: vp })).newPage();
+    pg.on('pageerror', (e) => errsJ.push(`J ${e.message}`));
+    await step(tag, 'J1 admin / admin opens the support dashboard: what needs you, and the numbers', async () => {
+      await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head h1:has-text("Good to see you")');
+      if ((await pg.locator('.sp-needs li').count()) < 3) throw new Error('needs-you list short');
+      if ((await pg.locator('.sp-tiles.six .sp-tile').count()) !== 6) throw new Error('number tiles');
+    });
+    await step(tag, 'J2 Every support page opens, with no sideways scroll', async () => {
+      for (const [p, h] of [['inbox', 'Inbox'], ['customers', 'Customers'], ['revenue', 'Revenue'], ['growth', 'Growth'], ['health', 'System health'], ['rules', 'Province rules'], ['announcements', 'Announcements'], ['privacy', 'Privacy & audit'], ['team', 'Team & settings']]) {
+        await go(pg, 'support/' + p); await pg.waitForSelector(`.sp-head h1:has-text("${h}")`);
+        if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error(`${p}: sideways scroll`);
+      }
+    });
+    await step(tag, 'J3 Inbox: open a request, send a saved reply; it waits on the customer and is logged', async () => {
+      await go(pg, 'support/inbox'); const subject = (await pg.locator('.sp-tickets strong').first().textContent()).trim();
+      await pg.locator('.sp-tickets a').first().click(); await pg.waitForSelector('.sp-thread');
+      await pg.locator('.sp-reply select').selectOption({ index: 1 }); await pg.locator('text=Send reply').click(); await pg.waitForTimeout(200);
+      await pg.waitForSelector('.sp-head >> text=Waiting on customer');
+      await go(pg, 'support/privacy'); await pg.waitForSelector('.ledger >> text=Reply sent'); return subject;
+    });
+    await step(tag, 'J4 Search finds a customer; give 30 free days and add a note', async () => {
+      await go(pg, 'support'); const name = (await pg.locator('.sp-list strong').first().textContent()).trim();
+      await pg.fill('#sp-q', name); await pg.locator(`.sp-search-res >> text=${name}`).first().click(); await pg.waitForSelector(`.sp-head h1:has-text("${name}")`);
+      await pg.locator('text=Give 30 more free days').click(); await pg.waitForSelector('text=Free period until');
+      await pg.fill('#cn', 'Called about rooms'); await pg.locator('.sp-addrow button').first().click(); await pg.waitForSelector('text=Called about rooms');
+      return name;
+    });
+    await step(tag, 'J5 Announcements: a message for both shows on the website and in the app, then hides', async () => {
+      await go(pg, 'support/announcements'); await pg.fill('.sp-card textarea', 'Bank checks pause tonight at 2 a.m.');
+      await pg.locator('.seg[aria-label="Show on"] >> text=Both').click(); await pg.locator('text=Post message').click(); await pg.waitForTimeout(200);
+      await go(pg, 'welcome'); await pg.waitForSelector('.announce.website >> text=Bank checks pause');
+      await go(pg, 'today'); await pg.waitForSelector('.announce.app >> text=Bank checks pause');
+      await go(pg, 'support/announcements'); await pg.locator('.sp-rows li', { hasText: 'Bank checks pause' }).locator('text=Hide').click(); await pg.waitForTimeout(200);
+      await go(pg, 'welcome'); if (await pg.locator('.announce').count()) throw new Error('still showing after Hide');
+    });
+    await step(tag, 'J6 Privacy: answer a data request; it leaves the to-do list', async () => {
+      await go(pg, 'support/privacy'); const n = await pg.locator('.sp-rows li').count();
+      await pg.locator('.sp-rows li').first().locator('.btn.primary').click(); await pg.waitForTimeout(200);
+      if ((await pg.locator('.sp-rows li').count()) !== n - 1) throw new Error('request still open');
+    });
+    await step(tag, 'J7 Revenue: retry a failed payment; Province rules: mark one checked', async () => {
+      await go(pg, 'support/revenue'); const before = await pg.locator('text=Retry payment').count(); await pg.locator('text=Retry payment').first().click(); await pg.waitForTimeout(200);
+      if ((await pg.locator('text=Retry payment').count()) !== before - 1) throw new Error('payment still failed');
+      await go(pg, 'support/rules'); await pg.locator('tr', { hasText: 'Alberta' }).locator('text=Checked today').click(); await pg.waitForTimeout(200);
+      if (!(await pg.locator('tr', { hasText: 'Alberta' }).locator('text=Verified').count())) throw new Error('Alberta not verified');
+    });
+    await step(tag, 'J8 Sign out returns to the website, and the dashboard is closed again', async () => {
+      if (tag === 'phone') await go(pg, 'support');
+      await pg.locator('.sp-rail-foot >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await go(pg, 'support'); await pg.waitForTimeout(200); if (await pg.locator('.sp').count()) throw new Error('dashboard still open');
+    });
+    ok(tag, 'J errors', errsJ.length === 0, errsJ.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;

@@ -80,7 +80,7 @@ export function Team() {
       </section>
       <section className="sp-card sp-sec"><h2 className="sp-h3">Saved replies</h2>
         <ul className="sp-rows">{s.replies.map((r) => (
-          <li key={r.id}><span><strong>{r.title}</strong><span>{r.text}</span></span><button className="btn small ghost" onClick={() => sup((d) => { d.replies = d.replies.filter((x) => x.id !== r.id); }, { action: 'Saved reply deleted', detail: r.title }, 'Deleted.')}><Icon name="trash" size={14} /><span className="sr-only">Delete</span></button></li>
+          <li key={r.id}><span><strong>{r.title}</strong><span>{r.text}</span></span><button className="btn small ghost" aria-label={`Delete saved reply ${r.title}`} onClick={() => sup((d) => { d.replies = d.replies.filter((x) => x.id !== r.id); }, { action: 'Saved reply deleted', detail: r.title }, 'Deleted.')}><Icon name="trash" size={14} /></button></li>
         ))}</ul>
         <form className="sp-stackform" onSubmit={(e) => { e.preventDefault(); sup((d) => { d.replies.push({ id: `r${Date.now()}`, title: reply.title.trim(), text: reply.text.trim() }); }, { action: 'Saved reply added', detail: reply.title.trim() }, 'Saved reply added.'); setReply({ title: '', text: '' }); }}>
           <label className="field"><span className="label">Title</span><input className="input" value={reply.title} onChange={(e) => setReply({ ...reply, title: e.target.value })} /></label>

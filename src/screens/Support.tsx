@@ -60,7 +60,7 @@ export function Support() {
           ))}
         </nav>
         <div className="sp-rail-foot">
-          <button className="btn small" onClick={() => nav('/today')}><Icon name="home" size={14} />Open the sample landlord app</button>
+          <button className="btn small" onClick={() => nav('/today')}>Open the sample landlord app</button>
           <button className="btn small ghost" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
         </div>
       </aside>

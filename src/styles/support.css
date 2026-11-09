@@ -121,7 +121,7 @@
 .sp-cust span { font-size: 13px; color: var(--ink-soft); }
 .sp-showmore { margin-top: 12px; }
 .sp-actions { display: grid; gap: 10px; }
-.sp-actions > .btn { justify-content: flex-start; }
+.sp-actions > .btn { justify-content: center; }
 .sp-actions .field { margin: 0; }
 .sp-addrow { display: flex; gap: 8px; margin-top: 10px; }
 .sp-addrow .input { flex: 1; min-width: 0; }
@@ -212,3 +212,8 @@
   .sp-tile-v strong { font-size: 24px; }
   .sp-thread li.agent, .sp-thread li.note { margin-left: 12px; }
 }
+
+/* Long button labels wrap rather than run off small screens */
+.sp .btn { max-width: 100%; white-space: normal; text-align: center; line-height: 1.3; }
+.sp-rows .btn, .sp-reply-foot .btn { white-space: nowrap; }
+@media (max-width: 420px) { .sp-actions .btn svg { display: none; } }

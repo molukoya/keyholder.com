@@ -37,11 +37,10 @@ const SHOTS = [
   const now = new Date(); now.setHours(10, 30, 0, 0);
   await ctx.clock.setFixedTime(now);
   const pg = await ctx.newPage();
-  // The sample properties open only through Admin sign in.
+  // The sample properties open with the demo login (test / test).
   await pg.goto(`${BASE}#/signin`);
-  await pg.click('text=Admin sign in');
-  await pg.fill('#admin-user', 'admin'); await pg.fill('#admin-pass', 'admin');
-  await pg.click('text=Sign in as admin');
+  await pg.fill('#login-user', 'test'); await pg.fill('#login-pass', 'test');
+  await pg.click('.acct-login >> text=Sign in');
   await pg.locator('.tour-card >> text=Skip tour').click();
   const conv = await (await browser.newContext()).newPage();
   const hotspots = {};
