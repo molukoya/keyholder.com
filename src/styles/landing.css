@@ -52,7 +52,9 @@
 .lp-links a { color: var(--lp-soft); text-decoration: none; font-size: var(--fs-body); font-weight: 600; padding: 8px 12px; border-radius: 10px; }
 .lp-links a:hover { color: var(--lp-ink); background: var(--lp-tint); }
 .lp-links a.on { color: var(--indigo); background: #F4F5FF; }
-.lp-nav-cta { margin-left: auto; }
+.lp-nav-cta { margin-left: auto; transition: opacity 200ms var(--ease), visibility 0s linear 0s; }
+/* While the page's own Start free / Sign in are on screen, the menu bar's pair steps aside (keeping its space). */
+.lp-nav-cta.away { opacity: 0; visibility: hidden; transition: opacity 200ms var(--ease), visibility 0s linear 200ms; }
 .lp-nav-cta .btn.ghost { color: var(--lp-ink); }
 .lp-burger { display: none; margin-left: auto; gap: 6px; background: #fff; color: var(--lp-ink); border: 1px solid var(--lp-rule); }
 .lp-menu { position: fixed; inset: 72px 0 0 0; z-index: 59; background: #fff; padding: 8px var(--sp-side) 32px; overflow-y: auto; display: flex; flex-direction: column; animation: lp-fade 180ms var(--ease); }
@@ -67,9 +69,10 @@
 
 /* Phones: a Start free bar stays at the bottom */
 .lp-sticky { display: none; }
+/* It slides away while the page's own Start free / Sign in, or the footer, are on screen. */
 @media (max-width: 760px) {
-  .lp.has-sticky { padding-bottom: 84px; }
-  .lp-sticky { display: flex; gap: 10px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 58; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid var(--lp-rule); }
+  .lp-sticky { display: flex; gap: 10px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 58; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid var(--lp-rule); transition: transform 250ms var(--ease), visibility 0s linear 0s; }
+  .lp-sticky.away { transform: translateY(110%); visibility: hidden; transition: transform 250ms var(--ease), visibility 0s linear 250ms; }
   .lp-sticky .btn { flex: 1; min-height: 50px; }
 }
 
@@ -324,6 +327,7 @@
 @media (max-width: 760px) { .lp-foot-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .lp-foot-grid > div:first-child { grid-column: 1 / -1; } }
 
 @media (prefers-reduced-motion: reduce) {
+  .lp-sticky, .lp-nav-cta { transition: none !important; }
   .lp-hero-demo, .lp-chip-float, .lp-swap, .mac-spot, .mac-spot::before { animation: none; }
   .mac-screen img { transition: none; }
   .lp .reveal { opacity: 1; transform: none; transition: none; }

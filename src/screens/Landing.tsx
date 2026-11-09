@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
@@ -37,6 +37,48 @@ const href = (id: string) => (id ? `/welcome/${id}` : '/welcome');
 const toTour = () => requestAnimationFrame(() => document.getElementById('tour')?.scrollIntoView({ block: 'start' }));
 
 /** Adds "shown" to every .reveal element as it scrolls into view. */
+/**
+ * True while any of the page's own Start free / Sign in buttons, or the footer, are on screen (the part under
+ * the menu bar does not count). The phone bar and the menu-bar buttons step aside then, so the same buttons
+ * never show twice at once.
+ */
+function usePageCtaShown(key: string) {
+  const [shown, setShown] = useState(true);
+  useEffect(() => {
+    const els = [...document.querySelectorAll('.lp [data-cta], .lp-foot')];
+    if (!els.length || typeof IntersectionObserver === 'undefined') { setShown(false); return; }
+    const vis = new Set<Element>();
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) { if (e.isIntersecting) vis.add(e.target); else vis.delete(e.target); }
+      setShown(vis.size > 0);
+    }, { rootMargin: '-72px 0px 0px 0px' });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [key]);
+  return shown;
+}
+
+/** True while the tour is in the middle of the screen, so the menu can light up "Features". */
+function useTourInView(on: boolean) {
+  const [inTour, setInTour] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById('tour');
+    if (!on || !el || typeof IntersectionObserver === 'undefined') { setInTour(false); return; }
+    const io = new IntersectionObserver(([e]) => setInTour(e.isIntersecting), { rootMargin: '-45% 0px -45% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [on]);
+  return inTour;
+}
+
+/** Start free and Sign in as a pair. Someone who already has an account in this browser gets Sign in first. */
+function CtaPair({ start, signIn, returning, big, ghost = '' }: { start: () => void; signIn: () => void; returning: boolean; big?: boolean; ghost?: string }) {
+  const cls = (primary: boolean) => `btn${primary ? ' primary' : ` ${ghost}`}${big ? ' lp-big' : ''}`.trim();
+  const s = <button key="start" className={cls(!returning)} onClick={start}>Start free</button>;
+  const i = <button key="signin" className={cls(returning)} onClick={signIn}>Sign in</button>;
+  return <>{returning ? [i, s] : [s, i]}</>;
+}
+
 function useReveal(key: string) {
   useEffect(() => {
     const els = [...document.querySelectorAll<HTMLElement>('.lp .reveal')];
@@ -60,6 +102,8 @@ export function Landing() {
   // Only a signed-in account (admin included) gets "Open my dashboard", and only in the menu bar.
   // Everyone else, including an old demo left in this browser, sees Sign in and Start free.
   const signedIn = !!state.profile.account?.signedIn;
+  // Signed out of an account that lives in this browser: Sign in is the main button.
+  const returning = !signedIn && !!state.profile.account && state.profile.account.provider !== 'admin';
   const start = () => nav(signedIn ? '/today' : '/start');
   const signIn = () => nav(signedIn ? '/today' : '/signin');
   // Tapping the page you are already on: back to its top (or to the tour, for Features).
@@ -70,33 +114,40 @@ export function Landing() {
   useEffect(() => { document.title = idx === 0 ? 'Keyholder · Rental automation for Canadian landlords' : `${PAGES[idx].label} · Keyholder`; }, [idx]);
   useEffect(() => { document.body.style.overflow = menu ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [menu]);
   useReveal(page);
+  const ctaShown = usePageCtaShown(page);
+  const overview = page === '' || page === 'features';
+  const inTour = useTourInView(overview);
+  // Which menu item is lit: on the Overview, Features lights up while the tour is on screen.
+  const isOn = (id: string) => (overview ? (id === 'features' ? inTour : id === '' ? !inTour : false) : id === page);
 
   const ctas = signedIn
     ? <Link className="btn primary" to="/today">Open my dashboard</Link>
-    : <><Link className="btn ghost" to="/signin">Sign in</Link><button className="btn primary" onClick={start}>Start free</button></>;
+    : returning
+      ? <><button className="btn ghost" onClick={start}>Start free</button><button className="btn primary" onClick={signIn}>Sign in</button></>
+      : <><Link className="btn ghost" to="/signin">Sign in</Link><button className="btn primary" onClick={start}>Start free</button></>;
 
   return (
-    <div className={`lp${signedIn ? '' : ' has-sticky'}`}>
+    <div className="lp">
       <header className={`lp-nav${solid || menu ? ' solid' : ''}`}>
         <div className="lp-wrap lp-nav-in">
           <Link to="/welcome" className="lp-brand" aria-label="Keyholder home" onClick={() => same('')}><Brand size={28} /></Link>
           <nav aria-label="Site" className="lp-links">
-            {PAGES.map((p) => <NavLink key={p.id} end to={href(p.id)} onClick={() => same(p.id)} className={({ isActive }) => (isActive ? 'on' : '')}>{p.label}</NavLink>)}
+            {PAGES.map((p) => <Link key={p.id} to={href(p.id)} onClick={() => same(p.id)} className={isOn(p.id) ? 'on' : ''} aria-current={isOn(p.id) ? 'page' : undefined}>{p.label}</Link>)}
           </nav>
-          <div className="btn-row lp-nav-cta">{ctas}</div>
+          <div className={`btn-row lp-nav-cta${!signedIn && ctaShown ? ' away' : ''}`} aria-hidden={!signedIn && ctaShown ? true : undefined}>{ctas}</div>
           <button className="btn lp-burger" aria-expanded={menu} aria-controls="lp-menu" onClick={() => setMenu((m) => !m)}><Icon name={menu ? 'close' : 'menu'} size={20} /><span>Menu</span></button>
         </div>
       </header>
       {/* Outside the header on purpose: the header's frosted-glass effect would trap a full-screen menu inside its 72px. */}
       {menu && (
         <div className="lp-menu" id="lp-menu">
-          {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={p.id === page ? 'on' : ''} onClick={() => same(p.id)}><span className="lp-menu-ic"><Icon name={p.icon} size={20} /></span>{p.label}<Icon name="next" size={18} /></Link>)}
+          {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={isOn(p.id) ? 'on' : ''} onClick={() => same(p.id)}><span className="lp-menu-ic"><Icon name={p.icon} size={20} /></span>{p.label}<Icon name="next" size={18} /></Link>)}
           <div className="btn-row">{ctas}</div>
         </div>
       )}
 
       <main>
-        {(page === '' || page === 'features') && <Overview start={start} signIn={signIn} />}
+        {overview && <Overview start={start} signIn={signIn} returning={returning} />}
         {page === 'provinces' && <Provinces />}
         {page === 'pricing' && <Pricing start={start} />}
         {page === 'questions' && <Questions />}
@@ -108,9 +159,8 @@ export function Landing() {
                 <h2 className="lp-h2">Ready to automate your rental?</h2>
                 <p className="lp-lede">Free for 1 rental unit. No card needed.</p>
               </div>
-              <div className="btn-row">
-                <button className="btn primary lp-big" onClick={start}>Start free</button>
-                <button className="btn lp-big lp-cta-ghost" onClick={signIn}>Sign in</button>
+              <div className="btn-row" data-cta>
+                <CtaPair start={start} signIn={signIn} returning={returning} big ghost="lp-cta-ghost" />
               </div>
             </div>
           </div>
@@ -131,9 +181,8 @@ export function Landing() {
       </footer>
 
       {!signedIn && !menu && (
-        <div className="lp-sticky" role="region" aria-label="Get started">
-          <button className="btn primary" onClick={start}>Start free</button>
-          <button className="btn" onClick={signIn}>Sign in</button>
+        <div className={`lp-sticky${ctaShown ? ' away' : ''}`} role="region" aria-label="Get started" aria-hidden={ctaShown ? true : undefined}>
+          <CtaPair start={start} signIn={signIn} returning={returning} />
         </div>
       )}
     </div>
@@ -212,7 +261,7 @@ const STEPS: ['home' | 'bank' | 'tap', string, string, string][] = [
   ['tap', 'Tap to approve', 'Nothing is sent without you.', 'One tap'],
 ];
 
-function Overview({ start, signIn }: { start: () => void; signIn: () => void }) {
+function Overview({ start, signIn, returning }: { start: () => void; signIn: () => void; returning: boolean }) {
   return (
     <>
       <section className="lp-hero">
@@ -224,9 +273,8 @@ function Overview({ start, signIn }: { start: () => void; signIn: () => void }) 
             <ul className="lp-auto" aria-label="What Keyholder automates">
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
-            <div className="btn-row">
-              <button className="btn primary lp-big" onClick={start}>Start free</button>
-              <button className="btn lp-big" onClick={signIn}>Sign in</button>
+            <div className="btn-row" data-cta>
+              <CtaPair start={start} signIn={signIn} returning={returning} big />
             </div>
           </div>
           <div className="lp-hero-visual">
@@ -356,8 +404,29 @@ const TILES: [Province, number, number][] = [
   ['BC', 1, 2], ['AB', 2, 2], ['SK', 3, 2], ['MB', 4, 2], ['ON', 5, 2], ['QC', 6, 2], ['NL', 7, 2],
   ['NB', 6, 3], ['PE', 7, 3], ['NS', 7, 4],
 ];
+// Time zones that point to one province or territory. Quebec shares Toronto's time zone, so French on that zone means Quebec.
+const TZ_PROVINCE: Record<string, Province> = {
+  'America/Vancouver': 'BC', 'America/Edmonton': 'AB', 'America/Regina': 'SK', 'America/Swift_Current': 'SK', 'America/Winnipeg': 'MB',
+  'America/Toronto': 'ON', 'America/Thunder_Bay': 'ON', 'America/Nipigon': 'ON', 'America/Montreal': 'QC', 'America/Halifax': 'NS', 'America/Glace_Bay': 'NS',
+  'America/Moncton': 'NB', 'America/St_Johns': 'NL', 'America/Goose_Bay': 'NL', 'America/Whitehorse': 'YT', 'America/Dawson': 'YT',
+  'America/Yellowknife': 'NT', 'America/Inuvik': 'NT', 'America/Iqaluit': 'NU', 'America/Rankin_Inlet': 'NU', 'America/Cambridge_Bay': 'NU',
+};
+/** The visitor's own province: from their account if they have one, otherwise a guess from the device's time zone. */
+function homeProvince(own?: Province): { p: Province; guessed: boolean } {
+  if (own) return { p: own, guessed: false };
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let p = TZ_PROVINCE[tz];
+    if (p === 'ON' && /^fr/i.test(navigator.language)) p = 'QC';
+    if (p) return { p, guessed: true };
+  } catch { /* no time zone: fall back */ }
+  return { p: 'ON', guessed: false };
+}
+
 function Provinces() {
-  const [sel, setSel] = useState<Province>('ON');
+  const { state } = useStore();
+  const [start] = useState(() => homeProvince(state.profile.onboarded ? state.profile.province : undefined));
+  const [sel, setSel] = useState<Province>(start.p);
   const info = province(sel);
   const late = formsFor(sel, 'late-rent'), inc = formsFor(sel, 'rent-increase'), lease = formsFor(sel, 'lease');
   return (
@@ -371,7 +440,7 @@ function Provinces() {
               <div className="lp-tiles" role="radiogroup" aria-label="Province">
                 {TILES.map(([p, c, r]) => <button key={p} role="radio" aria-checked={sel === p} aria-label={province(p).name} className={`lp-tile${sel === p ? ' on' : ''}`} style={{ gridColumn: c, gridRow: r }} onClick={() => setSel(p)}>{p}</button>)}
               </div>
-              <p className="lp-map-hint"><Icon name="pin" size={16} />Selected: <strong>{info.name}</strong></p>
+              <p className="lp-map-hint"><Icon name="pin" size={16} />{start.guessed && sel === start.p ? <>Showing <strong>{info.name}</strong>, from your device's time zone. Tap another to switch.</> : <>Selected: <strong>{info.name}</strong></>}</p>
             </div>
             <div className="lp-map-info" aria-live="polite">
               <div key={sel} className="lp-swap">
@@ -405,7 +474,7 @@ function Pricing({ start }: { start: () => void }) {
               <h3>Starter</h3>
               <p className="lp-amt">Free</p><p className="lp-per">Automation for one rental unit</p>
               <ul><li>Rent tracking and receipts</li><li>Reminders</li><li>Expenses and receipt photos</li><li>Tax summary</li></ul>
-              <button className="btn lp-big" onClick={start}>Start free</button>
+              <button className="btn lp-big" onClick={start} data-cta>Start free</button>
             </div>
             <div className="lp-price best reveal">
               <span className="lp-flag">Most landlords pick this</span>
@@ -413,7 +482,7 @@ function Pricing({ start }: { start: () => void }) {
               <h3>Landlord</h3>
               <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
               <ul><li>Everything in Starter</li><li>Several banks: rent, bills and mortgage read for you</li><li>Notices and forms for your province</li><li>Applications and tenant screening tools</li><li>Silver and Gold insights, full tax pack</li></ul>
-              <button className="btn primary lp-big" onClick={start}>Get started</button>
+              <button className="btn primary lp-big" onClick={start} data-cta>Get started</button>
             </div>
           </div>
           <div className="lp-trust-row lp-trust-under">
