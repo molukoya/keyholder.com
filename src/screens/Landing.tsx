@@ -204,10 +204,10 @@ function StepIcon({ name }: { name: 'home' | 'bank' | 'tap' }) {
   }[name];
   return <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>;
 }
-const STEPS: ['home' | 'bank' | 'tap', string, string][] = [
-  ['home', 'Add your property', 'Address, units and tenants.'],
-  ['bank', 'Connect your bank', 'View only. Or skip it.'],
-  ['tap', 'Tap to approve', 'Nothing is sent without you.'],
+const STEPS: ['home' | 'bank' | 'tap', string, string, string][] = [
+  ['home', 'Add your property', 'Address, units and tenants.', 'About 10 min'],
+  ['bank', 'Connect your bank', 'View only. Or skip it.', 'About 5 min'],
+  ['tap', 'Tap to approve', 'Nothing is sent without you.', 'One tap'],
 ];
 
 function Overview({ start, demo, signedIn }: { start: () => void; demo: () => void; signedIn: boolean }) {
@@ -218,6 +218,7 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
           <div className="lp-hero-copy">
             <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
             <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
+            <p className="lp-lede lp-hero-lede">Keyholder automates the busywork of renting. You approve, it does the rest.</p>
             <ul className="lp-auto" aria-label="What Keyholder automates">
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
@@ -225,7 +226,6 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
               <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
               {!signedIn && <button className="btn lp-big" onClick={demo}>Try a demo first, no sign-up</button>}
             </div>
-            <ul className="lp-ticks"><li>Free for 1 rental unit</li><li>View-only bank access</li><li>You approve everything</li></ul>
           </div>
           <div className="lp-hero-visual">
             <Photo src={heroPhoto} alt="A brick house with a blue roof on a quiet tree-lined street" className="hero" />
@@ -235,19 +235,22 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         </div>
       </section>
 
-      <section className="lp-sec lp-how">
+      <section className="lp-how">
         <div className="lp-wrap">
-          <SecHead kicker="How it works" title="3 steps. 15 minutes." />
-          <ol className="lp-steps">
-            {STEPS.map(([ic, t, d], i) => (
-              <li key={t} className="lp-step reveal" style={{ transitionDelay: `${i * 80}ms` }}>
-                <span className="lp-step-ic"><StepIcon name={ic} /></span>
-                <span className="lp-step-n">0{i + 1}</span>
-                <h3>{t}</h3>
-                <p>{d}</p>
-              </li>
-            ))}
-          </ol>
+          <div className="lp-how-panel">
+            <SecHead kicker="How it works" title="3 steps. 15 minutes." />
+            <ol className="lp-steps">
+              {STEPS.map(([ic, t, d, time], i) => (
+                <li key={t} className="lp-step reveal" style={{ transitionDelay: `${i * 80}ms` }}>
+                  <div className="lp-step-top"><span className="lp-step-ic"><StepIcon name={ic} /></span><span className="lp-step-n">Step {i + 1}</span></div>
+                  <h3>{t}</h3>
+                  <p>{d}</p>
+                  <span className="lp-step-time"><Icon name={i < 2 ? 'clock' : 'check'} size={14} />{time}</span>
+                  {i < STEPS.length - 1 && <span className="lp-step-arrow" aria-hidden><Icon name="next" size={16} /></span>}
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </section>
 

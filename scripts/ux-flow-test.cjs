@@ -366,9 +366,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     pg.on('pageerror', (e) => errsG.push(`G ${e.message}`));
     const tour = async () => { await pg.goto(BASE + '#/welcome'); await pg.locator('#tour').scrollIntoViewIfNeeded(); await pg.waitForTimeout(500); };
     const active = () => pg.evaluate(() => { const on = document.querySelector('.mac-screen img.on'); const sel = document.querySelector('.lp-tour-tab[aria-selected="true"]'); return { alt: on?.getAttribute('alt') || '', loaded: !!on && on.complete && on.naturalWidth > 0, tab: sel?.textContent || '', count: document.querySelector('.lp-tour-count')?.textContent || '' }; });
-    await step(tag, 'G1 Overview is short: no long hero sentence; How it works is 3 short steps with icons', async () => {
+    await step(tag, 'G1 Overview: short hero description, no ticks; How it works on a blue-purple panel with 3 short steps', async () => {
       await pg.goto(BASE + '#/welcome'); await pg.waitForSelector('.lp-hero-h');
-      if (await pg.locator('.lp-hero >> text=automates the busywork').count()) throw new Error('hero sentence still there');
+      if (await pg.locator('.lp-ticks').count()) throw new Error('hero ticks still there');
+      const lede = (await pg.locator('.lp-hero-lede').textContent()).trim(); if (lede.length > 80) throw new Error('hero description too long: ' + lede.length);
+      const panel = await pg.locator('.lp-how-panel').evaluate((el) => getComputedStyle(el).backgroundImage); if (!/gradient/.test(panel)) throw new Error('How it works has no blue-purple background');
+      if ((await pg.locator('.lp-step-time').count()) !== 3) throw new Error('step time chips missing');
       await pg.waitForSelector('.lp-how h2:has-text("3 steps. 15 minutes.")');
       if ((await pg.locator('.lp-step').count()) !== 3 || (await pg.locator('.lp-step-ic svg').count()) !== 3) throw new Error('steps or icons missing');
       const longest = await pg.$$eval('.lp-step p', (ps) => Math.max(...ps.map((x) => x.textContent.length))); if (longest > 40) throw new Error('step text too long: ' + longest);
