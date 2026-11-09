@@ -6,7 +6,6 @@ All photos come from [Unsplash](https://unsplash.com) and are used under the [Un
 | File | Unsplash photo | Used on |
 |---|---|---|
 | `home-hero.webp` | `photo-1449844908441-8829872d2607` | Website homepage (top) |
-| `living-room.webp` | `photo-1502672260266-1c1ef2d93688` | Homepage, "Is your rental really making you money?" |
 | `apartment.webp` | `photo-1522708323590-d24dbb6b0267` | Provinces page |
 | `keys.webp` | `photo-1560518883-ce09059eeffa` | Pricing page |
 

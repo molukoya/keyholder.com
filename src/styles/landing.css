@@ -347,3 +347,6 @@ a.lp-card:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px;
 .lp-tab span .mode-badge { display: inline-flex; margin: 0 0 0 6px; width: auto; color: inherit; }
 .lp-tab span .mode-badge.auto { color: var(--mint-ink); }
 .lp-tab span .mode-badge.approve { color: var(--lilac-ink); }
+
+/* Pricing: trust as one compact row under the plans */
+.lp-trust-under { max-width: 940px; margin-top: 28px; padding: 20px 0 0; border-top: 1px solid var(--lp-rule); }

@@ -251,11 +251,10 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const menuOpen = async () => { await pg.locator('.lp-burger').click(); const box = await pg.locator('.lp-menu').boundingBox(); if (!box || box.height < vp.height * 0.6) throw new Error(`menu only ${box ? Math.round(box.height) : 0}px tall`); };
     const menuGo = async (label) => { if (tag === 'phone') { await menuOpen(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
     await step(tag, 'D3 Menu → Provinces page → tap BC → BC forms', async () => { await menuGo('Provinces'); await pg.waitForSelector('h1:has-text("Built for every province")'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
-    await step(tag, 'D4 Every menu page opens, Next/Back pager works, browser back works', async () => {
+    await step(tag, 'D4 Every menu page opens and browser back works', async () => {
       for (const [l, h] of [['Features', 'What Keyholder automates'], ['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Rental automation']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
-      await pg.locator('.lp-pg.next').click(); await pg.waitForSelector('h1:has-text("What Keyholder automates")');
-      await pg.locator('.lp-pg.prev').click(); await pg.waitForSelector('h1:has-text("Rental automation")');
-      await pg.goBack(); await pg.waitForSelector('h1:has-text("What Keyholder automates")');
+      await menuGo('Features'); await pg.waitForSelector('h1:has-text("What Keyholder automates")');
+      await pg.goBack(); await pg.waitForSelector('h1:has-text("Rental automation")');
       await menuGo('Overview');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
