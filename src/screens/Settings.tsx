@@ -1,7 +1,7 @@
 import { BackToMore, PageSub } from '../components/Guide';
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useStore } from '../data/store';
+import { isAdmin, useStore } from '../data/store';
 
 import { LEVELS } from '../lib/levels';
 import { LevelBadge } from '../components/levels';
@@ -15,6 +15,7 @@ import { Icon } from '../components/Icon';
 export function Settings() {
   const { state, act } = useStore();
   const p = state.profile;
+  const admin = isAdmin(state);
   const loc = useLocation();
   const nav = useNavigate();
   useEffect(() => { if (loc.hash) document.getElementById(loc.hash.slice(1))?.scrollIntoView(); }, [loc.hash]);
@@ -26,15 +27,19 @@ export function Settings() {
       <section className="section" id="account">
         <h2 className="section-title">Your account</h2>
         <div className="sheet">
-          {p.account ? (
+          {admin ? (
+            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+              <div><strong>Admin preview</strong><div className="small soft">You're looking at the sample properties. Signing out takes you back to the website.</div></div>
+              <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
+            </div>
+          ) : p.account ? (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
               <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
               <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
             </div>
           ) : (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>You're using sample properties</strong><div className="small soft">Create a free account to save your own.</div></div>
-              <button className="btn primary" onClick={() => { act.startOwn(); nav('/start'); }}>Create my account</button>
+              <div><strong>No account yet</strong><div className="small soft">Your data is saved in this browser only.</div></div>
             </div>
           )}
           <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />Email me on rent day and once a month with a summary <span className="soft small">(preview: no emails are sent yet)</span></label>
@@ -99,8 +104,8 @@ export function Settings() {
         <div className="sheet stack">
           <p className="small soft">Stage 1 keeps everything in this browser only. Clearing your browser data clears Keyholder.</p>
           <div className="btn-row">
-            <button className="btn" onClick={act.resetDemo}>Restore sample data</button>
-            <button className="btn" onClick={act.restartOnboarding}>Replay the signup questions</button>
+            {admin && <button className="btn" onClick={act.resetDemo}>Restore sample data</button>}
+            {admin && <button className="btn" onClick={() => { act.signOut(); nav('/start'); }}>Replay the signup questions</button>}
             <button className="btn" onClick={() => { act.setProfile({ tourDone: false }); nav('/today'); }}>Show the tour again</button>
             <Link className="btn ghost" to="/welcome">What is Keyholder?</Link>
           </div>

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import type { Lease, Tone } from '../data/types';
 import { useStore } from '../data/store';
 import { fmtPeriod } from '../lib/dates';
-import { activeLease, leaseLedger } from '../lib/finance';
+import { currentLeases, leaseLedger, leasePlace } from '../lib/finance';
 import { fmt } from '../lib/money';
 import { reminderDraft, TONES } from '../lib/templates';
+import { tenantEmails, toLine } from '../lib/people';
 import type { TrayItem } from '../lib/tray';
 import { Letterhead } from '../components/domain';
 import { Drawer, Empty, Seg } from '../components/ui';
@@ -24,13 +25,13 @@ export function ReminderDrawer({ lease, period, tone: initial, onClose }: { leas
   return (
     <Drawer title="Reminder" onClose={onClose} wide footer={<>
       <button className="btn ghost" onClick={() => { act.setPause(lease.tenantId, 'Paused from a reminder'); onClose(); }}><Icon name="pause" size={16} />Pause for {t?.names[0]}</button>
-      <button className="btn primary" disabled={!t?.email} onClick={() => { act.sendReminder(lease, period, tone, touched ? { subject, body } : undefined); onClose(); }}>Send now</button>
+      <button className="btn primary" disabled={!t || !tenantEmails(t).length} onClick={() => { act.sendReminder(lease, period, tone, touched ? { subject, body } : undefined); onClose(); }}>Send now</button>
     </>}>
       <div className="spread" style={{ marginBottom: 12 }}>
         <Seg label="Tone" value={tone} onChange={pick} options={TONES.map((x) => ({ id: x.id, label: x.label }))} />
         <span className="small soft">{TONES.find((x) => x.id === tone)?.blurb}</span>
       </div>
-      <div className="small soft" style={{ marginBottom: 8 }}>To: {t?.names.join(' & ')} &lt;{t?.email}&gt;</div>
+      <div className="small soft to-line" style={{ marginBottom: 8 }}>To: {toLine(t)}</div>
       <div className="letter">
         <Letterhead state={state} />
         <input aria-label="Subject" value={subject} onChange={(e) => { setSubject(e.target.value); setTouched(true); }} style={{ fontWeight: 600, marginBottom: 8 }} />
@@ -44,8 +45,8 @@ export function ReminderDrawer({ lease, period, tone: initial, onClose }: { leas
 
 export function MatchDrawer({ item, onClose }: { item: Extract<TrayItem, { kind: 'match' }>; onClose: () => void }) {
   const { state, act, today } = useStore();
-  const options = state.units.flatMap((u) => {
-    const l = activeLease(state, u.id, today); if (!l) return [];
+  const options = currentLeases(state, today).flatMap((l) => {
+    const u = state.units.find((x) => x.id === l.unitId)!;
     const t = state.tenants.find((x) => x.id === l.tenantId)!;
     return leaseLedger(l, state.payments, today).filter((x) => x.paid < x.charge).map((x) => ({ lease: l, tenant: t, unit: u, line: x }));
   });
@@ -64,7 +65,7 @@ export function MatchDrawer({ item, onClose }: { item: Extract<TrayItem, { kind:
             const v = `${o.lease.id}|${o.line.period}`;
             return (
               <button key={v} role="radio" aria-checked={sel === v} className="choice" style={{ width: '100%' }} onClick={() => setSel(v)}>
-                <span className="t">{o.tenant.names.join(' & ')} — Unit {o.unit.label}</span>
+                <span className="t">{o.tenant.names.join(' & ')} — {leasePlace(o.unit, o.lease)}</span>
                 <span className="s">{fmtPeriod(o.line.period)} · {fmt(o.line.charge - o.line.paid)} owing</span>
               </button>
             );

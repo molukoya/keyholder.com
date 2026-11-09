@@ -4,7 +4,7 @@ import type { AppState } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from './Icon';
 import { SceneCelebrate } from './Art';
-import { activeLease, leaseLedger, picture } from '../lib/finance';
+import { currentLeases, leaseLedger, picture } from '../lib/finance';
 import { addDays, addMonths, addPeriods, daysBetween, fmtPeriod, periodOf } from '../lib/dates';
 import { fmt0 } from '../lib/money';
 import { allJourneyCards, isHidden, prefKey } from '../lib/journey';
@@ -33,9 +33,9 @@ function monthRent(state: AppState, today: string) {
   // Payments Keyholder found but the owner has not confirmed yet are "to confirm", not late.
   const pending = new Set(trayItems(state, today).flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
   let expected = 0, collected = 0, paid = 0, late = 0, due = 0, confirm = 0, dueDate = '';
-  for (const u of state.units) {
-    if (!state.properties.some((x) => x.id === u.propertyId && !x.archived)) continue;
-    const l = activeLease(state, u.id, today); if (!l) continue;
+  for (const l of currentLeases(state, today)) {
+    const u = state.units.find((x) => x.id === l.unitId);
+    if (!u || !state.properties.some((x) => x.id === u.propertyId && !x.archived)) continue;
     const line = leaseLedger(l, state.payments, today).find((x) => x.period === p); if (!line) continue;
     expected += line.charge; collected += Math.min(line.paid, line.charge);
     if (line.state === 'paid') paid++; else if (pending.has(l.id)) confirm++; else if (line.daysLate > 0) late++; else due++;
@@ -120,9 +120,10 @@ function upcoming(state: AppState, today: string): Ev[] {
   const horizon = addDays(today, 120);
   const rent = new Map<string, { who: string[]; total: number; ids: string[] }>();
   const raise = new Map<string, string[]>();
+  const running = new Set(currentLeases(state, today).map((l) => l.id));
   for (const l of state.leases) {
     if (l.end && l.end < today) continue;
-    const unit = state.units.find((u) => u.id === l.unitId); if (!unit || activeLease(state, unit.id, today)?.id !== l.id) continue;
+    if (!running.has(l.id)) continue;
     const t = state.tenants.find((x) => x.id === l.tenantId); const name = t?.names[0].split(' ')[0] ?? 'Tenant';
     const next = leaseLedger(l, state.payments, today, addPeriods(periodOf(today), 1)).find((x) => x.due >= today && x.state !== 'paid');
     if (next) { const g = rent.get(next.due) ?? { who: [], total: 0, ids: [] }; g.who.push(name); g.total += next.charge - next.paid; g.ids.push(l.tenantId); rent.set(next.due, g); }

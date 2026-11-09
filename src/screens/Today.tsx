@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { addDays, fmtDay, periodOf } from '../lib/dates';
-import { activeLease, leaseLedger } from '../lib/finance';
+import { activeLeases, hasSpace, leaseLedger } from '../lib/finance';
 import { ScoreChip } from '../components/levels';
 import { RentRows, ScoreList } from '../components/Journey';
 import { needsYouCount, trayItems } from '../lib/tray';
@@ -60,12 +60,14 @@ export function Today() {
   }
 
   type Row = { unit: Unit; vacant: true } | { unit: Unit; vacant: false; line: LedgerLine; lease: Lease; tenant: Tenant };
+  // One row per lease (each rented room is its own), plus one for any unit or room still free.
   const rows: Row[] = units.flatMap((u): Row[] => {
-    const l = activeLease(state, u.id, today);
-    if (!l) return [{ unit: u, vacant: true }];
-    const line = leaseLedger(l, state.payments, today).find((x) => x.period === p);
-    const t = state.tenants.find((x) => x.id === l.tenantId)!;
-    return line ? [{ unit: u, vacant: false, line, lease: l, tenant: t }] : [];
+    const out = activeLeases(state, u.id, today).flatMap((l): Row[] => {
+      const line = leaseLedger(l, state.payments, today).find((x) => x.period === p);
+      const t = state.tenants.find((x) => x.id === l.tenantId)!;
+      return line ? [{ unit: u, vacant: false, line, lease: l, tenant: t }] : [];
+    });
+    return hasSpace(state, u, today) ? [...out, { unit: u, vacant: true }] : out;
   });
   const occupied = rows.filter((r): r is Extract<Row, { vacant: false }> => !r.vacant);
   const paid = occupied.filter((r) => r.line.state === 'paid').length;

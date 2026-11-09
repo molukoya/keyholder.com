@@ -1,6 +1,6 @@
 import type {
   AppState, Cents, Comparable, Expense, ISODate, Lease, Mortgage, MortgageFrequency, Payment, Period,
-  Property, Valuation,
+  Property, Unit, Valuation,
 } from '../data/types';
 import { addDays, addMonths, daysBetween, dueDate, periodOf, periodRange, yearsBetween } from './dates';
 import { CATEGORIES, CCA_CLASSES, RETURN_PRESETS, regionData } from './jurisdiction';
@@ -72,10 +72,60 @@ export function leaseBalance(lease: Lease, payments: Payment[], today: ISODate):
   return lines.reduce((a, l) => a + l.charge - l.paid, 0);
 }
 
+/** The lease running on a unit (or starting within 60 days). For a unit rented by the room: the first room's. */
 export function activeLease(state: AppState, unitId: string, today: ISODate): Lease | undefined {
-  return state.leases
+  return activeLeases(state, unitId, today)[0];
+}
+
+/**
+ * Every lease running on a unit: one for a unit rented as a whole (however many people share it),
+ * or one per rented room, in room order, for a unit rented by the room.
+ */
+export function activeLeases(state: AppState, unitId: string, today: ISODate): Lease[] {
+  const running = state.leases
     .filter((l) => l.unitId === unitId && l.start <= addDays(today, 60) && (!l.end || l.end >= today))
-    .sort((a, b) => b.start.localeCompare(a.start))[0];
+    .sort((a, b) => b.start.localeCompare(a.start));
+  const unit = state.units.find((u) => u.id === unitId);
+  if (unit?.rentedBy !== 'room') return running.slice(0, 1);
+  const seen = new Set<string>();
+  return running
+    .filter((l) => { const k = l.room ?? ''; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (a.room ?? '').localeCompare(b.room ?? '', undefined, { numeric: true }));
+}
+
+/** Every lease running now, across all units (each rented room is its own lease). */
+export function currentLeases(state: AppState, today: ISODate): Lease[] {
+  return state.units.flatMap((u) => activeLeases(state, u.id, today));
+}
+
+export const byRoom = (u: Unit | undefined) => u?.rentedBy === 'room';
+
+/** "Room 1", "Room 2"... for a unit rented by the room; none for a unit rented as a whole. */
+export function roomLabels(u: Unit): string[] {
+  return byRoom(u) ? Array.from({ length: Math.max(1, u.rooms ?? 1) }, (_, i) => `Room ${i + 1}`) : [];
+}
+
+/** Rooms nobody rents yet, in a unit rented by the room. */
+export function openRooms(state: AppState, unit: Unit, today: ISODate): string[] {
+  const taken = new Set(activeLeases(state, unit.id, today).map((l) => l.room));
+  return roomLabels(unit).filter((r) => !taken.has(r));
+}
+
+/** Room for a new tenant: an empty unit, or a room still free. */
+export function hasSpace(state: AppState, unit: Unit, today: ISODate): boolean {
+  return byRoom(unit) ? openRooms(state, unit, today).length > 0 : !activeLease(state, unit.id, today);
+}
+
+/** "2 of 3 rooms rented", for a unit rented by the room. */
+export function roomsLine(state: AppState, unit: Unit, today: ISODate): string {
+  const n = roomLabels(unit).length;
+  return `${n - openRooms(state, unit, today).length} of ${n} room${n === 1 ? '' : 's'} rented`;
+}
+
+/** Where a lease is: "Unit B", or "Unit Basement · Room 2" for a room. */
+export function leasePlace(unit: Unit | undefined, lease?: Lease): string {
+  if (!unit) return '';
+  return `Unit ${unit.label}${lease?.room ? ` · ${lease.room}` : ''}`;
 }
 
 // =====================================================================================

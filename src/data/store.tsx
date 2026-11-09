@@ -4,7 +4,7 @@ import type {
 } from './types';
 import { emptyState, seedState, STATE_VERSION, defaultProfile } from './seed';
 import { addDays, dueDate, periodOf, todayISO } from '../lib/dates';
-import { activeLease, leaseLedger } from '../lib/finance';
+import { activeLease, currentLeases, leaseLedger, openRooms } from '../lib/finance';
 import { suggestMatch } from '../lib/matching';
 import { reminderDraft } from '../lib/templates';
 import { fmt } from '../lib/money';
@@ -18,6 +18,8 @@ import { CATEGORIES } from '../lib/jurisdiction';
 // becomes an API call; the action names are the contract for the backend.
 
 const KEY = 'keyholder:v1';
+/** While admin views the sample, the browser's own data waits here and comes back on sign out. */
+const STASH = 'keyholder:v1:stash';
 export const uid = (p = 'id') => `${p}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
 
 function load(): AppState {
@@ -30,6 +32,18 @@ function load(): AppState {
   } catch { /* fall through */ }
   return seedState();
 }
+
+function readStash(): AppState | null {
+  try {
+    const raw = localStorage.getItem(STASH);
+    const s = raw ? (JSON.parse(raw) as AppState) : null;
+    return s && s.version === STATE_VERSION ? s : null;
+  } catch { return null; }
+}
+
+/** Preview lock only (Stage 1): these sit in the website's code. Real admin accounts come with the backend. */
+export const ADMIN_LOGIN = { username: 'admin', password: 'admin' };
+export const isAdmin = (s: AppState) => s.profile.account?.provider === 'admin';
 
 function save(s: AppState) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage full or blocked: keep working in memory */ }
@@ -48,7 +62,8 @@ const tenantName = (d: AppState, leaseId: string) => {
   return t?.names.join(' & ') ?? 'tenant';
 };
 
-function makeActions(mut: Mut, toast: (s: string) => void) {
+/** `get` reads the latest state, for actions whose message depends on it (the updater itself may run later). */
+function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) {
   const today = () => todayISO();
 
   /** Record a payment, draft (or send) its receipt, and cancel reminders it makes moot (AR-3). */
@@ -89,23 +104,22 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
 
   return {
     // ---- Profile & onboarding ----
-    completeOnboarding(p: Partial<Profile>, withSample: boolean) {
+    /**
+     * Admin sign in (preview): set aside this browser's own data, then open a fresh copy of the sample
+     * properties. Signing out puts the set-aside data back, so testing the sample never wipes an account.
+     */
+    signInAdmin() {
       mut((d) => {
-        const merged = { ...d.profile, ...p, onboarded: true };
-        // The sample comes with a sample landlord, so notices and receipts can be signed.
-        const profile = withSample ? sampleLandlord(merged) : merged;
-        const next = withSample ? seedState(profile) : emptyState(profile);
-        if (!withSample) next.banks = [];
-        next.profile.sample = withSample;
-        if (withSample) next.profile.tourDone = false;
-        Object.assign(d, next);
-        audit(d, 'Signed up', `Province ${profile.province}, ${withSample ? 'with sample data' : 'starting empty'}`);
+        if (!d.profile.sample && (d.profile.onboarded || d.profile.account)) {
+          const own = structuredClone(d);
+          if (own.profile.account) own.profile.account.signedIn = false;
+          try { localStorage.setItem(STASH, JSON.stringify(own)); } catch { /* storage blocked: nothing to keep */ }
+        }
+        const profile = sampleLandlord({ ...defaultProfile(), onboarded: true, sample: true, tourDone: false,
+          account: { provider: 'admin', email: 'admin', name: 'Admin', signedIn: true, created: today() } });
+        Object.assign(d, seedState(profile));
       });
     },
-    /** "See it in action": skip the questions, load the two sample properties and start the tour. */
-    startDemo() { mut((d) => { const profile = sampleLandlord({ ...defaultProfile(), ...d.profile, onboarded: true, sample: true, tourDone: false }); Object.assign(d, seedState(profile)); }); },
-    /** From the sample banner: clear the sample and go back to the questions. */
-    startOwn() { mut((d) => { Object.assign(d, emptyState(defaultProfile())); }); },
     /** Create the account at the end of signup (Google or email link) and start with the user's own empty setup. */
     signUp(p: Partial<Profile>, account: { provider: 'google' | 'email'; email: string; name: string }) {
       mut((d) => {
@@ -118,11 +132,18 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
       });
     },
     signIn() { mut((d) => { if (d.profile.account) d.profile.account.signedIn = true; }); },
-    signOut() { mut((d) => { if (d.profile.account) d.profile.account.signedIn = false; }); toast('Signed out. See you soon.'); },
+    /** Sign out. For admin this also puts back the data that was set aside at admin sign in. */
+    signOut() {
+      const own = readStash();
+      mut((d) => {
+        if (d.profile.account?.provider === 'admin') Object.assign(d, own ? structuredClone(own) : seedState());
+        else if (d.profile.account) d.profile.account.signedIn = false;
+      });
+      toast('Signed out. See you soon.');
+    },
     setProfile(p: Partial<Profile>) { mut((d) => { Object.assign(d.profile, p); }); },
     resetDemo() { mut((d) => { const prof = { ...d.profile }; Object.assign(d, seedState(prof)); }); toast('Sample data restored.'); },
     clearAll() { mut((d) => { Object.assign(d, emptyState({ ...d.profile })); }); toast('All data cleared. Start by adding a property.'); },
-    restartOnboarding() { mut((d) => { Object.assign(d, seedState(defaultProfile())); }); },
 
     // ---- Properties & units ----
     saveProperty(p: Property) {
@@ -143,6 +164,8 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
       mut((d) => {
         const i = d.units.findIndex((x) => x.id === u.id);
         if (i >= 0) d.units[i] = u; else d.units.push(u);
+        // Switched to "by the room": a lease that was for the whole unit becomes Room 1's.
+        if (u.rentedBy === 'room') for (const l of d.leases) if (l.unitId === u.id && !l.room && (!l.end || l.end >= today())) l.room = 'Room 1';
         audit(d, i >= 0 ? 'Unit updated' : 'Unit added', u.label);
       });
     },
@@ -276,8 +299,7 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
         if (!connected.length) return;
         const t = today();
         const fresh: BankTxn[] = [];
-        for (const u of d.units) {
-          const l = activeLease(d, u.id, t); if (!l) continue;
+        for (const l of currentLeases(d, t)) {
           const open = leaseLedger(l, d.payments, t).filter((x) => x.paid < x.charge && x.due <= addDays(t, 3));
           const already = d.txns.some((x) => x.status === 'new' && x.amount > 0 && suggestMatch(d, x, t)?.leaseId === l.id);
           if (!open.length || already || Math.random() < 0.35) continue;
@@ -355,20 +377,32 @@ function makeActions(mut: Mut, toast: (s: string) => void) {
       if (status === 'declined') toast(`Decline message sent to ${name || 'the applicant'}.`);
       if (status === 'offered') toast(`Offer sent to ${name || 'the applicant'}.`);
     },
-    /** Turn an accepted applicant into a tenant with a draft lease, and close the listing. */
-    acceptApplicant(id: string, start: string, rent: number) {
+    /**
+     * Turn an accepted applicant into a tenant with a draft lease. A unit rented as a whole is then full:
+     * the listing closes and other applicants get a polite decline. A unit rented by the room gets a lease
+     * for that room, and the listing and other applications stay open until every room is taken.
+     */
+    acceptApplicant(id: string, start: string, rent: number, room?: string) {
+      const s0 = get();
+      const u0 = s0.units.find((x) => x.id === s0.applicants.find((a) => a.id === id)?.unitId);
+      const full = !u0 || u0.rentedBy !== 'room' || openRooms(s0, u0, today()).filter((r) => r !== room).length === 0;
       mut((d) => {
         const a = d.applicants.find((x) => x.id === id); if (!a) return;
+        const u = d.units.find((x) => x.id === a.unitId);
+        const rooms = u?.rentedBy === 'room';
         a.status = 'accepted';
         const tid = uid('t');
-        d.tenants.push({ id: tid, unitId: a.unitId, names: a.names, email: a.email, phone: a.phone, noticeMethod: 'email', emailConsent: true, emailConsentDate: start, aliases: [] });
-        d.leases.push({ id: uid('l'), unitId: a.unitId, tenantId: tid, start, rent, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: rent, utilities: '', parking: false, pets: a.pets, emailNoticeConsent: true });
-        const u = d.units.find((x) => x.id === a.unitId); if (u) { u.status = 'occupied'; u.rent = rent; }
-        d.listings = d.listings.filter((l) => l.unitId !== a.unitId);
-        for (const o of d.applicants) if (o.unitId === a.unitId && o.id !== id && o.status !== 'declined') o.status = 'declined';
-        audit(d, 'Applicant accepted', `${a.names.join(' & ')} from ${start}`);
+        const people = a.people?.length ? a.people.map((p) => ({ name: p.name, email: p.email, phone: p.phone })) : undefined;
+        d.tenants.push({ id: tid, unitId: a.unitId, names: a.names, email: a.email, phone: a.phone, people, noticeMethod: 'email', emailConsent: true, emailConsentDate: start, aliases: [] });
+        d.leases.push({ id: uid('l'), unitId: a.unitId, tenantId: tid, room: rooms ? room : undefined, start, rent, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: rent, utilities: '', parking: false, pets: a.pets, emailNoticeConsent: true });
+        if (u) { u.status = 'occupied'; if (!rooms) u.rent = rent; }
+        if (full) {
+          d.listings = d.listings.filter((l) => l.unitId !== a.unitId);
+          for (const o of d.applicants) if (o.unitId === a.unitId && o.id !== id && o.status !== 'declined' && o.status !== 'accepted') o.status = 'declined';
+        }
+        audit(d, 'Applicant accepted', `${a.names.join(' & ')}${rooms && room ? `, ${room},` : ''} from ${start}`);
       });
-      toast('Tenant added and lease drafted. Other applicants were sent a polite decline.');
+      toast(full ? 'Tenant added and lease drafted. Other applicants were sent a polite decline.' : 'Tenant added and lease drafted. The other applications stay open for the free rooms.');
     },
 
     // ---- Late-rent notices ----
@@ -407,7 +441,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);
   const mut: Mut = useCallback((fn) => setState((s) => { const d = structuredClone(s); fn(d); return d; }), []);
-  const act = useMemo(() => makeActions(mut, toast), [mut, toast]);
+  const latest = useRef(state);
+  latest.current = state;
+  const act = useMemo(() => makeActions(mut, toast, () => latest.current), [mut, toast]);
   // The every-4-hours bank check. Stage 1 runs it while the app is open; Stage 2 runs it on the server.
   const lastSync = (state.banks ?? []).filter((b) => b.status === 'connected').map((b) => b.lastSync).sort()[0];
   useEffect(() => {

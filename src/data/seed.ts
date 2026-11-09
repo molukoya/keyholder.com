@@ -2,10 +2,11 @@ import type { AppState, Expense, Lease, Message, Payment, Profile, Province, Rec
 import { addDays, addMonths, dueDate, periodOf, periodRange, todayISO } from '../lib/dates';
 
 // Sample portfolio, dated relative to today so the demo always looks current.
-// Two properties: a Hamilton duplex (fully rented) and a Toronto home with a basement suite
-// (owner lives upstairs, 35% rental share).
+// Two properties: a Hamilton triplex (Unit B is a couple on one shared lease, Unit C is empty with
+// applications) and a Toronto home whose basement suite is rented by the room (2 of 3 rooms rented;
+// the owner lives upstairs, 35% rental share).
 
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 export function defaultProfile(): Profile {
   return {
@@ -70,19 +71,24 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
     { id: 'u-a', propertyId: 'p-maple', label: 'A', rent: 165_000, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'occupied' },
     { id: 'u-b', propertyId: 'p-maple', label: 'B', rent: 145_000, bedrooms: 1, utilitiesIncluded: ['Water', 'Heat'], status: 'occupied' },
     { id: 'u-c', propertyId: 'p-maple', label: 'C', rent: 155_000, bedrooms: 2, utilitiesIncluded: ['Water'], status: 'vacant' },
-    { id: 'u-bsmt', propertyId: 'p-birch', label: 'Basement', rent: 150_000, bedrooms: 1, utilitiesIncluded: ['Water', 'Heat', 'Hydro', 'Internet'], status: 'occupied' },
+    { id: 'u-bsmt', propertyId: 'p-birch', label: 'Basement', rent: 85_000, bedrooms: 3, utilitiesIncluded: ['Water', 'Heat', 'Hydro', 'Internet'], status: 'occupied', rentedBy: 'room', rooms: 3 },
   ];
 
   s.tenants = [
     { id: 't-maya', unitId: 'u-a', names: ['Maya Chen'], email: 'maya.chen@example.com', phone: '905-555-0142', noticeMethod: 'email', emailConsent: true, emailConsentDate: '2025-02-20', aliases: [] },
-    { id: 't-patel', unitId: 'u-b', names: ['Jordan Patel', 'Priya Patel'], email: 'jpatel@example.com', phone: '905-555-0178', noticeMethod: 'email', emailConsent: true, emailConsentDate: '2024-07-15', aliases: [] },
+    // A shared lease: two people, one rent. Receipts and reminders go to both.
+    { id: 't-patel', unitId: 'u-b', names: ['Jordan Patel', 'Priya Patel'], email: 'jpatel@example.com', phone: '905-555-0178', noticeMethod: 'email', emailConsent: true, emailConsentDate: '2024-07-15', aliases: [],
+      people: [{ name: 'Jordan Patel', email: 'jpatel@example.com', phone: '905-555-0178' }, { name: 'Priya Patel', email: 'priya.patel@example.com', phone: '905-555-0186' }] },
+    // The basement suite is rented by the room: each room has its own tenant, lease and rent.
     { id: 't-sam', unitId: 'u-bsmt', names: ['Sam Okafor'], email: 'sam.okafor@example.com', phone: '416-555-0110', noticeMethod: 'hand', emailConsent: false, aliases: [] },
+    { id: 't-grace', unitId: 'u-bsmt', names: ['Grace Liu'], email: 'grace.liu@example.com', phone: '416-555-0137', noticeMethod: 'email', emailConsent: true, emailConsentDate: addMonths(`${thisPeriod}-01`, -4), aliases: [] },
   ];
 
   const leases: Lease[] = [
     { id: 'l-maya', unitId: 'u-a', tenantId: 't-maya', start: '2025-03-01', rent: 165_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 160_000, utilities: 'Tenant pays hydro', parking: true, pets: false, emailNoticeConsent: true },
     { id: 'l-patel', unitId: 'u-b', tenantId: 't-patel', start: '2024-08-01', rent: 145_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 140_000, utilities: 'Tenant pays hydro', parking: false, pets: true, emailNoticeConsent: true },
-    { id: 'l-sam', unitId: 'u-bsmt', tenantId: 't-sam', start: addMonths(`${thisPeriod}-01`, -9), rent: 150_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 150_000, utilities: 'All included', parking: false, pets: false, emailNoticeConsent: false },
+    { id: 'l-sam', unitId: 'u-bsmt', tenantId: 't-sam', room: 'Room 1', start: addMonths(`${thisPeriod}-01`, -9), rent: 90_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 90_000, utilities: 'All included', parking: false, pets: false, emailNoticeConsent: false },
+    { id: 'l-grace', unitId: 'u-bsmt', tenantId: 't-grace', room: 'Room 2', start: addMonths(`${thisPeriod}-01`, -4), rent: 85_000, dueDay: 1, paymentMethod: 'etransfer', lmrDeposit: 85_000, utilities: 'All included', parking: false, pets: false, emailNoticeConsent: true },
   ];
   // Test-only: one small rental in every other province and territory, to exercise each province's forms.
   const PROVINCE_SAMPLES: [Province, string, string, string, string, number, string, boolean][] = [
@@ -139,6 +145,10 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
     id: `msg-${mayaId}`, kind: 'receipt', tenantId: 't-maya', leaseId: 'l-maya', period: thisPeriod, receiptId: `rcpt-${mayaId}`,
     subject: 'Your rent receipt', body: '', status: 'draft', edited: false, createdAt: now,
   });
+  // Grace paid on the 1st; her receipt went out then.
+  const graceId = `pay-l-grace-${thisPeriod}`;
+  payments.push({ id: graceId, leaseId: 'l-grace', period: thisPeriod, date: mayaDate, amount: 85_000, method: 'etransfer', source: 'bank', createdAt: `${mayaDate}T09:00:00.000Z` });
+  receipts.push({ id: `rcpt-${graceId}`, number: rn++, paymentId: graceId, status: 'sent', createdAt: `${mayaDate}T09:05:00.000Z`, sentAt: `${mayaDate}T09:05:00.000Z` });
   // Province samples: this month paid on the 1st unless the sample is meant to be late.
   for (const l of leases.filter((x) => sampleLeases.has(x.id) && !lateSamples.has(x.id))) {
     const due = dueDate(thisPeriod, 1);
@@ -159,7 +169,8 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
   ];
   s.txns = [
     { id: 'tx-maya', source: 'bank', date: mayaDate, amount: 165_000, payer: 'MAYA CHEN', memo: 'rent unit A', status: 'matched', paymentId: mayaId },
-    { id: 'tx-sam', source: 'bank', date: addDays(dueDate(thisPeriod, 1), 1) <= today ? addDays(dueDate(thisPeriod, 1), 1) : today, amount: 150_000, payer: 'S OKAFOR-BELL', memo: '', status: 'new' },
+    { id: 'tx-grace', source: 'bank', date: mayaDate, amount: 85_000, payer: 'GRACE LIU', memo: 'room 2 rent', status: 'matched', paymentId: graceId },
+    { id: 'tx-sam', source: 'bank', date: addDays(dueDate(thisPeriod, 1), 1) <= today ? addDays(dueDate(thisPeriod, 1), 1) : today, amount: 90_000, payer: 'S OKAFOR-BELL', memo: '', status: 'new' },
     { id: 'tx-payroll', source: 'bank', date: addDays(today, -3), amount: 412_500, payer: 'ACME PAYROLL', memo: 'Salary', status: 'ignored' },
     // Withdrawals the banks found this month, waiting to be sorted (expenses and mortgage payments).
     { id: 'tx-tax', source: 'bank', bankId: 'bank-1', date: addDays(today, -5), amount: -130_000, payer: 'CITY OF HAMILTON TAX', memo: 'Pre-authorized debit', status: 'new' },
@@ -212,9 +223,13 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
     { id: 'm-maple', propertyId: 'p-maple', lender: 'RBC Royal Bank', principal: 49_200_000, startDate: '2019-07-01', ratePct: 2.89, amortYears: 25, termEnd: addDays(today, 110), frequency: 'monthly' },
   ];
 
-  // An empty unit with a listing and two applications.
+  // An empty unit with a listing and two applications (one from a couple applying together),
+  // and the basement's free room with one application.
   const vacantSince = addMonths(`${thisPeriod}-01`, -1);
-  s.listings = [{ unitId: 'u-c', askingRent: 155_000, available: addDays(today, 7), notes: 'Freshly painted 2-bedroom on the top floor. Laundry in the basement.', vacantSince, slug: 'maple-c' }];
+  s.listings = [
+    { unitId: 'u-c', askingRent: 155_000, available: addDays(today, 7), notes: 'Freshly painted 2-bedroom on the top floor. Laundry in the basement.', vacantSince, slug: 'maple-c' },
+    { unitId: 'u-bsmt', askingRent: 85_000, available: addDays(today, 10), notes: 'Furnished room in a shared basement suite, near Kennedy station. Heat, hydro and internet included.', vacantSince, slug: 'birch-room' },
+  ];
   s.applicants = [
     { id: 'ap-1', unitId: 'u-c', names: ['Daniel Osei'], email: 'd.osei@example.com', phone: '905-555-0191', submitted: addDays(today, -4), moveIn: addDays(today, 14),
       currentAddress: '210 King St E, Hamilton', yearsAtAddress: 3, employer: 'McMaster University (lab technician)', monthlyIncome: 520_000, references: 'Former employer reference: Dr. K. Singh', pets: false, notes: '', status: 'new',
@@ -222,12 +237,20 @@ export function seedState(profile?: Profile, asOf?: string, provinceSamples = fa
       previousAddress: '88 Bay St N, Hamilton', previousYears: 2, jobTitle: 'Lab technician', employedYears: 4, employerContact: 'HR, 905-555-0100', otherIncome: 0, leaseTerm: '1 year, then month to month',
       vehicles: 1, smoking: false, creditConsent: true, documents: ['Photo ID', 'Employment letter', 'Credit report'] },
     { id: 'ap-2', unitId: 'u-c', names: ['Lena Novak', 'Tom Novak'], email: 'lena.novak@example.com', phone: '289-555-0163', submitted: addDays(today, -2), moveIn: addDays(today, 24),
+      people: [
+        { name: 'Lena Novak', email: 'lena.novak@example.com', phone: '289-555-0163', employer: 'City of Hamilton', jobTitle: 'Planner', monthlyIncome: 460_000 },
+        { name: 'Tom Novak', email: 'tom.novak@example.com', phone: '289-555-0168', employer: 'Novak Plumbing', jobTitle: 'Plumber (self-employed)', monthlyIncome: 320_000 },
+      ],
       currentAddress: '15 James St S, Hamilton', yearsAtAddress: 5, employer: 'City of Hamilton; Novak Plumbing', monthlyIncome: 780_000, references: 'Personal: Mark Chen, 289-555-0140', pets: true, notes: 'One cat', status: 'new',
       occupants: 2, emergencyContact: 'Eva Novak (mother), 289-555-0199', currentRent: 160_000, landlordName: 'Sandra Lee', landlordPhone: '905-555-0175', reasonLeaving: 'Want a second bedroom',
       previousAddress: '402 Main St E, Hamilton', previousYears: 3, jobTitle: 'Planner; plumber (self-employed)', employedYears: 6, employerContact: 'City HR, 905-555-0150', otherIncome: 40_000, otherIncomeSource: 'Rental parking spot',
       leaseTerm: '2 years', vehicles: 2, smoking: false, creditConsent: true, documents: ['Photo ID', 'Pay stubs'] },
+    { id: 'ap-3', unitId: 'u-bsmt', names: ['Kofi Mensah'], email: 'kofi.mensah@example.com', phone: '647-555-0129', submitted: addDays(today, -3), moveIn: addDays(today, 18),
+      currentAddress: '55 Gerrard St W, Toronto', yearsAtAddress: 1, employer: 'Scarborough Health Network', monthlyIncome: 360_000, references: 'Current landlord: P. Russo, 416-555-0191', pets: false, notes: 'Works night shifts', status: 'new',
+      occupants: 1, emergencyContact: 'Efua Mensah (mother), 905-555-0177', currentRent: 95_000, landlordName: 'P. Russo', landlordPhone: '416-555-0191', reasonLeaving: 'Closer to work',
+      jobTitle: 'Personal support worker', employedYears: 2, employerContact: 'HR, 416-555-0140', otherIncome: 0, leaseTerm: '1 year', vehicles: 0, smoking: false, creditConsent: true, documents: ['Photo ID', 'Pay stubs'] },
   ];
 
-  s.audit = [{ id: 'a-0', at: now, action: 'Sample data loaded', detail: 'Two properties, three tenants, a year of history' }];
+  s.audit = [{ id: 'a-0', at: now, action: 'Sample data loaded', detail: 'Two properties, four leases (one shared, two by the room), a year of history' }];
   return s;
 }

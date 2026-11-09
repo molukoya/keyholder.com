@@ -1,6 +1,6 @@
 import type { AppState, BankTxn, Lease, Message, Tone } from '../data/types';
 import { daysBetween } from './dates';
-import { activeLease, leaseLedger, type LedgerLine } from './finance';
+import { currentLeases, leaseLedger, type LedgerLine } from './finance';
 import { suggestMatch, type Suggestion } from './matching';
 import { journeyCards } from './journey';
 
@@ -24,9 +24,7 @@ export function trayItems(state: AppState, today: string): TrayItem[] {
 
   // Don't nag a tenant whose deposit is already sitting in the tray waiting to be matched.
   const pendingDeposits = state.txns.filter((t) => t.status === 'new' && t.amount > 0).map((t) => suggestMatch(state, t, today)?.leaseId);
-  for (const unit of state.units) {
-    const lease = activeLease(state, unit.id, today);
-    if (!lease) continue;
+  for (const lease of currentLeases(state, today)) {
     const tenant = state.tenants.find((t) => t.id === lease.tenantId);
     if (!tenant || tenant.remindersPaused || pendingDeposits.includes(lease.id)) continue;
     for (const line of leaseLedger(lease, state.payments, today)) {

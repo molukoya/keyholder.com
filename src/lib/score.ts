@@ -1,6 +1,7 @@
 import type { AppState, Property } from '../data/types';
 import { propertyValue } from './finance';
-import { activeLease } from './finance';
+import { activeLeases, byRoom, roomLabels } from './finance';
+import { tenantPeople } from './people';
 import { hasSilver } from './levels';
 
 // Keyholder score: how complete the owner's records are, 0–100. Each item is worth points;
@@ -40,11 +41,18 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
 
   for (const p of byValue(state, today)) {
     const units = state.units.filter((u) => u.propertyId === p.id);
-    const tenants = units.map((u) => activeLease(state, u.id, today)).filter(Boolean).map((l) => state.tenants.find((t) => t.id === l!.tenantId)!).filter(Boolean);
-    add({ id: `${p.id}-tenants`, text: `Add the tenants at ${p.nickname}`, points: 4, done: units.length ? units.filter((u) => activeLease(state, u.id, today)).length / units.length : 0, propertyId: p.id, to: '/rent' });
+    const leases = units.flatMap((u) => activeLeases(state, u.id, today));
+    const tenants = leases.map((l) => state.tenants.find((t) => t.id === l.tenantId)).filter((t): t is NonNullable<typeof t> => !!t);
+    // Each unit is one place to fill, or one per room when it is rented by the room.
+    const places = units.reduce((n, u) => n + (byRoom(u) ? roomLabels(u).length : 1), 0);
+    add({ id: `${p.id}-tenants`, text: `Add the tenants at ${p.nickname}`, points: 4, done: places ? Math.min(1, leases.length / places) : 0, propertyId: p.id, to: '/rent' });
     for (const t of tenants) {
-      add({ id: `${t.id}-email`, text: `Add ${t.names[0].split(' ')[0]}'s email so receipts can be sent`, points: 3, done: !!t.email, propertyId: p.id, to: `/rent/tenant/${t.id}` });
-      add({ id: `${t.id}-phone`, text: `Add ${t.names[0].split(' ')[0]}'s phone number`, points: 1, done: !!t.phone, propertyId: p.id, to: `/rent/tenant/${t.id}` });
+      // Everyone on a shared lease gets receipts, so each person needs an email.
+      tenantPeople(t).forEach((x, i) => {
+        const first = x.name.split(' ')[0];
+        add({ id: i ? `${t.id}-email-${i}` : `${t.id}-email`, text: `Add ${first}'s email so receipts can be sent`, points: i ? 1 : 3, done: !!x.email, propertyId: p.id, to: `/rent/tenant/${t.id}` });
+        add({ id: i ? `${t.id}-phone-${i}` : `${t.id}-phone`, text: `Add ${first}'s phone number`, points: 1, done: !!x.phone, propertyId: p.id, to: `/rent/tenant/${t.id}` });
+      });
     }
     add({ id: `${p.id}-paid`, text: `Add what you paid for ${p.nickname}`, points: 10, done: hasSilver(p), propertyId: p.id, to: `/rent/property/${p.id}`, levelUp: 'silver' });
     add({ id: `${p.id}-costs`, text: `Add closing costs and land transfer tax for ${p.nickname}`, points: 4, done: p.closingCosts !== undefined && p.landTransferTax !== undefined, propertyId: p.id, to: `/rent/property/${p.id}/mortgage`, levelUp: 'gold' });

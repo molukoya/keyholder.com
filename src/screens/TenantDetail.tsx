@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Payment, Receipt } from '../data/types';
+import type { Payment, Person, Receipt } from '../data/types';
 import { useStore } from '../data/store';
 import { fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
-import { leaseBalance, leaseLedger } from '../lib/finance';
+import { leaseBalance, leaseLedger, leasePlace } from '../lib/finance';
+import { tenantPeople, withPeople } from '../lib/people';
 import { fmt } from '../lib/money';
 import { Letterhead, ReceiptLetter, methodLabel, ordinal } from '../components/domain';
 import { PaymentForm } from '../components/forms';
@@ -35,15 +36,16 @@ export function TenantDetail() {
   const bal = lease ? leaseBalance(lease, state.payments, today) : 0;
   const msgs = state.messages.filter((m) => m.tenantId === t.id && m.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''));
   const voided = state.payments.filter((p) => p.leaseId === lease?.id && p.voided);
+  const people = tenantPeople(t);
 
   return (
     <div className="page">
       <Link to={prop ? `/rent/property/${prop.id}` : "/rentals"} className="crumb"><Icon name="back" size={16} />Back to {prop?.nickname ?? "Rentals"}</Link>
       <div className="page-head">
         <div>
-          <div className="eyebrow">{prop?.nickname} · Unit {unit?.label}</div>
+          <div className="eyebrow">{prop?.nickname} · {leasePlace(unit, lease)}</div>
           <h1 className="title-ic"><Avatar name={t.names.join(' & ')} size={52} />{t.names.join(' & ')}</h1>
-          <div className="soft small">{t.email || 'No email'} · {t.phone || 'No phone'}</div>
+          <div className="soft small">{people.length > 1 ? `Shared lease: ${people.length} people, one rent. Receipts and reminders go to everyone.` : `${t.email || 'No email'} · ${t.phone || 'No phone'}`}</div>
         </div>
         <div className="btn-row">
           <button className="btn" onClick={() => setStatement(true)}><Icon name="print" size={16} />Statement</button>
@@ -114,9 +116,17 @@ export function TenantDetail() {
 
         <aside>
           <div className="sheet">
+            <h2 style={{ marginBottom: 12 }}>{people.length > 1 ? 'People on the lease' : 'Contact'}</h2>
+            <ul className="people-list">{people.map((p, i) => (
+              <li key={i}><Avatar name={p.name} size={36} /><span><strong>{p.name}</strong><span className="small soft">{p.email || 'No email'}</span><span className="small soft">{p.phone || 'No phone'}</span></span></li>
+            ))}</ul>
+            <div className="btn-row" style={{ marginTop: 12 }}><button className="btn small" onClick={() => setEditContact(true)}>{people.length > 1 ? 'Edit people' : 'Edit contact'}</button></div>
+          </div>
+          <div className="sheet">
             <div className="spread" style={{ marginBottom: 8 }}><h2>Lease</h2></div>
             {lease && (
               <div className="kv">
+                {lease.room && <><div>Room</div><div>{lease.room}</div></>}
                 <div>Start</div><div>{fmtDate(lease.start)}</div>
                 {lease.end && <><div>Ended</div><div>{fmtDate(lease.end)}</div></>}
                 <div>Paid by</div><div>{methodLabel(lease.paymentMethod)}</div>
@@ -126,10 +136,7 @@ export function TenantDetail() {
                 <div>Email notices</div><div>{t.emailConsent ? `Consented ${t.emailConsentDate ? fmtDate(t.emailConsentDate) : ''}` : 'Not consented'}</div>
               </div>
             )}
-            <div className="btn-row" style={{ marginTop: 12 }}>
-              <button className="btn small" onClick={() => setEditContact(true)}>Edit contact</button>
-              {lease && !lease.end && <button className="btn small ghost danger" onClick={() => setEnd(true)}>End tenancy</button>}
-            </div>
+            {lease && !lease.end && <div className="btn-row" style={{ marginTop: 12 }}><button className="btn small ghost danger" onClick={() => setEnd(true)}>End tenancy</button></div>}
           </div>
           <div className="sheet">
             <h2 style={{ marginBottom: 8 }}>Reminders</h2>
@@ -160,7 +167,7 @@ export function TenantDetail() {
           <div className="letter print-me" style={{ maxWidth: 'none' }}>
             <Letterhead state={state} />
             <div className="serif" style={{ fontSize: 'var(--t-20)' }}>Ledger statement — {t.names.join(' & ')}</div>
-            <p className="tiny">Unit {unit?.label}, {prop?.address}, {prop?.city} · prepared {fmtDate(today)}</p>
+            <p className="tiny">{leasePlace(unit, lease)}, {prop?.address}, {prop?.city} · prepared {fmtDate(today)}</p>
             <table>
               <tbody>
                 <tr><td><strong>Due date</strong></td><td><strong>Received</strong></td><td><strong>Amount</strong></td><td><strong>Balance</strong></td></tr>
@@ -185,14 +192,28 @@ export function TenantDetail() {
   );
 
   function ContactDrawer({ onClose }: { onClose: () => void }) {
-    const [email, setEmail] = useState(t!.email);
-    const [phone, setPhone] = useState(t!.phone);
+    const [ps, setPs] = useState<Person[]>(() => tenantPeople(t!).map((p) => ({ ...p })));
     const [consent, setConsent] = useState(t!.emailConsent);
+    const set = (i: number, x: Partial<Person>) => setPs((all) => all.map((p, j) => (j === i ? { ...p, ...x } : p)));
+    const email = ps[0]?.email.trim();
+    const save = () => {
+      act.saveTenant({ ...withPeople(t!, ps), emailConsent: consent && !!email, emailConsentDate: consent && !t!.emailConsent ? today : t!.emailConsentDate, noticeMethod: consent && email ? 'email' : 'hand' });
+      onClose();
+    };
     return (
-      <Drawer title="Contact details" onClose={onClose} footer={<button className="btn primary" onClick={() => { act.saveTenant({ ...t!, email, phone, emailConsent: consent && !!email, emailConsentDate: consent && !t!.emailConsent ? today : t!.emailConsentDate, noticeMethod: consent && email ? 'email' : 'hand' }); onClose(); }}>Save</button>}>
-        <Field label="Email" htmlFor="cd-e"><input id="cd-e" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-        <Field label="Phone" htmlFor="cd-p"><input id="cd-p" className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-        <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>Consents to notices by email<span className="tiny soft" style={{ display: 'block' }}>Withdrawing consent switches legal notices to print and hand delivery.</span></span></label>
+      <Drawer title={ps.length > 1 ? 'People on the lease' : 'Contact details'} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!ps[0]?.name.trim()} onClick={save}>Save</button></>}>
+        {ps.map((p, i) => (
+          <fieldset key={i} className="person-fields">
+            <legend>{ps.length > 1 ? `Person ${i + 1}` : 'Tenant'}{i > 0 && <button type="button" className="btn small ghost" onClick={() => setPs(ps.filter((_, j) => j !== i))} aria-label={`Remove person ${i + 1}`}><Icon name="close" size={14} />Remove</button>}</legend>
+            <Field label="Full name" htmlFor={`cd-n${i}`}><input id={`cd-n${i}`} className="input" value={p.name} onChange={(e) => set(i, { name: e.target.value })} /></Field>
+            <div className="grid2">
+              <Field label="Email" htmlFor={`cd-e${i}`}><input id={`cd-e${i}`} className="input" type="email" value={p.email} onChange={(e) => set(i, { email: e.target.value })} /></Field>
+              <Field label="Phone" htmlFor={`cd-p${i}`}><input id={`cd-p${i}`} className="input" type="tel" value={p.phone} onChange={(e) => set(i, { phone: e.target.value })} /></Field>
+            </div>
+          </fieldset>
+        ))}
+        <button className="btn small ghost" onClick={() => setPs([...ps, { name: '', email: '', phone: '' }])} style={{ marginBottom: 16 }}><Icon name="plus" size={14} />Add another person</button>
+        <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>{ps.length > 1 ? 'Everyone on the lease consents' : 'Consents'} to notices by email<span className="tiny soft" style={{ display: 'block' }}>Withdrawing consent switches legal notices to print and hand delivery.</span></span></label>
       </Drawer>
     );
   }

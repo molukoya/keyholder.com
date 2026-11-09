@@ -125,8 +125,7 @@ export function Onboarding() {
   ];
 
   if (step >= steps.length) return <SavePlan a={a} onBack={() => setStep(steps.length - 1)} onExit={exit}
-    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, w)}
-    onSample={() => act.completeOnboarding(answers(), true)} />;
+    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, w)} />;
   const s = steps[step];
   return (
     <div className="q-wrap">
@@ -155,7 +154,7 @@ export function Onboarding() {
   );
 }
 
-function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profile>; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void; onSample: () => void }) {
+function SavePlan({ a, onBack, onExit, onAccount }: { a: Partial<Profile>; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void }) {
   const [picker, setPicker] = useState(false);
   const [emails, setEmails] = useState(true);
   const d = a.dreads ?? [];
@@ -191,7 +190,6 @@ function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profi
         <div className="acct-or"><span>or</span></div>
         <EmailLink onDone={(w) => onAccount(w, emails)} />
         <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me on rent day and once a month with a summary</label>
-        <p className="small soft acct-switch">Not ready? <button className="lp-link-inline" onClick={onSample}>Try with sample properties first</button></p>
       </div>
       <div className="q-foot" style={{ marginTop: 16 }}><button className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back</button><span /></div>
       {picker && <GooglePicker onPick={(w) => { setPicker(false); onAccount(w, emails); }} onClose={() => setPicker(false)} />}

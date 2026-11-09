@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import type {
-  CCAClass, Comparable, Expense, ExpenseCategory, Lease, Mortgage, MortgageFrequency, PayMethod, Payment, Property, PropertyType, Tenant, Unit, Valuation,
+  CCAClass, Comparable, Expense, ExpenseCategory, Lease, Mortgage, MortgageFrequency, PayMethod, Payment, Person, Property, PropertyType, Tenant, Unit, Valuation,
 } from '../data/types';
-import { uid, unitTenant, useStore } from '../data/store';
+import { uid, useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
 import { addMonths, fmtPeriod, periodOf } from '../lib/dates';
-import { leaseLedger, mortgagePayment, rentalPortion } from '../lib/finance';
+import { activeLeases, byRoom, hasSpace, leaseLedger, mortgagePayment, openRooms, rentalPortion } from '../lib/finance';
+import { withPeople } from '../lib/people';
 import { CATEGORIES, CCA_CLASSES, PROVINCES, category, province } from '../lib/jurisdiction';
 import { fmt } from '../lib/money';
 import { Icon } from './Icon';
@@ -317,19 +318,34 @@ export function UnitForm({ propertyId, unit, onClose }: { propertyId: string; un
   const { state, act, today } = useStore();
   const [u, setU] = useState<Unit>(() => unit ?? { id: uid('u'), propertyId, label: '', rent: 0, bedrooms: 1, utilitiesIncluded: ['Water'], status: 'vacant' });
   const set = (x: Partial<Unit>) => setU((o) => ({ ...o, ...x }));
-  const occupied = unit ? !!unitTenant(state, unit.id, today).lease : false;
+  const leases = unit ? activeLeases(state, unit.id, today) : [];
+  const occupied = leases.length > 0;
+  const rooms = u.rentedBy === 'room';
+  // Rooms already rented can't be taken away; a unit with several room leases can't become one lease.
+  const minRooms = Math.max(1, ...leases.map((l) => Number(l.room?.replace(/\D/g, '') || 1)));
+  const tooFew = rooms && (u.rooms ?? 0) < minRooms;
+  const splitLeases = !rooms && leases.length > 1;
   return (
     <Drawer title={unit ? `Unit ${unit.label}` : 'Add a unit'} onClose={onClose}
       footer={<>
         {unit && !occupied && <button className="btn ghost danger" onClick={() => { act.removeUnit(unit.id); onClose(); }}>Remove unit</button>}
         <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" disabled={!u.label.trim()} onClick={() => { act.saveUnit(u); onClose(); }}>Save unit</button>
+        <button className="btn primary" disabled={!u.label.trim() || tooFew || splitLeases} onClick={() => { act.saveUnit(u); onClose(); }}>Save unit</button>
       </>}>
       <div className="grid2">
         <Field label="Door label" htmlFor="uf-l" hint='"A", "Upper", "Basement"'><input id="uf-l" className="input" value={u.label} onChange={(e) => set({ label: e.target.value })} /></Field>
         <Field label="Bedrooms" htmlFor="uf-b"><input id="uf-b" type="number" min={0} className="input" value={u.bedrooms} onChange={(e) => set({ bedrooms: Number(e.target.value) })} /></Field>
       </div>
-      <Field label="Asking or current rent" htmlFor="uf-r"><MoneyInput id="uf-r" value={u.rent || undefined} onChange={(c) => set({ rent: c ?? 0 })} /></Field>
+      <Field label="How is it rented?" hint={rooms ? 'Each room has its own tenant, lease and rent.' : 'One lease and one rent, shared by everyone on it (a couple, a family or roommates).'}>
+        <Seg label="How is it rented?" value={rooms ? 'room' : 'whole'} onChange={(v) => set(v === 'room' ? { rentedBy: 'room', rooms: Math.max(u.rooms ?? u.bedrooms ?? 1, minRooms, 1) } : { rentedBy: 'whole' })} options={[{ id: 'whole', label: 'As a whole' }, { id: 'room', label: 'By the room' }]} />
+      </Field>
+      {splitLeases && <div className="callout warn">This unit has {leases.length} room leases running. End all but one before renting it as a whole.</div>}
+      {rooms && (
+        <Field label="Rooms for rent" htmlFor="uf-rooms" hint={tooFew ? `Room ${minRooms} is rented, so keep at least ${minRooms} rooms.` : undefined}>
+          <input id="uf-rooms" type="number" min={minRooms} max={12} className="input" value={u.rooms ?? ''} onChange={(e) => set({ rooms: Math.min(12, Number(e.target.value) || 0) })} />
+        </Field>
+      )}
+      <Field label={rooms ? 'Usual rent for one room' : 'Asking or current rent'} htmlFor="uf-r"><MoneyInput id="uf-r" value={u.rent || undefined} onChange={(c) => set({ rent: c ?? 0 })} /></Field>
       <div className="field"><span className="label">Included in rent</span>
         <div className="btn-row">{UTILS.map((x) => <label key={x} className="check" style={{ paddingRight: 12 }}><input type="checkbox" checked={u.utilitiesIncluded.includes(x)} onChange={(e) => set({ utilitiesIncluded: e.target.checked ? [...u.utilitiesIncluded, x] : u.utilitiesIncluded.filter((y) => y !== x) })} />{x}</label>)}</div>
       </div>
@@ -343,12 +359,14 @@ export function UnitForm({ propertyId, unit, onClose }: { propertyId: string; un
 // =====================================================================================
 export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () => void }) {
   const { state, act, today } = useStore();
-  const free = state.units.filter((u) => !unitTenant(state, u.id, today).lease);
+  const free = state.units.filter((u) => hasSpace(state, u, today));
   const [uId, setUId] = useState(unitId ?? free[0]?.id ?? '');
   const unit = state.units.find((u) => u.id === uId);
-  const [names, setNames] = useState<string[]>(['']);
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const rooms = unit && byRoom(unit) ? openRooms(state, unit, today) : [];
+  const [room, setRoom] = useState(rooms[0] ?? '');
+  const [people, setPeople] = useState<Person[]>([{ name: '', email: '', phone: '' }]);
+  const setPerson = (i: number, x: Partial<Person>) => setPeople((ps) => ps.map((p, j) => (j === i ? { ...p, ...x } : p)));
+  const email = people[0].email;
   const [consent, setConsent] = useState(true);
   const [start, setStart] = useState(`${periodOf(addMonths(today, 1))}-01`);
   const [rent, setRent] = useState<number | undefined>(unit?.rent || undefined);
@@ -358,13 +376,14 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
   const [parking, setParking] = useState(false);
   const [pets, setPets] = useState(false);
   const [utilities, setUtilities] = useState('');
-  const valid = unit && names[0].trim() && rent && start;
+  const valid = unit && people[0].name.trim() && rent && start && (!byRoom(unit) || room);
 
   const save = () => {
     if (!unit || !rent) return;
     const tid = uid('t');
-    const t: Tenant = { id: tid, unitId: unit.id, names: names.map((n) => n.trim()).filter(Boolean), email, phone, noticeMethod: consent && email ? 'email' : 'hand', emailConsent: consent && !!email, emailConsentDate: consent && email ? today : undefined, aliases: [] };
-    const l: Lease = { id: uid('l'), unitId: unit.id, tenantId: tid, start, rent, dueDay, paymentMethod: method, lmrDeposit: lmr ?? 0, utilities, parking, pets, emailNoticeConsent: consent && !!email };
+    const base: Tenant = { id: tid, unitId: unit.id, names: [], email: '', phone: '', noticeMethod: consent && email ? 'email' : 'hand', emailConsent: consent && !!email, emailConsentDate: consent && email ? today : undefined, aliases: [] };
+    const t = withPeople(base, people);
+    const l: Lease = { id: uid('l'), unitId: unit.id, tenantId: tid, room: byRoom(unit) ? room : undefined, start, rent, dueDay, paymentMethod: method, lmrDeposit: lmr ?? 0, utilities, parking, pets, emailNoticeConsent: consent && !!email };
     act.addTenancy(t, l);
     onClose();
   };
@@ -374,23 +393,28 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
   return (
     <Drawer title="Add a tenant" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!valid} onClick={save}>Save tenant and lease</button></>}>
       <Field label="Unit" htmlFor="tf-u">
-        <select id="tf-u" className="input" value={uId} onChange={(e) => { setUId(e.target.value); const u = state.units.find((x) => x.id === e.target.value); setRent(u?.rent); setLmr(u?.rent); }}>
-          {(free.length ? free : state.units).map((u) => <option key={u.id} value={u.id}>{state.properties.find((p) => p.id === u.propertyId)?.nickname} — Unit {u.label}</option>)}
+        <select id="tf-u" className="input" value={uId} onChange={(e) => { setUId(e.target.value); const u = state.units.find((x) => x.id === e.target.value); setRent(u?.rent); setLmr(u?.rent); setRoom(u && byRoom(u) ? openRooms(state, u, today)[0] ?? '' : ''); }}>
+          {(free.length ? free : state.units).map((u) => <option key={u.id} value={u.id}>{state.properties.find((p) => p.id === u.propertyId)?.nickname} — Unit {u.label}{byRoom(u) ? ` (${openRooms(state, u, today).length} free of ${u.rooms ?? 1} rooms)` : ''}</option>)}
         </select>
       </Field>
-      <h3 style={{ margin: '8px 0 12px' }}>Who lives there</h3>
-      {names.map((n, i) => (
-        <Field key={i} label={i === 0 ? 'Tenant name' : `Co-tenant ${i}`} htmlFor={`tf-n${i}`}>
-          <input id={`tf-n${i}`} className="input" value={n} onChange={(e) => setNames(names.map((x, j) => (j === i ? e.target.value : x)))} autoComplete="off" />
-        </Field>
+      {unit && byRoom(unit) && (rooms.length
+        ? <Field label="Which room?"><Seg label="Which room?" value={room} onChange={setRoom} options={rooms.map((r) => ({ id: r, label: r }))} /></Field>
+        : <div className="callout warn">Every room in Unit {unit.label} is rented. Add a room in the unit's settings first.</div>)}
+      <h3 style={{ margin: '8px 0 4px' }}>Who is on the lease</h3>
+      <p className="small soft" style={{ margin: '0 0 12px' }}>{unit && byRoom(unit) ? 'Usually one person per room.' : 'Add everyone who signs: a couple or roommates share one lease and one rent.'} Receipts and reminders go to everyone's email.</p>
+      {people.map((p, i) => (
+        <fieldset key={i} className="person-fields">
+          <legend>{people.length > 1 ? `Person ${i + 1}` : 'Tenant'}{i > 0 && <button type="button" className="btn small ghost" onClick={() => setPeople(people.filter((_, j) => j !== i))} aria-label={`Remove person ${i + 1}`}><Icon name="close" size={14} />Remove</button>}</legend>
+          <Field label="Full name" htmlFor={`tf-n${i}`}><input id={`tf-n${i}`} className="input" value={p.name} onChange={(e) => setPerson(i, { name: e.target.value })} autoComplete="off" /></Field>
+          <div className="grid2">
+            <Field label="Email" htmlFor={`tf-e${i}`}><input id={`tf-e${i}`} type="email" className="input" value={p.email} onChange={(e) => setPerson(i, { email: e.target.value })} /></Field>
+            <Field label="Phone" htmlFor={`tf-p${i}`}><input id={`tf-p${i}`} type="tel" className="input" value={p.phone} onChange={(e) => setPerson(i, { phone: e.target.value })} /></Field>
+          </div>
+        </fieldset>
       ))}
-      <button className="btn small ghost" onClick={() => setNames([...names, ''])} style={{ marginBottom: 16 }}><Icon name="plus" size={14} />Add co-tenant</button>
-      <div className="grid2">
-        <Field label="Email" htmlFor="tf-e" hint="Receipts and reminders go here"><input id="tf-e" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-        <Field label="Phone" htmlFor="tf-p"><input id="tf-p" type="tel" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-      </div>
+      <button className="btn small ghost" onClick={() => setPeople([...people, { name: '', email: '', phone: '' }])} style={{ marginBottom: 16 }}><Icon name="plus" size={14} />Add another person</button>
       <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>The tenant agreed in the lease to receive notices by email<span className="tiny soft" style={{ display: 'block' }}>Stored with the lease as evidence. Without consent, legal notices fall back to print and hand delivery.</span></span>
+        <span>{people.length > 1 ? 'Everyone on the lease agreed' : 'The tenant agreed'} in the lease to receive notices by email<span className="tiny soft" style={{ display: 'block' }}>Stored with the lease as evidence. Without consent, legal notices fall back to print and hand delivery.</span></span>
       </label>
       <h3 style={{ margin: '20px 0 12px' }}>Lease</h3>
       <div className="grid2">

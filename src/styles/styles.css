@@ -117,6 +117,13 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .acct-save { max-width: 560px; width: 100%; margin-top: 24px; }
 .acct-save h2 { margin: 0; }
 .acct-switch { margin: 18px 0 0; }
+.acct-admin-link { margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--rule); text-align: center; }
+.acct-admin-link .lp-link-inline { color: var(--ink-soft); font-weight: 600; }
+.acct-admin { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.acct-admin h2 { margin: 0; font-size: 20px; }
+.acct-admin > p.small { margin: 4px 0 16px; }
+.acct-admin .input { min-height: 48px; }
+.acct-error { margin: 0 0 12px; color: var(--rust); font-weight: 600; }
 .lp-link-inline { all: unset; cursor: pointer; color: var(--primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .lp-link-inline:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .plan-list { list-style: none; padding: 0; margin: 8px 0 12px; display: grid; gap: 10px; font-size: 18px; }
@@ -279,3 +286,14 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
 .q-lines span { border-top-width: 3px; border-radius: 3px; }
 .q-lines span.done { border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
 .q-lines span.now { border-color: var(--primary); }
+
+/* Several people on one lease: one small box per person */
+.person-fields { border: 1px solid var(--rule); border-radius: 12px; padding: 12px 16px 0; margin: 0 0 12px; min-width: 0; }
+.person-fields legend { display: flex; align-items: center; gap: 8px; padding: 0 6px; font-weight: 600; font-size: 14px; }
+.person-fields legend .btn { min-height: 32px; padding: 0 8px; }
+.people-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.people-list li { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.people-list li > span { min-width: 0; overflow-wrap: anywhere; }
+.people-list li > span > span { display: block; }
+.people-list strong { display: block; }
+.to-line { overflow-wrap: anywhere; }

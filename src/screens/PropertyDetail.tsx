@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
-import { unitTenant, useStore } from '../data/store';
+import { useStore } from '../data/store';
+import { hasSpace } from '../lib/finance';
 import { FindTenantTab, NoticesTab, UnitsTab } from './Rentals';
 import type { Property } from '../data/types';
 import { propertyLevel, atLeast } from '../lib/levels';
@@ -23,7 +24,7 @@ export function PropertyDetail() {
   const [edit, setEdit] = useState(false);
   const p = state.properties.find((x) => x.id === id);
   if (!p) return <div className="page"><Empty title="That property isn't here." action={<Link to="/rentals" className="btn">Back to Rentals</Link>} /></div>;
-  const hasEmpty = state.units.some((u) => u.propertyId === p.id && !unitTenant(state, u.id, today).lease);
+  const hasEmpty = state.units.some((u) => u.propertyId === p.id && hasSpace(state, u, today));
   const cur = tab === 'overview' ? 'units' : tab;
   const base = `/rent/property/${p.id}`;
 

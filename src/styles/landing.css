@@ -57,9 +57,9 @@
 .lp-nav-cta .btn.ghost { color: var(--lp-ink); }
 .lp-burger { display: none; margin-left: auto; gap: 6px; background: #fff; color: var(--lp-ink); border: 1px solid var(--lp-rule); }
 .lp-menu { position: fixed; inset: 72px 0 0 0; z-index: 59; background: #fff; padding: 8px 20px 32px; overflow-y: auto; display: flex; flex-direction: column; animation: lp-fade 180ms var(--ease); }
-.lp-menu a { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 14px 4px; color: var(--lp-ink); text-decoration: none; font-family: var(--font-display); font-weight: 700; font-size: 22px; border-bottom: 1px solid var(--lp-rule); }
+.lp-menu a:not(.btn) { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 14px 4px; color: var(--lp-ink); text-decoration: none; font-family: var(--font-display); font-weight: 700; font-size: 22px; border-bottom: 1px solid var(--lp-rule); }
 .lp-menu-ic { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #F4F5FF; color: var(--indigo); }
-.lp-menu a.on { color: var(--indigo); }
+.lp-menu a.on:not(.btn) { color: var(--indigo); }
 .lp-menu .btn-row { margin-top: 24px; }
 .lp-menu .btn { flex: 1; min-height: 52px; }
 @keyframes lp-fade { from { opacity: 0; } }

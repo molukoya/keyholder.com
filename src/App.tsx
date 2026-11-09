@@ -42,10 +42,13 @@ function Root() {
   useTheme();
   // The landing page is the front door; /welcome shows it again from inside the app.
   const onStart = loc.pathname === '/start' || loc.pathname.startsWith('/start/');
-  // Signed out (an account exists but is signed out) behaves like a visitor until they sign in again.
-  const inApp = state.profile.onboarded && !(state.profile.account && !state.profile.account.signedIn);
+  // The app opens for a signed-in account (admin sees the sample). Anyone else, including an old demo
+  // left in the browser, is a visitor: the website, Sign in and signup all work for them.
+  const p = state.profile;
+  const signedIn = !!p.account?.signedIn;
+  const inApp = p.onboarded && (signedIn || (!p.account && !p.sample));
   if (loc.pathname.startsWith('/welcome')) return <Landing />;
-  if (!inApp && loc.pathname.startsWith('/signin')) return <SignIn />;
+  if (!signedIn && loc.pathname.startsWith('/signin')) return <SignIn />;
   if (!inApp) return onStart ? <Onboarding /> : <Landing />;
   return <Shell />;
 }

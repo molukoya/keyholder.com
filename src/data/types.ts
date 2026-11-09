@@ -46,8 +46,8 @@ export interface Profile {
   /** Showing the sample properties (demo). */
   sample?: boolean;
   tourDone?: boolean;
-  /** Account (Stage 1: simulated). Sample/demo users have none. */
-  account?: { provider: 'google' | 'email'; email: string; name: string; signedIn: boolean; created: ISODate };
+  /** Account (Stage 1: simulated). 'admin' is the preview login that opens the sample properties. */
+  account?: { provider: 'google' | 'email' | 'admin'; email: string; name: string; signedIn: boolean; created: ISODate };
   /** Email me on rent day and once a month (preview only: nothing is sent). */
   emailUpdates?: boolean;
   /** Today's visit and the one before, for "Since your last visit". */
@@ -97,6 +97,17 @@ export interface Unit {
   bedrooms: number;
   utilitiesIncluded: string[];
   status: UnitStatus;
+  /** 'whole' (default): one lease, shared by everyone on it. 'room': each room has its own tenant, lease and rent. */
+  rentedBy?: 'whole' | 'room';
+  /** Rooms for rent, when rented by the room. For those units `rent` is the usual rent for one room. */
+  rooms?: number;
+}
+
+/** One person on a lease or an application, with their own contact details. */
+export interface Person {
+  name: string;
+  email: string;
+  phone: string;
 }
 
 export type NoticeMethod = 'email' | 'hand' | 'mail';
@@ -104,9 +115,12 @@ export type NoticeMethod = 'email' | 'hand' | 'mail';
 export interface Tenant {
   id: ID;
   unitId: ID;
+  /** Everyone on the lease. Kept in step with `people`; email and phone are the first person's. */
   names: string[];
   email: string;
   phone: string;
+  /** Everyone on the lease with their own email and phone. Receipts and reminders go to all of them. */
+  people?: Person[];
   noticeMethod: NoticeMethod;
   emailConsent: boolean;
   emailConsentDate?: ISODate;
@@ -133,6 +147,8 @@ export interface Lease {
   parking: boolean;
   pets: boolean;
   emailNoticeConsent: boolean;
+  /** Units rented by the room: which room this lease is for, e.g. "Room 2". */
+  room?: string;
 }
 
 export type PaymentSource = 'manual' | 'bank' | 'email';
@@ -298,6 +314,13 @@ export interface Listing {
 
 export type ApplicantStatus = 'new' | 'shortlisted' | 'declined' | 'offered' | 'accepted';
 
+/** One person on an application, with their own contact details, job and income. */
+export interface ApplicantPerson extends Person {
+  employer: string;
+  jobTitle?: string;
+  monthlyIncome: Cents;
+}
+
 export interface Applicant {
   id: ID;
   unitId: ID;
@@ -333,6 +356,11 @@ export interface Applicant {
   smoking?: boolean;
   creditConsent?: boolean;
   documents?: string[];
+  /**
+   * Everyone applying together (a couple or roommates sharing one lease), each with their own job and income.
+   * `names`, `email`, `phone`, `employer` and `monthlyIncome` hold the totals and the first person's contact.
+   */
+  people?: ApplicantPerson[];
   /** The owner's own assessment. */
   assessment?: { landlordRef?: boolean; employerRef?: boolean; idSeen?: boolean; creditChecked?: boolean; creditScore?: number; docsReceived?: boolean; rating?: number; notes?: string };
 }

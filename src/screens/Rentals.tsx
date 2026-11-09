@@ -2,8 +2,10 @@ import { PageSub } from '../components/Guide';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
-import type { Applicant, Lease, Listing, Notice, Unit } from '../data/types';
+import type { Applicant, Lease, Listing, Notice, Tenant, Unit } from '../data/types';
 import { currentLine, unitTenant, useStore } from '../data/store';
+import { activeLeases, byRoom, hasSpace, openRooms, roomsLine } from '../lib/finance';
+import { applicantPeople } from '../lib/people';
 import { addDays, daysBetween, fmtDate, fmtDay, fmtPeriod } from '../lib/dates';
 import { arrears, earliestIncrease, nextNotice, propertyOf } from '../lib/notices';
 import { rentVsMarket } from '../lib/silver';
@@ -58,28 +60,55 @@ function PropertyBlock({ propertyId }: { propertyId: string }) {
   );
 }
 
-/** One row per unit: who lives there, this month's rent, and the one action that matters. */
+/**
+ * One row per unit: who lives there, this month's rent, and the one action that matters.
+ * A unit rented by the room gets a row per rented room, and one for its free rooms.
+ */
 export function UnitRow({ unit }: { unit: Unit }) {
+  const { state, today } = useStore();
+  if (!byRoom(unit)) {
+    const { lease, tenant } = unitTenant(state, unit.id, today);
+    return lease && tenant ? <LeaseRow unit={unit} lease={lease} tenant={tenant} /> : <VacantRow unit={unit} />;
+  }
+  const free = openRooms(state, unit, today);
+  return (
+    <>
+      {activeLeases(state, unit.id, today).map((l) => {
+        const t = state.tenants.find((x) => x.id === l.tenantId);
+        return t ? <LeaseRow key={l.id} unit={unit} lease={l} tenant={t} /> : null;
+      })}
+      {free.length > 0 && <VacantRow unit={unit} free={free} />}
+    </>
+  );
+}
+
+/** An empty unit, or the free rooms of a unit rented by the room. */
+function VacantRow({ unit, free }: { unit: Unit; free?: string[] }) {
+  const { state, today } = useStore();
+  const nav = useNavigate();
+  const listing = state.listings.find((l) => l.unitId === unit.id);
+  const apps = state.applicants.filter((a) => a.unitId === unit.id && (a.status === 'new' || a.status === 'shortlisted' || a.status === 'offered'));
+  const since = listing?.vacantSince ?? state.leases.filter((l) => l.unitId === unit.id && l.end).map((l) => l.end!).sort().pop();
+  const days = since ? Math.max(0, daysBetween(since, today)) : 0;
+  const lost = Math.round((unit.rent * (free?.length ?? 1) * 12 * days) / 365);
+  const what = !free ? 'Empty' : free.length === 1 ? `${free[0]} is free` : `${free.length} rooms are free`;
+  return (
+    <li className="unit-row vacant">
+      <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
+      <span className="unit-who"><strong>{what}{days ? ` for ${days} days` : ''}</strong><span>{free ? `${roomsLine(state, unit, today)} · ` : ''}{listing ? `Asking ${fmt0(listing.askingRent)}` : `Last rent ${fmt0(unit.rent)}`}{days ? ` · about ${fmt0(lost)} rent lost` : ''}</span></span>
+      <span className="unit-state">{apps.length ? <span className="status due">{apps.length} application{apps.length > 1 ? 's' : ''}</span> : <span className="status vacant">No applications</span>}</span>
+      <button className="btn primary" onClick={() => nav(`/rent/property/${unit.propertyId}/find`)}>Find a tenant</button>
+    </li>
+  );
+}
+
+/** A lease: the whole unit's (one or several people), or one room's. */
+function LeaseRow({ unit, lease, tenant }: { unit: Unit; lease: Lease; tenant: Tenant }) {
   const { state, today } = useStore();
   const nav = useNavigate();
   const [pay, setPay] = useState(false);
   const [late, setLate] = useState<Lease | null>(null);
   const [raise, setRaise] = useState(false);
-  const { lease, tenant } = unitTenant(state, unit.id, today);
-  if (!lease || !tenant) {
-    const listing = state.listings.find((l) => l.unitId === unit.id);
-    const apps = state.applicants.filter((a) => a.unitId === unit.id && a.status !== 'declined');
-    const since = listing?.vacantSince ?? state.leases.filter((l) => l.unitId === unit.id && l.end).map((l) => l.end!).sort().pop();
-    const days = since ? Math.max(0, daysBetween(since, today)) : 0;
-    return (
-      <li className="unit-row vacant">
-        <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
-        <span className="unit-who"><strong>Empty{days ? ` for ${days} days` : ''}</strong><span>{listing ? `Asking ${fmt0(listing.askingRent)}` : `Last rent ${fmt0(unit.rent)}`}{days ? ` · about ${fmt0(Math.round((unit.rent * 12 * days) / 365))} rent lost` : ''}</span></span>
-        <span className="unit-state">{apps.length ? <span className="status due">{apps.length} application{apps.length > 1 ? 's' : ''}</span> : <span className="status vacant">No applications</span>}</span>
-        <button className="btn primary" onClick={() => nav(`/rent/property/${unit.propertyId}/find`)}>Find a tenant</button>
-      </li>
-    );
-  }
   const line = currentLine(state, lease, today)!;
   // A deposit waiting to be confirmed for this tenant: show it instead of "late".
   const found = trayItems(state, today).some((t) => t.kind === 'match' && t.suggestion?.leaseId === lease.id);
@@ -87,7 +116,7 @@ export function UnitRow({ unit }: { unit: Unit }) {
   return (
     <li className={`unit-row ${isLate ? 'late' : ''}`}>
       <span className={`unit-label${unit.label.length > 2 ? ' long' : ''}`}>{unit.label}</span>
-      <Link to={`/rent/tenant/${tenant.id}`} className="unit-who"><strong>{tenant.names.join(' & ')}</strong><span>{fmt(lease.rent)} a month</span></Link>
+      <Link to={`/rent/tenant/${tenant.id}`} className="unit-who"><strong>{tenant.names.join(' & ')}</strong><span>{lease.room ? `${lease.room} · ` : ''}{fmt(lease.rent)} a month{tenant.names.length > 1 ? ' · shared lease' : ''}</span></Link>
       <span className="unit-state">
         {line.state === 'paid' && <span className="status paid"><Icon name="check" size={16} />Paid</span>}
         {isLate && <span className="status late">Late · {line.daysLate} days</span>}
@@ -111,7 +140,7 @@ export function UnitRow({ unit }: { unit: Unit }) {
 // Units and tenants tab (property page)
 // =====================================================================================
 export function UnitsTab({ propertyId }: { propertyId: string }) {
-  const { state } = useStore();
+  const { state, today } = useStore();
   const [unitEdit, setUnitEdit] = useState<string | 'new' | null>(null);
   const [addTenant, setAddTenant] = useState(false);
   const units = state.units.filter((u) => u.propertyId === propertyId);
@@ -125,7 +154,7 @@ export function UnitsTab({ propertyId }: { propertyId: string }) {
         {units.length > 0 && <div className="btn-row" style={{ marginTop: 8 }}>{units.map((u) => <button key={u.id} className="btn small ghost" onClick={() => setUnitEdit(u.id)}>Edit unit {u.label}</button>)}</div>}
       </section>
       {unitEdit && <UnitForm propertyId={propertyId} unit={unitEdit === 'new' ? undefined : state.units.find((u) => u.id === unitEdit)} onClose={() => setUnitEdit(null)} />}
-      {addTenant && <TenancyForm unitId={units.find((u) => !unitTenant(state, u.id, new Date().toISOString().slice(0, 10)).lease)?.id} onClose={() => setAddTenant(false)} />}
+      {addTenant && <TenancyForm unitId={units.find((u) => hasSpace(state, u, today))?.id} onClose={() => setAddTenant(false)} />}
     </>
   );
 }
@@ -137,8 +166,8 @@ const SAFE_DECLINE = ['The unit has been rented to another applicant', 'Income d
 
 export function FindTenantTab({ propertyId }: { propertyId: string }) {
   const { state, today } = useStore();
-  const empty = state.units.filter((u) => u.propertyId === propertyId && !unitTenant(state, u.id, today).lease);
-  if (!empty.length) return <div className="sheet"><Empty title="Every unit is rented.">When a unit is empty, you can list it and send the application form from here.</Empty></div>;
+  const empty = state.units.filter((u) => u.propertyId === propertyId && hasSpace(state, u, today));
+  if (!empty.length) return <div className="sheet"><Empty title="Every unit is rented.">When a unit or a room is free, you can list it and send the application form from here.</Empty></div>;
   return <>{empty.map((u) => <FindTenantUnit key={u.id} unit={u} />)}</>;
 }
 
@@ -154,10 +183,13 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
   const live = apps.filter((a) => a.status !== 'declined');
   const link = `https://keyholder.ca/apply/${l.slug}`;
   const days = Math.max(0, daysBetween(l.vacantSince, today));
+  const free = byRoom(unit) ? openRooms(state, unit, today) : null;
+  const what = !free ? 'empty' : free.length === 1 ? `${free[0]} free` : `${free.length} rooms free`;
 
   return (
     <section className="section">
-      <h2 className="section-title">Unit {unit.label} · empty for {days} days <span className="small urgent">about {fmt0(Math.round((unit.rent * 12 * days) / 365))} rent lost so far</span></h2>
+      <h2 className="section-title">Unit {unit.label} · {what} for {days} days <span className="small urgent">about {fmt0(Math.round((unit.rent * (free?.length ?? 1) * 12 * days) / 365))} rent lost so far</span></h2>
+      {free && <p className="small soft" style={{ margin: '-8px 0 16px' }}>Rented by the room: {roomsLine(state, unit, today)}. Each room gets its own tenant, lease and rent, and applications stay open until every room is taken.</p>}
       <div className="split">
         <div className="sheet">
           <h3 style={{ marginBottom: 12 }}>1. Your listing</h3>
@@ -165,7 +197,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
             <Field label="Asking rent" htmlFor={`ls-r-${unit.id}`}><MoneyInput id={`ls-r-${unit.id}`} value={l.askingRent} onChange={(c) => setL({ ...l, askingRent: c ?? 0 })} /></Field>
             <Field label="Available from" htmlFor={`ls-d-${unit.id}`}><input id={`ls-d-${unit.id}`} type="date" className="input" value={l.available} onChange={(e) => setL({ ...l, available: e.target.value })} /></Field>
           </div>
-          <Field label="About the unit" htmlFor={`ls-n-${unit.id}`}><textarea id={`ls-n-${unit.id}`} className="input" style={{ minHeight: 80 }} value={l.notes} onChange={(e) => setL({ ...l, notes: e.target.value })} placeholder="Bedrooms, laundry, parking, what's nearby" /></Field>
+          <Field label={free ? 'About the room' : 'About the unit'} htmlFor={`ls-n-${unit.id}`}><textarea id={`ls-n-${unit.id}`} className="input" style={{ minHeight: 80 }} value={l.notes} onChange={(e) => setL({ ...l, notes: e.target.value })} placeholder="Bedrooms, laundry, parking, what's nearby" /></Field>
           <button className="btn" onClick={() => act.saveListing(l)}>Save listing</button>
         </div>
         <div className="sheet">
@@ -187,7 +219,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
           <ul className="unit-list">{apps.map((a) => (
             <li key={a.id} className="unit-row">
               <span className="unit-label"><Icon name="user" /></span>
-              <button className="unit-who as-link" onClick={() => setOpen(a)}><strong>{a.names.join(' & ')}</strong><span>Applied {fmtDate(a.submitted)} · income {fmt0(a.monthlyIncome)}/mo ({(a.monthlyIncome / l.askingRent).toFixed(1)}× rent)</span></button>
+              <button className="unit-who as-link" onClick={() => setOpen(a)}><strong>{a.names.join(' & ')}</strong><span>Applied {fmtDate(a.submitted)} · {a.names.length > 1 ? 'household income' : 'income'} {fmt0(a.monthlyIncome)}/mo ({(a.monthlyIncome / l.askingRent).toFixed(1)}× rent)</span></button>
               <span className="unit-state"><span className={`status ${a.status === 'declined' ? 'vacant' : a.status === 'offered' || a.status === 'accepted' ? 'paid' : 'due'}`}>{({ new: 'New', shortlisted: 'Shortlisted', declined: 'Declined', offered: 'Offer sent', accepted: 'Accepted' })[a.status]}</span></span>
               <button className="btn" onClick={() => setOpen(a)}>Review</button>
             </li>
@@ -202,7 +234,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
         <Drawer title="Compare applications" onClose={() => setCompare(false)} wide>
           <div className="table-scroll"><table className="ledger">
             <tbody>
-              {([['Applicants', (a: Applicant) => a.names.join(' & ')], ['People living there', (a: Applicant) => String(a.occupants ?? '—')], ['Move-in', (a: Applicant) => fmtDate(a.moveIn)], ['Rent as % of income', (a: Applicant) => `${Math.round((l.askingRent / (a.monthlyIncome + (a.otherIncome ?? 0))) * 100)}%`], ['Work', (a: Applicant) => `${a.jobTitle ?? ''} ${a.employer} · ${a.employedYears ?? '?'} yrs`], ['Current home', (a: Applicant) => `${a.yearsAtAddress} yrs · rent ${a.currentRent ? fmt0(a.currentRent) : '—'}`], ['Why moving', (a: Applicant) => a.reasonLeaving ?? '—'], ['Landlord reference', (a: Applicant) => (a.assessment?.landlordRef ? 'Checked' : 'Not yet')], ['Employer confirmed', (a: Applicant) => (a.assessment?.employerRef ? 'Yes' : 'Not yet')], ['Credit score', (a: Applicant) => (a.assessment?.creditScore ? String(a.assessment.creditScore) : '—')], ['Documents', (a: Applicant) => a.documents?.join(', ') || 'None'], ['Pets / smoking', (a: Applicant) => `${a.pets ? 'Pets' : 'No pets'} · ${a.smoking ? 'Smokes' : 'Non-smoking'}`], ['Your rating', (a: Applicant) => (a.assessment?.rating ? `${a.assessment.rating} / 5` : '—')]] as [string, (a: Applicant) => string][]).map(([k, f]) => (
+              {([['Applicants', (a: Applicant) => a.names.join(' & ')], ['People living there', (a: Applicant) => String(a.occupants ?? '—')], ['Move-in', (a: Applicant) => fmtDate(a.moveIn)], ['Rent as % of income', (a: Applicant) => `${Math.round((l.askingRent / (a.monthlyIncome + (a.otherIncome ?? 0))) * 100)}%`], ['Work', (a: Applicant) => (a.people?.length ? a.people.map((x) => `${x.name.split(' ')[0]}: ${x.jobTitle ? `${x.jobTitle}, ` : ''}${x.employer} (${fmt0(x.monthlyIncome)})`).join(' · ') : `${a.jobTitle ?? ''} ${a.employer} · ${a.employedYears ?? '?'} yrs`)], ['Current home', (a: Applicant) => `${a.yearsAtAddress} yrs · rent ${a.currentRent ? fmt0(a.currentRent) : '—'}`], ['Why moving', (a: Applicant) => a.reasonLeaving ?? '—'], ['Landlord reference', (a: Applicant) => (a.assessment?.landlordRef ? 'Checked' : 'Not yet')], ['Employer confirmed', (a: Applicant) => (a.assessment?.employerRef ? 'Yes' : 'Not yet')], ['Credit score', (a: Applicant) => (a.assessment?.creditScore ? String(a.assessment.creditScore) : '—')], ['Documents', (a: Applicant) => a.documents?.join(', ') || 'None'], ['Pets / smoking', (a: Applicant) => `${a.pets ? 'Pets' : 'No pets'} · ${a.smoking ? 'Smokes' : 'Non-smoking'}`], ['Your rating', (a: Applicant) => (a.assessment?.rating ? `${a.assessment.rating} / 5` : '—')]] as [string, (a: Applicant) => string][]).map(([k, f]) => (
                 <tr key={k}><td className="soft">{k}</td>{live.map((a) => <td key={a.id}>{f(a)}</td>)}</tr>
               ))}
             </tbody>
@@ -269,6 +301,10 @@ function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant
   const [reason, setReason] = useState(SAFE_DECLINE[0]);
   const [start, setStart] = useState(a.moveIn > today ? a.moveIn : addDays(today, 7));
   const [rent, setRent] = useState<number | undefined>(listing.askingRent);
+  const unit = state.units.find((u) => u.id === a.unitId);
+  const free = unit && byRoom(unit) ? openRooms(state, unit, today) : [];
+  const [room, setRoom] = useState(free[0] ?? '');
+  const lastRoom = free.length <= 1;
   return (
     <Drawer title={a.names.join(' & ')} onClose={onClose} footer={mode === 'view' ? (
       <>
@@ -280,7 +316,7 @@ function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant
     ) : mode === 'decline' ? (
       <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" onClick={() => { act.setApplicantStatus(a.id, 'declined'); onClose(); }}>Send decline</button></>
     ) : (
-      <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" disabled={!rent} onClick={() => { act.acceptApplicant(a.id, start, rent!); onClose(); }}>Make them the tenant</button></>
+      <><button className="btn ghost" onClick={() => setMode('view')}>Back</button><button className="btn primary" disabled={!rent || (free.length > 0 && !room)} onClick={() => { act.acceptApplicant(a.id, start, rent!, room || undefined); onClose(); }}>Make them the tenant</button></>
     )}>
       {mode === 'view' && <ApplicantDetails a={a} rent={listing.askingRent} />}
       {mode === 'decline' && (
@@ -293,7 +329,10 @@ function ApplicantDrawer({ applicant, listing, onClose }: { applicant: Applicant
       )}
       {mode === 'accept' && (
         <>
-          <p style={{ marginTop: 0 }}>{a.names.join(' & ')} become the tenants. A lease is drafted with these terms, and other applicants get a polite decline.</p>
+          <p style={{ marginTop: 0 }}>{free.length
+            ? `${a.names.join(' & ')} ${a.names.length > 1 ? 'rent' : 'rents'} ${room || 'a room'}, with their own lease. ${lastRoom ? 'That fills the last room, so other applicants get a polite decline.' : 'Other applications stay open for the rooms still free.'}`
+            : `${a.names.join(' & ')} become the tenants. A lease is drafted with these terms, and other applicants get a polite decline.`}</p>
+          {free.length > 1 && <Field label="Which room?"><Seg label="Which room?" value={room} onChange={setRoom} options={free.map((r) => ({ id: r, label: r }))} /></Field>}
           <div className="grid2">
             <Field label="Lease starts" htmlFor="ac-s"><input id="ac-s" type="date" className="input" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
             <Field label="Monthly rent" htmlFor="ac-r"><MoneyInput id="ac-r" value={rent} onChange={setRent} /></Field>
@@ -394,6 +433,10 @@ export function NoticesTab({ propertyId }: { propertyId: string }) {
 
 const money = (c?: number) => (c ? fmt0(c) : '—');
 
+function PersonKV({ label, name, contact }: { label: string; name: string; contact: string }) {
+  return <><div>{label}</div><div style={{ fontFamily: 'inherit' }}>{name}{contact && <><br /><span className="soft">{contact}</span></>}</div></>;
+}
+
 function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
   const { act } = useStore();
   const income = a.monthlyIncome + (a.otherIncome ?? 0);
@@ -410,9 +453,10 @@ function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
       </div>
       <h3 style={{ margin: '16px 0 6px' }}>People</h3>
       <div className="kv">
-        <div>Adults</div><div style={{ fontFamily: 'inherit' }}>{a.names.join(', ')}</div>
         <div>People living there</div><div>{a.occupants ?? '—'}</div>
-        <div>Email / phone</div><div>{a.email}<br />{a.phone}</div>
+        {applicantPeople(a).map((x, i) => (
+          <PersonKV key={i} label={a.names.length > 1 ? `Applicant ${i + 1}` : 'Applicant'} name={x.name} contact={[x.email, x.phone].filter(Boolean).join(' · ')} />
+        ))}
         <div>Emergency contact</div><div style={{ fontFamily: 'inherit' }}>{a.emergencyContact ?? '—'}</div>
       </div>
       <h3 style={{ margin: '16px 0 6px' }}>Rental history</h3>
@@ -425,10 +469,12 @@ function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
       </div>
       <h3 style={{ margin: '16px 0 6px' }}>Work and income</h3>
       <div className="kv">
-        <div>Work</div><div style={{ fontFamily: 'inherit' }}>{a.jobTitle ? `${a.jobTitle} · ` : ''}{a.employer}</div>
+        {a.people?.length ? a.people.map((x) => (
+          <PersonKV key={x.name} label={x.name.split(' ')[0]} name={`${x.jobTitle ? `${x.jobTitle} · ` : ''}${x.employer}`} contact={`${fmt0(x.monthlyIncome)} a month`} />
+        )) : <><div>Work</div><div style={{ fontFamily: 'inherit' }}>{a.jobTitle ? `${a.jobTitle} · ` : ''}{a.employer}</div></>}
         <div>How long</div><div>{a.employedYears ? `${a.employedYears} yrs` : '—'}</div>
         <div>Employer contact</div><div style={{ fontFamily: 'inherit' }}>{a.employerContact ?? '—'}</div>
-        <div>Monthly income</div><div>{fmt0(a.monthlyIncome)}{a.otherIncome ? ` + ${fmt0(a.otherIncome)} (${a.otherIncomeSource})` : ''}</div>
+        <div>{a.people && a.people.length > 1 ? 'Household income' : 'Monthly income'}</div><div>{fmt0(a.monthlyIncome)}{a.otherIncome ? ` + ${fmt0(a.otherIncome)} (${a.otherIncomeSource})` : ''}</div>
       </div>
       <h3 style={{ margin: '16px 0 6px' }}>The tenancy</h3>
       <div className="kv">

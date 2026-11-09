@@ -5,8 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Lease, Unit } from '../data/types';
 import { currentLine, useStore } from '../data/store';
 import { addDays, addMonths, fmtDay, fmtPeriod, periodOf } from '../lib/dates';
-import { activeLease } from '../lib/finance';
-import { allJourneyCards, isHidden, prefKey, propertySteps, unitStep, type JourneyCard } from '../lib/journey';
+import { activeLease, byRoom, leasePlace, openRooms, roomsLine } from '../lib/finance';
+import { allJourneyCards, isHidden, journeyLeases, leaseStep, openStep, prefKey, propertySteps, unitStep, type JourneyCard } from '../lib/journey';
 import { keyholderScore, scoreKey } from '../lib/score';
 import { hasSilver, type Level } from '../lib/levels';
 import { fmt } from '../lib/money';
@@ -84,10 +84,11 @@ export function StepButton({ c }: { c: JourneyCard }) {
   );
 }
 
-function statusFor(state: ReturnType<typeof useStore>['state'], lease: Lease | undefined, c: JourneyCard | null, today: string): { label: string; tone: string } {
+function statusFor(state: ReturnType<typeof useStore>['state'], lease: Lease | undefined, c: JourneyCard | null, today: string, free?: number): { label: string; tone: string } {
   if (!lease) {
     if (c?.step.kind === 'review') return { label: `${c.step.count} application${c.step.count > 1 ? 's' : ''}`, tone: 'due' };
     if (c?.step.kind === 'make-tenant') return { label: 'Offer accepted', tone: 'paid' };
+    if (free) return { label: `${free} room${free > 1 ? 's' : ''} free`, tone: 'vacant' };
     if (c?.step.kind === 'send-form') return { label: 'Empty · listed', tone: 'vacant' };
     return { label: 'Empty', tone: 'vacant' };
   }
@@ -102,16 +103,34 @@ function statusFor(state: ReturnType<typeof useStore>['state'], lease: Lease | u
   return { label: `Due ${fmtDay(line.due)}`, tone: 'due' };
 }
 
+/**
+ * One unit on Home. A unit rented as a whole is one line, however many people share the lease.
+ * A unit rented by the room has a line per rented room, plus one for its free rooms.
+ */
 function UnitLine({ unit }: { unit: Unit }) {
+  const { state, today } = useStore();
+  if (!byRoom(unit)) return <RentLine unit={unit} lease={activeLease(state, unit.id, today)} card={unitStep(state, unit, today)} />;
+  const leases = journeyLeases(state, unit, today);
+  const running = leases.filter((l) => !l.end || l.end >= today);
+  const free = openRooms(state, unit, today);
+  // A room whose tenant just left can still have move-out steps; they show on the free-rooms line.
+  const freeCard = leases.filter((l) => l.end && l.end < today).map((l) => leaseStep(state, l, today)).find(Boolean) ?? openStep(state, unit, today);
+  return (
+    <>
+      {running.map((l) => <RentLine key={l.id} unit={unit} lease={l} card={leaseStep(state, l, today)} />)}
+      {free.length > 0 && <RentLine unit={unit} card={freeCard} free={free.length} />}
+    </>
+  );
+}
+
+function RentLine({ unit, lease, card, free }: { unit: Unit; lease?: Lease; card: JourneyCard | null; free?: number }) {
   const { state, today } = useStore();
   const [pay, setPay] = useState(false);
   const [late, setLate] = useState(false);
-  const lease = activeLease(state, unit.id, today);
   const tenant = lease ? state.tenants.find((t) => t.id === lease.tenantId) : undefined;
   const prop = state.properties.find((p) => p.id === unit.propertyId);
-  const card = unitStep(state, unit, today);
   const visible = card && !isHidden(state, prefKey(card), today) ? card : null;
-  const st = statusFor(state, lease, card, today);
+  const st = statusFor(state, lease, card, today, free);
   const line = lease ? currentLine(state, lease, today) : undefined;
   // Fallback when nothing is due or the step is hidden: the plain rent action.
   let fallback: React.ReactNode = null;
@@ -126,13 +145,13 @@ function UnitLine({ unit }: { unit: Unit }) {
         <Link to={`/rent/tenant/${tenant.id}`} className="who-link">
           <Avatar name={tenant.names.join(' & ')} size={42} />
           <span className="who-text"><span className="who">{tenant.names.join(' & ')}</span>
-          <span className="where">{prop?.nickname} · Unit {unit.label} · {fmt(lease!.rent)}</span></span>
+          <span className="where">{prop?.nickname} · {leasePlace(unit, lease)} · {fmt(lease!.rent)}</span></span>
         </Link>
       ) : (
         <Link to={`/rent/property/${unit.propertyId}/find`} className="who-link">
           <span className="unit-ic" aria-hidden><Icon name="door" size={20} /></span>
           <span className="who-text"><span className="who">Unit {unit.label}</span>
-          <span className="where">{prop?.nickname} · empty</span></span>
+          <span className="where">{prop?.nickname} · {free ? roomsLine(state, unit, today) : 'empty'}</span></span>
         </Link>
       )}
       <StatusPill tone={st.tone}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</StatusPill>

@@ -1,6 +1,6 @@
 import type { AppState, BankTxn, ISODate, Lease, Message, Mortgage, Tone, Unit } from '../data/types';
 import { addDays, daysBetween, fmtDate, periodOf } from './dates';
-import { activeLease } from './finance';
+import { activeLease, activeLeases, byRoom, leasePlace, openRooms, roomLabels, roomsLine } from './finance';
 import { formById, formsFor } from './forms';
 import { arrears, nextNotice, propertyOf } from './notices';
 import { trayItems } from './tray';
@@ -58,7 +58,7 @@ function tenantCard(state: AppState, lease: Lease, today: ISODate): JourneyCard 
   const prop = propertyOf(state, lease);
   if (!tenant || !unit || !prop) return null;
   const who = firstName(tenant.names[0]);
-  const base = { id: `lease-${lease.id}`, title: tenant.names.join(' & '), subtitle: `${prop.nickname} · Unit ${unit.label}` };
+  const base = { id: `lease-${lease.id}`, title: tenant.names.join(' & '), subtitle: `${prop.nickname} · ${leasePlace(unit, lease)}` };
   const tray = trayItems(state, today);
 
   // Moving out
@@ -115,18 +115,23 @@ function tenantCard(state: AppState, lease: Lease, today: ISODate): JourneyCard 
   return null;
 }
 
+/** Finding a tenant: for an empty unit, or for the free rooms of a unit rented by the room. */
 function unitCard(state: AppState, unit: Unit, today: ISODate): JourneyCard | null {
-  if (activeLease(state, unit.id, today)) return null;
+  const rooms = byRoom(unit);
+  const open = rooms ? openRooms(state, unit, today) : [];
+  if (rooms ? !open.length : activeLease(state, unit.id, today)) return null;
   const prop = state.properties.find((p) => p.id === unit.propertyId);
   if (!prop || prop.archived) return null;
-  const base = { id: `unit-${unit.id}`, title: `Unit ${unit.label} is empty`, subtitle: prop.nickname, stage: 'applied' as Stage, priority: 4 };
+  const title = !rooms ? `Unit ${unit.label} is empty`
+    : open.length === roomLabels(unit).length ? `Unit ${unit.label}: every room is free` : `Unit ${unit.label}: ${open.length === 1 ? `${open[0]} is` : `${open.length} rooms are`} free`;
+  const base = { id: `unit-${unit.id}`, title, subtitle: rooms ? `${prop.nickname} · ${roomsLine(state, unit, today)}` : prop.nickname, stage: 'applied' as Stage, priority: 4 };
   const listing = state.listings.find((l) => l.unitId === unit.id);
   const apps = state.applicants.filter((a) => a.unitId === unit.id);
   const offered = apps.find((a) => a.status === 'offered');
-  if (offered) return { ...base, stage: 'approved', stepKey: `make-${offered.id}`, text: `Make ${offered.names.join(' & ')} the tenant`, detail: 'They accepted? Set the move-in date and rent', step: { kind: 'make-tenant', unit, applicantId: offered.id, name: offered.names[0] }, progress: 'Step 4 of 4' };
+  if (offered) return { ...base, stage: 'approved', stepKey: `make-${offered.id}`, text: `Make ${offered.names.join(' & ')} the tenant`, detail: rooms ? 'They accepted? Pick the room, move-in date and rent' : 'They accepted? Set the move-in date and rent', step: { kind: 'make-tenant', unit, applicantId: offered.id, name: offered.names[0] }, progress: 'Step 4 of 4' };
   const fresh = apps.filter((a) => a.status === 'new' || a.status === 'shortlisted');
   if (fresh.length) return { ...base, stepKey: `review-${fresh.length}`, text: `Review ${fresh.length} application${fresh.length > 1 ? 's' : ''}`, detail: 'Check references, then send an offer', step: { kind: 'review', unit, count: fresh.length }, progress: 'Step 3 of 4' };
-  if (!listing) return { ...base, stepKey: 'list', text: 'List the unit', detail: 'Asking rent, date available, a short description', step: { kind: 'list-unit', unit }, progress: 'Step 1 of 4' };
+  if (!listing) return { ...base, stepKey: 'list', text: rooms ? (open.length === 1 ? `List ${open[0]}` : 'List the free rooms') : 'List the unit', detail: 'Asking rent, date available, a short description', step: { kind: 'list-unit', unit }, progress: 'Step 1 of 4' };
   return { ...base, stepKey: 'send', text: 'Send the application form to people who ask', detail: 'By email, text, or a QR code on a sign', step: { kind: 'send-form', unit }, progress: 'Step 2 of 4' };
 }
 
@@ -137,10 +142,31 @@ function mortgageCard(state: AppState, m: Mortgage, today: ISODate): JourneyCard
   return { id: `mortgage-${m.id}`, stepKey: `renew-${m.termEnd}`, title: 'Mortgage renewal', subtitle: prop?.nickname ?? '', stage: null, text: `Renews in ${n} days with ${m.lender}`, detail: 'Compare rates, then enter the new rate and term', priority: 6, step: { kind: 'mortgage', mortgage: m } };
 }
 
+/**
+ * Leases whose steps show for a unit: the running lease (one per room for a unit rented by the room),
+ * or, where nobody new has moved in, one that ended in the last 30 days and still has move-out steps.
+ */
+export function journeyLeases(state: AppState, unit: Unit, today: ISODate): Lease[] {
+  const ended = (room?: string) => state.leases.find((x) => x.unitId === unit.id && (!byRoom(unit) || x.room === room) && x.end && x.end >= addDays(today, -30) && x.end <= addDays(today, 60));
+  if (!byRoom(unit)) { const l = activeLease(state, unit.id, today) ?? ended(); return l ? [l] : []; }
+  const running = activeLeases(state, unit.id, today);
+  return roomLabels(unit).flatMap((r) => { const l = running.find((x) => x.room === r) ?? ended(r); return l ? [l] : []; });
+}
+
 /** The current step for one unit: its tenant's journey step, or the empty unit's step. Stages are internal only. */
 export function unitStep(state: AppState, unit: Unit, today: ISODate): JourneyCard | null {
-  const l = activeLease(state, unit.id, today) ?? state.leases.find((x) => x.unitId === unit.id && x.end && x.end >= addDays(today, -30) && x.end <= addDays(today, 60));
+  const l = journeyLeases(state, unit, today)[0];
   return (l ? tenantCard(state, l, today) : null) ?? unitCard(state, unit, today);
+}
+
+/** The current step for one lease (a whole unit's, or one room's). */
+export function leaseStep(state: AppState, lease: Lease, today: ISODate): JourneyCard | null {
+  return tenantCard(state, lease, today);
+}
+
+/** The step for finding a tenant: an empty unit, or the free rooms of a unit rented by the room. */
+export function openStep(state: AppState, unit: Unit, today: ISODate): JourneyCard | null {
+  return unitCard(state, unit, today);
 }
 
 /** Property-level steps (mortgage renewal), shown as short lines under the rent list. */
@@ -152,9 +178,7 @@ export function propertySteps(state: AppState, today: ISODate): JourneyCard[] {
 export function allJourneyCards(state: AppState, today: ISODate): JourneyCard[] {
   const cards: JourneyCard[] = [];
   for (const u of state.units) {
-    const l = activeLease(state, u.id, today) ?? state.leases.find((x) => x.unitId === u.id && x.end && x.end >= addDays(today, -30) && x.end <= addDays(today, 60));
-    const c = l ? tenantCard(state, l, today) : null;
-    if (c) cards.push(c);
+    for (const l of journeyLeases(state, u, today)) { const c = tenantCard(state, l, today); if (c) cards.push(c); }
     const uc = unitCard(state, u, today);
     if (uc) cards.push(uc);
   }

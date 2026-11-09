@@ -1,6 +1,6 @@
 import type { AppState, BankTxn, Cents, ISODate, Period } from '../data/types';
 import { daysBetween } from './dates';
-import { activeLease, leaseLedger } from './finance';
+import { currentLeases, leaseLedger } from './finance';
 
 // Payment matcher (BK-2, BK-3). Deposits are scored against open rent charges.
 // High confidence logs automatically; medium/low go to the "Needs a look" tray.
@@ -28,11 +28,10 @@ export function nameScore(payer: string, names: string[], aliases: string[]): { 
 export function suggestMatch(state: AppState, txn: Pick<BankTxn, 'amount' | 'payer' | 'memo' | 'date'>, today: ISODate): Suggestion | null {
   if (txn.amount <= 0) return null;
   const candidates: Suggestion[] = [];
-  for (const unit of state.units) {
-    const lease = activeLease(state, unit.id, today);
-    if (!lease) continue;
+  for (const lease of currentLeases(state, today)) {
     const tenant = state.tenants.find((t) => t.id === lease.tenantId);
-    if (!tenant) continue;
+    const unit = state.units.find((u) => u.id === lease.unitId);
+    if (!tenant || !unit) continue;
     const open = leaseLedger(lease, state.payments, today).filter((l) => l.paid < l.charge);
     // Also consider next month (people pay early).
     if (open.length === 0) continue;
@@ -49,7 +48,7 @@ export function suggestMatch(state: AppState, txn: Pick<BankTxn, 'amount' | 'pay
       if (gap <= 5) { score += 12; reasons.push('Arrived near the due date'); }
       else if (gap <= 20) score += 4;
       const memo = norm(txn.memo);
-      if (memo && (memo.includes('rent') || memo.split(' ').includes(norm(unit.label)))) { score += 6; reasons.push('Message mentions rent or the unit'); }
+      if (memo && (memo.includes('rent') || memo.split(' ').includes(norm(unit.label)) || (lease.room && memo.includes(norm(lease.room))))) { score += 6; reasons.push('Message mentions rent or the unit'); }
       candidates.push({ leaseId: lease.id, period: line.period, confidence: 'low', score, reasons });
     }
   }

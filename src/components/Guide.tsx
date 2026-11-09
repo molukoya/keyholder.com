@@ -20,10 +20,10 @@ export function SampleBanner() {
   if (!state.profile.sample || !state.properties.length) return null;
   return (
     <div className="sample-banner" role="status">
-      <span>You're looking at <strong>sample properties</strong>. Click around, nothing here is real.</span>
+      <span><strong>Admin preview:</strong> you're looking at sample properties. Click around, nothing here is real.</span>
       <span className="btn-row">
         <button className="btn small ghost" onClick={() => act.setProfile({ tourDone: false })}>Show me around</button>
-        <button className="btn small primary" onClick={() => { act.startOwn(); nav('/start'); }}>Start with my own</button>
+        <button className="btn small" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
       </span>
     </div>
   );

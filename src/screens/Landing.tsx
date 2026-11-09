@@ -48,7 +48,7 @@ function useReveal(key: string) {
 }
 
 export function Landing() {
-  const { state, act } = useStore();
+  const { state } = useStore();
   const nav = useNavigate();
   const loc = useLocation();
   const [menu, setMenu] = useState(false);
@@ -57,9 +57,11 @@ export function Landing() {
   const raw = seg[0] === 'welcome' ? seg[1] ?? '' : seg[0] ?? '';
   const page: PageId = (PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
   const idx = PAGES.findIndex((p) => p.id === page);
-  const signedIn = state.profile.onboarded && !(state.profile.account && !state.profile.account.signedIn);
-  const demo = () => { act.startDemo(); nav('/today'); };
+  // Only a signed-in account (admin included) gets "Open my dashboard", and only in the menu bar.
+  // Everyone else, including an old demo left in this browser, sees Sign in and Start free.
+  const signedIn = !!state.profile.account?.signedIn;
   const start = () => nav(signedIn ? '/today' : '/start');
+  const signIn = () => nav(signedIn ? '/today' : '/signin');
   // Tapping the page you are already on: back to its top (or to the tour, for Features).
   const same = (id: string) => { setMenu(false); if (id !== page) return; if (id === 'features') toTour(); else window.scrollTo(0, 0); };
 
@@ -94,7 +96,7 @@ export function Landing() {
       )}
 
       <main>
-        {(page === '' || page === 'features') && <Overview start={start} demo={demo} signedIn={signedIn} />}
+        {(page === '' || page === 'features') && <Overview start={start} signIn={signIn} />}
         {page === 'provinces' && <Provinces />}
         {page === 'pricing' && <Pricing start={start} />}
         {page === 'questions' && <Questions />}
@@ -107,8 +109,8 @@ export function Landing() {
                 <p className="lp-lede">Free for 1 rental unit. No card needed.</p>
               </div>
               <div className="btn-row">
-                <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
-                {!signedIn && <button className="btn lp-big lp-cta-ghost" onClick={demo}>Try a demo first</button>}
+                <button className="btn primary lp-big" onClick={start}>Start free</button>
+                <button className="btn lp-big lp-cta-ghost" onClick={signIn}>Sign in</button>
               </div>
             </div>
           </div>
@@ -122,7 +124,7 @@ export function Landing() {
             <p>Product</p>{PAGES.map((p) => <Link key={p.id} to={href(p.id)} onClick={() => same(p.id)}>{p.label}</Link>)}
           </nav>
           <nav aria-label="Get started">
-            <p>Start</p><Link to="/start">Create a free account</Link><Link to="/signin">Sign in</Link><button className="lp-link" onClick={demo}>Try a demo</button>
+            <p>Start</p><Link to="/start">Create a free account</Link><Link to="/signin">Sign in</Link>
           </nav>
           <p className="lp-legal">Keyholder prepares documents and information. It does not give legal or tax advice, file returns, or hold or move money. Notice periods, forms and rates in this preview are being verified with each province. Screens show sample properties. Photos from Unsplash. © 2026 Keyholder.</p>
         </div>
@@ -131,7 +133,7 @@ export function Landing() {
       {!signedIn && !menu && (
         <div className="lp-sticky" role="region" aria-label="Get started">
           <button className="btn primary" onClick={start}>Start free</button>
-          <button className="btn" onClick={demo}>Try a demo</button>
+          <button className="btn" onClick={signIn}>Sign in</button>
         </div>
       )}
     </div>
@@ -210,7 +212,7 @@ const STEPS: ['home' | 'bank' | 'tap', string, string, string][] = [
   ['tap', 'Tap to approve', 'Nothing is sent without you.', 'One tap'],
 ];
 
-function Overview({ start, demo, signedIn }: { start: () => void; demo: () => void; signedIn: boolean }) {
+function Overview({ start, signIn }: { start: () => void; signIn: () => void }) {
   return (
     <>
       <section className="lp-hero">
@@ -223,8 +225,8 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
             <div className="btn-row">
-              <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
-              {!signedIn && <button className="btn lp-big" onClick={demo}>Try a demo first, no sign-up</button>}
+              <button className="btn primary lp-big" onClick={start}>Start free</button>
+              <button className="btn lp-big" onClick={signIn}>Sign in</button>
             </div>
           </div>
           <div className="lp-hero-visual">
@@ -434,7 +436,7 @@ const FAQ: [string, string, string][] = [
   ['bank', 'Which banks work?', 'RBC, TD, BMO, Scotiabank, CIBC, National Bank, Desjardins, Tangerine and most credit unions. Connect as many as you like, view only.'],
   ['star', 'What do Bronze, Silver and Gold mean?', 'Your property card gets more useful as you add details. Bronze needs only the rent. Silver adds what you paid, so you see your gain and how you compare with a GIC. Gold adds your mortgage and buying costs for full tax numbers. It is always free.'],
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
-  ['users', 'Can I try it first?', 'Yes. "Try a demo first" opens Keyholder with two sample properties so you can click around. Nothing you do there is real.'],
+  ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
 function Questions() {
   return (

@@ -6,6 +6,7 @@ import { addPeriods, daysBetween, fmtDate, fmtMonthShort, fmtPeriod, periodOf } 
 import { leaseLedger, type ChargeState } from '../lib/finance';
 import { fmt, fmt0 } from '../lib/money';
 import { messageBody } from '../lib/templates';
+import { tenantEmails, toLine } from '../lib/people';
 import { Icon } from './Icon';
 import { Stamp, embedded } from './ui';
 import { Link } from 'react-router-dom';
@@ -191,10 +192,10 @@ export function MessageEditor({ message, onDone }: { message: Message; onDone: (
   const tenant = state.tenants.find((t) => t.id === message.tenantId);
   const receipt = message.receiptId ? state.receipts.find((r) => r.id === message.receiptId) : undefined;
   const changed = subject !== base.subject || body !== base.body;
-  const canEmail = !!tenant?.email;
+  const canEmail = !!tenant && tenantEmails(tenant).length > 0;
   return (
     <div className="stack">
-      <div className="small soft">To: {tenant?.names.join(' & ')} &lt;{tenant?.email || 'no email on file'}&gt;</div>
+      <div className="small soft to-line">To: {toLine(tenant)}</div>
       <div className="letter">
         <Letterhead state={state} />
         {editing ? (
