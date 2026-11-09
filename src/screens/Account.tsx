@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
+import { SceneWelcome } from '../components/Art';
 
 // Sign up / sign in. Stage 1 is a preview: "Continue with Google" opens a stand-in account picker
 // and the email link is simulated. Real Google sign-in arrives with the backend (Stage 2).
@@ -105,6 +106,7 @@ export function SignIn() {
     <div className="acct-page">
       <div className="acct-top"><Link to="/welcome" aria-label="Keyholder home"><Brand size={28} /></Link><Link className="btn ghost" to="/welcome"><Icon name="back" size={16} />Back to website</Link></div>
       <div className="acct-card">
+        <div className="acct-art" aria-hidden><SceneWelcome /></div>
         <h1>Welcome back</h1>
         <p className="soft">Sign in to see your rent, bills and paperwork.</p>
         {unknown ? (

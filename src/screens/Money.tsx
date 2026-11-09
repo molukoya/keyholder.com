@@ -12,6 +12,7 @@ import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm, MortgageForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { CategoryIcon, SceneReceipts } from '../components/Art';
 
 export function Money() {
   const { tab = 'expenses' } = useParams();
@@ -32,7 +33,7 @@ export function Money() {
 export function Taxes() {
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1>Taxes</h1><PageSub>Your rent and costs for the year, ready for the rental part of your tax return (CRA form T776).</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic sun" aria-hidden><Icon name="print" size={22} /></span>Taxes</h1><PageSub>Your rent and costs for the year, ready for the rental part of your tax return (CRA form T776).</PageSub></div></div>
       <TaxPackPage />
     </div>
   );
@@ -108,7 +109,7 @@ export function Expenses() {
         <button className="btn primary" onClick={() => setForm('new')}><Icon name="camera" size={16} />Snap a receipt</button>
       </div>
       {list.length === 0 ? (
-        <div className="sheet"><Empty title="No receipts yet this month." action={<button className="btn primary" onClick={() => setForm('new')}>Snap the first one</button>}>Snap the next one when you get it.</Empty></div>
+        <div className="sheet"><Empty title="No receipts yet this month." art={<SceneReceipts />} action={<button className="btn primary" onClick={() => setForm('new')}>Snap the first one</button>}>Snap the next one when you get it.</Empty></div>
       ) : (
         <>
           <p className="small soft">{list.length} entries · <strong className="mono">{fmt(total)}</strong> counted toward the rental{state.properties.some((p) => p.rentalSharePct < 100) ? ' (after rental-share split)' : ''}</p>
@@ -123,7 +124,7 @@ export function Expenses() {
                     <tr key={e.id} className="click" onClick={() => setForm(e)} tabIndex={0} onKeyDown={(k) => k.key === 'Enter' && setForm(e)}>
                       <td className="date">{fmtDate(e.date)}</td>
                       <td style={{ width: 48 }}>{e.receiptImage ? <img src={e.receiptImage} alt="" className="thumb" /> : <span className="tiny faint" title="No receipt photo">no photo</span>}</td>
-                      <td><strong>{e.vendor || 'Unknown vendor'}</strong><div className="tiny soft">{category(e.category).label} · {p?.nickname}{e.unitId ? ` · Unit ${state.units.find((u) => u.id === e.unitId)?.label}` : ''}{e.note ? ` · ${e.note}` : ''}</div></td>
+                      <td><span className="exp-cell"><CategoryIcon id={e.category} /><span><strong>{e.vendor || 'Unknown vendor'}</strong><span className="tiny soft" style={{ display: 'block' }}>{category(e.category).label} · {p?.nickname}{e.unitId ? ` · Unit ${state.units.find((u) => u.id === e.unitId)?.label}` : ''}{e.note ? ` · ${e.note}` : ''}</span></span></span></td>
                       <td>{e.kind === 'capital' && <span className="pill" style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}>Improvement</span>}{e.scope === 'personal' && <span className="pill">Personal</span>}</td>
                       <td className="num">{fmt(e.amount)}{portion !== e.amount && <div className="tiny soft">{fmt(portion)} rental</div>}</td>
                     </tr>

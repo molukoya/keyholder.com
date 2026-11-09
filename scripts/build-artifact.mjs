@@ -12,10 +12,10 @@ const script = readFileSync(join('dist', js[1]), 'utf8').replace(/<\/script/gi, 
 const style = readFileSync(join('dist', css[1]), 'utf8').replace(/<\/style/gi, '<\\/style');
 
 const page = `<title>Keyholder</title>
-<meta name="theme-color" content="#FAFAFF">
+<meta name="theme-color" content="#F6F7FB">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>${style}</style>
 <div id="root"></div>
 <script>window.__KH_EMBED = true;</script>

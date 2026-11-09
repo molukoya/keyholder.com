@@ -1,24 +1,25 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { fmtDate, fmtDay, fmtWeekday, periodOf } from '../lib/dates';
+import { addDays, fmtDay, periodOf } from '../lib/dates';
 import { activeLease, leaseLedger } from '../lib/finance';
 import { ScoreChip } from '../components/levels';
 import { RentRows, ScoreList } from '../components/Journey';
-import { trayItems } from '../lib/tray';
-import { PaymentForm } from '../components/forms';
+import { needsYouCount, trayItems } from '../lib/tray';
+import { ExpenseForm, PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
 import { SinceLastVisit } from '../components/Guide';
-import { needsYouCount } from '../lib/tray';
-import { addDays } from '../lib/dates';
+import { SceneEmptyHome } from '../components/Art';
+import { ComingUp, Greeting, Milestones, MonthReview, NextStep, QuickActions, RentCard } from '../components/HomeCards';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 
-// Today answers one question: "Am I okay?" — who has paid, what is left over, and what needs me.
+// Home answers one question first: "Am I okay this month?" Then: what to do next, and what's coming.
 
 export function Today() {
   const { state, today } = useStore();
-  const [payLease, setPayLease] = useState<string | null>(null);
+  const [pay, setPay] = useState(false);
+  const [receipt, setReceipt] = useState(false);
   const p = periodOf(today);
   const todo = useMemo(() => trayItems(state, today), [state, today]);
   const pending = new Set(todo.flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
@@ -27,16 +28,21 @@ export function Today() {
   if (!state.properties.length || !state.tenants.length) {
     // Start here: three steps with a progress bar, for people starting with their own data.
     const steps = [
-      { done: state.properties.length > 0, title: 'Add your property', sub: 'The address and how many units.', to: '/rentals', btn: 'Add property' },
-      { done: state.tenants.length > 0, title: 'Add your tenant', sub: 'Their name, rent and the day it is due.', to: state.properties[0] ? `/rent/property/${state.properties[0].id}` : '/rentals', btn: 'Add tenant' },
-      { done: state.banks.some((b) => b.status === 'connected') || state.profile.rentArrival === 'manual', title: 'Choose how rent is tracked', sub: 'Connect your banks, or tap "Mark paid" yourself.', to: '/settings#rent-tracking', btn: 'Choose' },
+      { done: state.properties.length > 0, title: 'Add your property', sub: 'The address and how many units.', to: '/rentals', btn: 'Add property', icon: 'home' },
+      { done: state.tenants.length > 0, title: 'Add your tenant', sub: 'Their name, rent and the day it is due.', to: state.properties[0] ? `/rent/property/${state.properties[0].id}` : '/rentals', btn: 'Add tenant', icon: 'user' },
+      { done: state.banks.some((b) => b.status === 'connected') || state.profile.rentArrival === 'manual', title: 'Choose how rent is tracked', sub: 'Connect your banks, or tap "Mark paid" yourself.', to: '/settings#rent-tracking', btn: 'Choose', icon: 'bank' },
     ];
     const n = steps.filter((x) => x.done).length;
     const next = steps.findIndex((x) => !x.done);
     return (
       <div className="page">
-        <h1 style={{ marginBottom: 8 }}>Welcome{state.profile.name ? `, ${state.profile.name.split(' ')[0]}` : ''}.</h1>
-        <p className="page-sub">Three steps and Keyholder starts tracking your rent for you.</p>
+        <div className="start-hero">
+          <div>
+            <h1 style={{ marginBottom: 8 }}>Welcome{state.profile.name ? `, ${state.profile.name.split(' ')[0]}` : ''}.</h1>
+            <p className="page-sub">Three steps and Keyholder starts tracking your rent for you.</p>
+          </div>
+          <div className="start-art" aria-hidden><SceneEmptyHome /></div>
+        </div>
         <div className="sheet start-here">
           <div className="start-head"><h2>Start here</h2><span className="small soft">{n} of 3 done</span></div>
           <div className="start-bar" role="progressbar" aria-valuemin={0} aria-valuemax={3} aria-valuenow={n}><i style={{ width: `${(n / 3) * 100}%` }} /></div>
@@ -73,22 +79,30 @@ export function Today() {
   else headline = <>{paid} of {occupied.length} paid. <span className="bad">{late.length === 1 ? `${firstName(late[0])} is late.` : `${late.length} tenants are late.`}</span></>;
 
   return (
-    <div className="page">
+    <div className="page home">
       <h1 className="sr-only">Home</h1>
-      <div className="today-top"><span className="eyebrow-line">{fmtWeekday(today)}, {fmtDate(today)}</span><ScoreChip /></div>
-      <p className="pulse">{headline}</p>
-      <SinceLastVisit since={state.profile.prevVisit ?? addDays(today, -7)} needs={needsYouCount(state, today)} />
-      <div className="track-top"><BankStatus /></div>
+      <div className="home-top"><Greeting /><ScoreChip /></div>
+      <div className="home-grid">
+        <div className="home-main">
+          <RentCard headline={headline} />
+          <SinceLastVisit since={state.profile.prevVisit ?? addDays(today, -7)} needs={needsYouCount(state, today)} />
+          <NextStep />
+          <div className="track-top"><BankStatus /></div>
+          <RentRows />
+          <ScoreList />
+        </div>
+        <aside className="home-side" aria-label="More for this month">
+          <QuickActions onPay={() => setPay(true)} onReceipt={() => setReceipt(true)} />
+          <ComingUp />
+          <MonthReview />
+          <Milestones />
+        </aside>
+      </div>
 
-      <RentRows />
-      <ScoreList />
-
-      {payLease && <PaymentForm leaseId={payLease} onClose={() => setPayLease(null)} />}
+      {pay && <PaymentForm onClose={() => setPay(false)} />}
+      {receipt && <ExpenseForm onClose={() => setReceipt(false)} />}
     </div>
   );
-
 }
 
 function firstName(r: { tenant?: { names: string[] } }) { return r.tenant?.names[0].split(' ')[0] ?? 'A tenant'; }
-
-

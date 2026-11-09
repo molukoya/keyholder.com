@@ -11,6 +11,7 @@ import { LateRentDrawer, RaiseRent } from './Rentals';
 import { SituationPicker } from '../components/FormWizard';
 import { Drawer, Empty, Field, SlideToConfirm, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { Avatar } from '../components/Art';
 
 export function TenantDetail() {
   const { id } = useParams();
@@ -41,7 +42,7 @@ export function TenantDetail() {
       <div className="page-head">
         <div>
           <div className="eyebrow">{prop?.nickname} · Unit {unit?.label}</div>
-          <h1>{t.names.join(' & ')}</h1>
+          <h1 className="title-ic"><Avatar name={t.names.join(' & ')} size={52} />{t.names.join(' & ')}</h1>
           <div className="soft small">{t.email || 'No email'} · {t.phone || 'No phone'}</div>
         </div>
         <div className="btn-row">

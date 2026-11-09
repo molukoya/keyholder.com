@@ -13,6 +13,7 @@ import { messageBody } from '../lib/templates';
 import { Letterhead, ReceiptLetter, methodLabel } from '../components/domain';
 import { Drawer, Empty, Stamp, embedded } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { SceneTap, SceneWelcome } from '../components/Art';
 
 export function Paperwork() {
   const { tab = 'expenses' } = useParams();
@@ -20,7 +21,7 @@ export function Paperwork() {
   const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1>Paperwork</h1><PageSub>Every receipt, rent record, lease and notice, kept in one place.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="paper" size={22} /></span>Paperwork</h1><PageSub>Every receipt, rent record, lease and notice, kept in one place.</PageSub></div></div>
       <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
       {cur === 'expenses' && <Expenses />}
       {cur === 'income' && <Income />}
@@ -43,7 +44,7 @@ function Income() {
     const l = state.leases.find((x) => x.id === p.leaseId); return state.units.find((u) => u.id === l?.unitId)?.propertyId === prop;
   }).sort((a, b) => b.date.localeCompare(a.date));
   const total = rows.reduce((a, p) => a + p.amount, 0);
-  if (!state.payments.length) return <div className="sheet"><Empty title="No rent received yet.">Every payment you mark paid, or the bank finds, is listed here.</Empty></div>;
+  if (!state.payments.length) return <div className="sheet"><Empty title="No rent received yet." art={<SceneTap />}>Every payment you mark paid, or the bank finds, is listed here.</Empty></div>;
   return (
     <>
       <div className="btn-row" style={{ marginBottom: 16 }}>
@@ -92,7 +93,7 @@ function Letters() {
   const { state, today } = useStore();
   const [open, setOpen] = useState<Message | null>(null);
   const ms = state.messages.filter((m) => m.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''));
-  if (!ms.length) return <div className="sheet"><Empty title="Nothing sent yet.">Every receipt and reminder is kept here, exactly as it went out.</Empty></div>;
+  if (!ms.length) return <div className="sheet"><Empty title="Nothing sent yet." art={<SceneTap />}>Every receipt and reminder is kept here, exactly as it went out.</Empty></div>;
   return (
     <>
       <div className="sheet"><ul className="rows">{ms.slice(0, 100).map((m) => {
@@ -126,7 +127,7 @@ function increaseText(start: string, prov: string, today: string): string {
 function Leases() {
   const { state, today } = useStore();
   const [inc, setInc] = useState<Lease | null>(null);
-  if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet.">Add a tenant to create the first lease record.</Empty></div>;
+  if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet." art={<SceneWelcome />}>Add a tenant to create the first lease record.</Empty></div>;
   return (
     <>
     <div className="sheet tight table-scroll"><table className="ledger">

@@ -86,9 +86,10 @@ export function Term({ children, def }: { children: ReactNode; def: string }) {
 }
 
 // ---------- Empty state: a written invitation with one action ----------
-export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
+export function Empty({ title, children, action, art }: { title: string; children?: ReactNode; action?: ReactNode; art?: ReactNode }) {
   return (
     <div className="empty">
+      {art && <div className="empty-art" aria-hidden>{art}</div>}
       <div className="serif">{title}</div>
       {children && <p>{children}</p>}
       {action}

@@ -1,4 +1,5 @@
 import { StatusPill } from './Guide';
+import { Avatar } from './Art';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Lease, Unit } from '../data/types';
@@ -57,7 +58,7 @@ const shortLabel = (c: JourneyCard): string => {
 };
 
 /** Runs a journey step: inline when it can, otherwise opens the right form or page. */
-function StepButton({ c }: { c: JourneyCard }) {
+export function StepButton({ c }: { c: JourneyCard }) {
   const { act } = useStore();
   const nav = useNavigate();
   const [form, setForm] = useState(false);
@@ -123,13 +124,15 @@ function UnitLine({ unit }: { unit: Unit }) {
     <li className={`rent-row ${st.tone === 'late' ? 'late' : ''}`}>
       {tenant ? (
         <Link to={`/rent/tenant/${tenant.id}`} className="who-link">
-          <div className="who">{tenant.names.join(' & ')}</div>
-          <div className="where">{prop?.nickname} · Unit {unit.label} · {fmt(lease!.rent)}</div>
+          <Avatar name={tenant.names.join(' & ')} size={42} />
+          <span className="who-text"><span className="who">{tenant.names.join(' & ')}</span>
+          <span className="where">{prop?.nickname} · Unit {unit.label} · {fmt(lease!.rent)}</span></span>
         </Link>
       ) : (
         <Link to={`/rent/property/${unit.propertyId}/find`} className="who-link">
-          <div className="who">Unit {unit.label}</div>
-          <div className="where">{prop?.nickname}</div>
+          <span className="unit-ic" aria-hidden><Icon name="door" size={20} /></span>
+          <span className="who-text"><span className="who">Unit {unit.label}</span>
+          <span className="where">{prop?.nickname} · empty</span></span>
         </Link>
       )}
       <StatusPill tone={st.tone}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</StatusPill>

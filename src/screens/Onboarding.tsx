@@ -6,6 +6,7 @@ import { PROVINCES, province } from '../lib/jurisdiction';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
 import { EmailLink, GoogleButton, GooglePicker, type Who } from './Account';
+import { QGoal, QHard, QPay, QTax, QWhat, QWhere, SceneWelcome } from '../components/Art';
 
 // Signup: six short questions in plain words, one per screen, then "Save your plan" (Google or email).
 
@@ -50,9 +51,9 @@ export function Onboarding() {
   const tone: Tone = a.dreads?.includes('awkward') ? 'gentle' : a.dreads?.includes('chasing') ? 'standard' : 'gentle';
   const answers = (): Partial<Profile> => ({ ...a, reminderTone: tone, rentArrival: a.rentMethod === 'etransfer' || a.rentMethod === 'mix' ? 'bank' : 'manual' });
 
-  const steps: { q: string; why: string; hint?: string; ok: boolean; body: React.ReactNode }[] = [
+  const steps: { q: string; why: string; hint?: string; ok: boolean; pic: React.ReactNode; body: React.ReactNode }[] = [
     {
-      q: 'Where is your rental property?', why: 'Each province has its own rules for rent and notices. We set them up for you.', ok: !!a.province,
+      q: 'Where is your rental property?', why: 'Each province has its own rules for rent and notices. We set them up for you.', ok: !!a.province, pic: <QWhere />,
       body: (
         <>
           <div className="choices" role="radiogroup" aria-label="Province">
@@ -78,7 +79,7 @@ export function Onboarding() {
       ),
     },
     {
-      q: 'What are you renting out?', why: 'So the home screen fits what you have.', ok: !!a.setup,
+      q: 'What are you renting out?', why: 'So the home screen fits what you have.', ok: !!a.setup, pic: <QWhat />,
       body: (
         <div className="choices" role="radiogroup" aria-label="What you rent out">
           {([['part-home', 'Part of my own home', 'Like a basement or upstairs unit'], ['single', 'One house or condo', 'I live somewhere else'], ['few', '2 to 5 rental units', 'Like a duplex or a few condos'], ['many', '6 or more units', '']] as [SetupKind, string, string][]).map(([id, label, sub]) => (
@@ -88,7 +89,7 @@ export function Onboarding() {
       ),
     },
     {
-      q: 'How do your tenants pay you?', why: 'So we know how to spot rent when it comes in.', ok: !!a.rentMethod,
+      q: 'How do your tenants pay you?', why: 'So we know how to spot rent when it comes in.', ok: !!a.rentMethod, pic: <QPay />,
       body: (
         <div className="choices" role="radiogroup" aria-label="How tenants pay">
           {([['etransfer', 'Interac e-Transfer', 'Money sent to your bank account'], ['cheque', 'Cheque', ''], ['cash', 'Cash', ''], ['mix', 'A mix of these', '']] as [RentMethod, string, string][]).map(([id, label, sub]) => (
@@ -98,7 +99,7 @@ export function Onboarding() {
       ),
     },
     {
-      q: "What's the hardest part of being a landlord?", why: 'We will help with these first.', hint: 'Pick as many as you like.', ok: (a.dreads?.length ?? 0) > 0,
+      q: "What's the hardest part of being a landlord?", why: 'We will help with these first.', hint: 'Pick as many as you like.', ok: (a.dreads?.length ?? 0) > 0, pic: <QHard />,
       body: (
         <div className="choices">
           {HARD.map((d) => <button key={d.id} className="choice" aria-pressed={a.dreads?.includes(d.id)} onClick={() => toggle('dreads', d.id)}><span className="t">{d.label}</span></button>)}
@@ -106,7 +107,7 @@ export function Onboarding() {
       ),
     },
     {
-      q: "What's hard about taxes for you?", why: 'So we can keep the right records for tax time.', hint: 'Pick as many as you like.', ok: (a.taxWorries?.length ?? 0) > 0,
+      q: "What's hard about taxes for you?", why: 'So we can keep the right records for tax time.', hint: 'Pick as many as you like.', ok: (a.taxWorries?.length ?? 0) > 0, pic: <QTax />,
       body: (
         <div className="choices">
           {TAX.map((d) => <button key={d.id} className="choice" aria-pressed={a.taxWorries?.includes(d.id)} onClick={() => toggle('taxWorries', d.id)}><span className="t">{d.label}</span></button>)}
@@ -114,7 +115,7 @@ export function Onboarding() {
       ),
     },
     {
-      q: 'What do you want help with most?', why: 'This goes at the top of your home screen.', hint: 'Pick one.', ok: !!a.goal,
+      q: 'What do you want help with most?', why: 'This goes at the top of your home screen.', hint: 'Pick one.', ok: !!a.goal, pic: <QGoal />,
       body: (
         <div className="choices" role="radiogroup" aria-label="Main goal">
           {GOALS.map((g) => <button key={g.id} role="radio" className="choice" aria-checked={a.goal === g.id} onClick={() => set({ goal: g.id })}><span className="t">{g.label}</span><span className="s">{g.sub}</span></button>)}
@@ -136,9 +137,14 @@ export function Onboarding() {
           {steps.map((_, i) => <span key={i} className={i < step ? 'done' : i === step ? 'now' : ''} />)}
         </div>
       </div>
-      <p className="q-count">Question {step + 1} of {steps.length}</p>
-      <h1 className="q-question">{s.q}</h1>
-      <p className="q-aside"><Icon name="info" size={16} />{s.why}{s.hint ? ` ${s.hint}` : ''}</p>
+      <div className="q-head">
+        <div>
+          <p className="q-count">Question {step + 1} of {steps.length}</p>
+          <h1 className="q-question">{s.q}</h1>
+          <p className="q-aside"><Icon name="info" size={16} />{s.why}{s.hint ? ` ${s.hint}` : ''}</p>
+        </div>
+        <div className="q-pic">{s.pic}</div>
+      </div>
       {s.body}
       <div className="q-foot">
         <button className="btn ghost" onClick={() => setStep(step - 1)}><Icon name="back" size={16} />{step === 0 ? 'Back to website' : 'Back'}</button>
@@ -168,10 +174,15 @@ function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profi
   return (
     <div className="q-wrap">
       <div className="q-top"><span className="brand" style={{ margin: 0 }}><Brand /></span><button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button></div>
-      <p className="q-count">Your plan is ready</p>
-      <h1 className="q-question">Here's how Keyholder will help you</h1>
-      <ul className="plan-list">{shown.map((l) => <li key={l}><Icon name="check" size={18} />{l}</li>)}</ul>
-      <p className="small soft">Set up for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
+      <div className="plan-top">
+        <div>
+          <p className="q-count">Your plan is ready</p>
+          <h1 className="q-question">Here's how Keyholder will help you</h1>
+          <ul className="plan-list">{shown.map((l) => <li key={l}><Icon name="check" size={18} />{l}</li>)}</ul>
+          <p className="small soft">Set up for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
+        </div>
+        <div className="plan-art" aria-hidden><SceneWelcome /></div>
+      </div>
 
       <div className="sheet acct-save">
         <h2>Save your plan</h2>

@@ -10,6 +10,7 @@ import { PACK_VERIFIED, PACK_VERSION, PROVINCES, province } from '../lib/jurisdi
 import { fmtDate } from '../lib/dates';
 import { TONES } from '../lib/templates';
 import { Field, Seg, SlideToConfirm } from '../components/ui';
+import { Icon } from '../components/Icon';
 
 export function Settings() {
   const { state, act } = useStore();
@@ -20,7 +21,7 @@ export function Settings() {
 
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
 
       <section className="section" id="account">
         <h2 className="section-title">Your account</h2>

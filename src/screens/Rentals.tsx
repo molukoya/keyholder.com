@@ -18,6 +18,7 @@ import { PaymentForm, PropertyForm, TenancyForm, UnitForm } from '../components/
 import { Drawer, Empty, Field, MoneyInput, Seg, Stamp } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { ReminderDrawer } from './Tray';
+import { SceneEmptyHome } from '../components/Art';
 
 // Rentals: every property and unit, and everything about running them.
 
@@ -28,10 +29,10 @@ export function Rentals() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>Rentals</h1><PageSub>Your properties, units and tenants. Find tenants, raise rent and send notices here.</PageSub></div>
+        <div><h1 className="title-ic"><span className="tile-ic sky" aria-hidden><Icon name="home" size={22} /></span>Rentals</h1><PageSub>Your properties, units and tenants. Find tenants, raise rent and send notices here.</PageSub></div>
         <button className="btn" onClick={() => setAddProp(true)}><Icon name="plus" size={16} />Add property</button>
       </div>
-      {!props.length && <div className="sheet"><Empty title="No properties yet." action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Units and tenants come next.</Empty></div>}
+      {!props.length && <div className="sheet"><Empty title="No properties yet." art={<SceneEmptyHome />} action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Units and tenants come next.</Empty></div>}
       {props.map((p) => <PropertyBlock key={p.id} propertyId={p.id} />)}
       {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
     </div>

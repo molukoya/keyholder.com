@@ -10,6 +10,8 @@ import { PropertyForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
 import { ThePicture } from './Money';
 import { portfolioReturn } from '../lib/silver';
+import { SceneEmptyHome } from '../components/Art';
+import { Icon } from '../components/Icon';
 
 // Portfolio: what you own and whether it is working, at a glance.
 
@@ -17,7 +19,7 @@ export function Portfolio() {
   const { tab = 'overview' } = useParams();
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Portfolio</h1><PageSub>What your properties are worth, what they earn, and how that compares with a GIC.</PageSub></div></div>
+      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic lilac" aria-hidden><Icon name="chart" size={22} /></span>Portfolio</h1><PageSub>What your properties are worth, what they earn, and how that compares with a GIC.</PageSub></div></div>
       <nav className="tabs" aria-label="Portfolio sections">
         <NavLink end to="/portfolio" className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to="/portfolio/cash-flow">Cash flow</NavLink>
@@ -40,7 +42,7 @@ function Overview() {
   if (!pf.rows.length) {
     return (
       <div>
-        <div className="sheet"><Empty title="No properties yet." action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Tenants come next.</Empty></div>
+        <div className="sheet"><Empty title="No properties yet." art={<SceneEmptyHome />} action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Tenants come next.</Empty></div>
         {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
       </div>
     );

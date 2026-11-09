@@ -320,6 +320,42 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
     });
     ok(tag, 'E errors', errsE.length === 0, errsE.slice(0, 3).join(' | '));
+
+    // ---------------- F. Bright redesign: photos, Home cards, quick actions ----------------
+    const errsF = [];
+    pg = await (await b.newContext({ viewport: vp })).newPage();
+    pg.on('pageerror', (e) => errsF.push(`F ${e.message}`));
+    await step(tag, 'F1 Website photos and pictures load', async () => {
+      for (const p of ['', 'provinces', 'pricing']) {
+        await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(400);
+        const broken = await pg.$$eval('.lp img', (ims) => ims.filter((i) => i.complete && i.naturalWidth === 0).length);
+        const count = await pg.locator('.lp img').count();
+        if (!count || broken) throw new Error(`${p || 'overview'}: ${count} photos, ${broken} broken`);
+      }
+      await pg.goto(BASE); if (!(await pg.locator('.lp-step-art svg').count())) throw new Error('no step illustrations');
+    });
+    await step(tag, 'F2 Phones: a Start free bar stays at the bottom of the website', async () => {
+      if (tag !== 'phone') return 'phone only';
+      await pg.goto(BASE); const box = await pg.locator('.lp-sticky').boundingBox();
+      if (!box || box.y + box.height < vp.height - 2) throw new Error('sticky bar not at the bottom');
+    });
+    await step(tag, 'F3 Home: rent card, next step, coming up and milestones', async () => {
+      await pg.goto(BASE); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.locator('.tour-card >> text=Skip tour').click();
+      await pg.waitForSelector('.rent-card >> text=collected'); await pg.waitForSelector('.next-card');
+      if ((await pg.locator('.timeline li').count()) < 3) throw new Error('coming up too short');
+      if ((await pg.locator('.badges li').count()) !== 4) throw new Error('milestones missing');
+      const chips = await pg.locator('.rent-chips').textContent(); if (!/to confirm/.test(chips)) throw new Error('chips: ' + chips);
+    });
+    await step(tag, 'F4 Quick actions open the right forms', async () => {
+      await pg.locator('.quick:has-text("Add a receipt")').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+      await pg.locator('.quick:has-text("Mark rent paid")').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+      await pg.locator('.quick:has-text("Tax summary")').click(); await pg.waitForSelector('h1:has-text("Taxes")');
+    });
+    await step(tag, 'F5 Tenant rows show avatars; empty states have pictures', async () => {
+      await go(pg, 'today'); if (!(await pg.locator('.rent-row .avatar').count())) throw new Error('no avatars');
+      await go(pg, 'rent/tenant/t-maya'); await pg.waitForSelector('h1 .avatar');
+    });
+    ok(tag, 'F errors', errsF.length === 0, errsF.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;
