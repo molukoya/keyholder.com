@@ -69,23 +69,29 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
   );
 }
 
-/** "Continue with email": type an email, then open the sign-in link (simulated). */
-export function EmailLink({ cta = 'Continue with email', onDone }: { cta?: string; onDone: (w: Who) => void }) {
+/** "Continue with email": type an email (and, when signing up, your name), then open the sign-in link (simulated). */
+export function EmailLink({ cta = 'Continue with email', askName = false, onDone }: { cta?: string; askName?: boolean; onDone: (w: Who) => void }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const ready = validEmail(email) && (!askName || !!name.trim());
   if (sent) return (
     <div className="acct-sent" role="status">
       <Icon name="mail" size={22} />
       <div><strong>Check your email</strong><p className="small soft">We sent a sign-in link to {email}. Tap it to finish. No password needed.</p>
-        <div className="btn-row"><button className="btn primary" onClick={() => onDone({ provider: 'email', email: email.trim(), name: nameFromEmail(email) })}>Open the link (preview)</button><button className="btn ghost" onClick={() => setSent(false)}>Use a different email</button></div>
+        <div className="btn-row"><button className="btn primary" onClick={() => onDone({ provider: 'email', email: email.trim(), name: name.trim() || nameFromEmail(email) })}>Open the link (preview)</button><button className="btn ghost" onClick={() => setSent(false)}>Use a different email</button></div>
       </div>
     </div>
   );
   return (
-    <form className="acct-email" onSubmit={(e) => { e.preventDefault(); if (validEmail(email)) setSent(true); }}>
+    <form className="acct-email" onSubmit={(e) => { e.preventDefault(); if (ready) setSent(true); }}>
+      {askName && <>
+        <label htmlFor="ob-name" className="sr-only">Your name</label>
+        <input id="ob-name" className="input acct-name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+      </>}
       <label htmlFor="ob-email" className="sr-only">Email</label>
       <input id="ob-email" type="email" className="input" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-      <button className="btn" disabled={!validEmail(email)}>{cta}</button>
+      <button className="btn" disabled={!ready}>{cta}</button>
     </form>
   );
 }
@@ -96,6 +102,7 @@ export function SignIn() {
   const nav = useNavigate();
   const [picker, setPicker] = useState(false);
   const [unknown, setUnknown] = useState<string | null>(null);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   const acct = state.profile.account;
   const done = (w: Who) => {
     setPicker(false);
@@ -104,7 +111,7 @@ export function SignIn() {
   };
   return (
     <div className="acct-page">
-      <div className="acct-top"><Link to="/welcome" aria-label="Keyholder home"><Brand size={28} /></Link><Link className="btn ghost" to="/welcome"><Icon name="back" size={16} />Back to website</Link></div>
+      <div className="acct-top"><Link to="/welcome" aria-label="Keyholder home"><Brand size={28} /></Link><Link className="btn ghost" to="/welcome"><Icon name="back" size={16} />Back<span className="hide-xs"> to website</span></Link></div>
       <div className="acct-card">
         <div className="acct-art" aria-hidden><SceneWelcome /></div>
         <h1>Welcome back</h1>

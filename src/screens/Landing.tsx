@@ -237,7 +237,7 @@ function Overview({ start, signIn }: { start: () => void; signIn: () => void }) 
         </div>
       </section>
 
-      <section className="lp-how">
+      <section className="lp-sec lp-how">
         <div className="lp-wrap">
           <div className="lp-how-panel">
             <SecHead kicker="How it works" title="3 steps. 15 minutes." />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Goal, Profile, Province, RentMethod, SetupKind, Tone } from '../data/types';
 import { useStore } from '../data/store';
@@ -40,6 +40,8 @@ export function Onboarding() {
   const step = Math.max(0, Number(loc.pathname.split('/')[2]) || 0);
   const setStep = (n: number) => (n < 0 ? nav('/welcome') : nav(n === 0 ? '/start' : `/start/${n}`));
   const exit = () => nav('/welcome');
+  // Each question starts at the top, including when arriving from a scrolled page.
+  useEffect(() => { window.scrollTo(0, 0); }, [step]);
   const [a, setA] = useState<Partial<Profile>>({ province: 'ON', city: 'Toronto', dreads: [], taxWorries: [] });
   const set = (p: Partial<Profile>) => setA((x) => ({ ...x, ...p }));
   const toggle = (k: 'dreads' | 'taxWorries', id: string) => {
@@ -188,7 +190,7 @@ function SavePlan({ a, onBack, onExit, onAccount }: { a: Partial<Profile>; onBac
         <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
         <GoogleButton onClick={() => setPicker(true)} />
         <div className="acct-or"><span>or</span></div>
-        <EmailLink onDone={(w) => onAccount(w, emails)} />
+        <EmailLink askName onDone={(w) => onAccount(w, emails)} />
         <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me on rent day and once a month with a summary</label>
       </div>
       <div className="q-foot" style={{ marginTop: 16 }}><button className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back</button><span /></div>

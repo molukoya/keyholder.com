@@ -38,15 +38,16 @@ export function monthChange(state: AppState, p: Property, today: ISODate): Cents
 /** The property's return compared with savings, a GIC and a stock fund. */
 export function returnComparison(state: AppState, p: Property, today: ISODate) {
   const w = worthIt(state, today, { propertyId: p.id });
-  return {
-    yours: w.returnPct,
-    rows: [
-      { label: RETURN_PRESETS.labels[0], pct: RETURN_PRESETS.low },
-      { label: RETURN_PRESETS.labels[1], pct: RETURN_PRESETS.typical },
-      { label: RETURN_PRESETS.labels[2], pct: RETURN_PRESETS.high },
-    ],
-    source: RETURN_PRESETS.source,
-  };
+  return { yours: w.returnPct, rows: compareRows(), source: RETURN_PRESETS.source };
+}
+
+/** GIC, balanced fund and stock market returns to compare against (the same for every property). */
+function compareRows() {
+  return [
+    { label: RETURN_PRESETS.labels[0], pct: RETURN_PRESETS.low },
+    { label: RETURN_PRESETS.labels[1], pct: RETURN_PRESETS.typical },
+    { label: RETURN_PRESETS.labels[2], pct: RETURN_PRESETS.high },
+  ];
 }
 
 /** Typical rent for a unit like this nearby, and how far the current rent is from it. */
@@ -84,5 +85,5 @@ export function portfolioReturn(state: AppState, today: ISODate) {
     if (w.returnPct === null) { missing.push(p); continue; }
     total += w.total; equity += w.equity; included.push(p);
   }
-  return { pct: equity > 0 ? (total / equity) * 100 : null, included, missing, rows: returnComparison(state, props[0], today).rows };
+  return { pct: equity > 0 ? (total / equity) * 100 : null, included, missing, rows: compareRows() };
 }

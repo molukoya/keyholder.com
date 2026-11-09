@@ -10,13 +10,19 @@ const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim().toUpperCase
 const want = (section) => !ONLY.length || ONLY.includes(section);
 const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}`); };
 
-async function onboard(pg, sample) {
+// A new account: the 6 questions, then the email link.
+async function onboard(pg) {
   await pg.goto(BASE + '#/start');
   await answerQuestions(pg);
-  if (sample) await pg.click('text=Try with sample properties first');
-  else { await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)'); }
+  await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
   await pg.waitForTimeout(300);
-  if (sample) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
+}
+// The sample properties open only through Admin sign in (admin / admin).
+async function adminIn(pg, skipTour = true) {
+  await pg.goto(BASE + '#/signin'); await pg.click('text=Admin sign in');
+  await pg.fill('#admin-user', 'admin'); await pg.fill('#admin-pass', 'admin'); await pg.click('text=Sign in as admin');
+  await pg.waitForSelector('.rent-row');
+  if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
 async function answerQuestions(pg) {
   await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
@@ -40,7 +46,11 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     let pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errors.push(`A ${e.message}`));
     pg.on('console', (m) => { if (m.type() === 'error' && !/fonts/.test(m.text())) errors.push(`A console: ${m.text()}`); });
-    await step(tag, 'A1 Signup → empty Home shows 3 setup steps', async () => { await onboard(pg, false); await pg.waitForSelector('text=Start here'); await pg.waitForSelector('text=Add your property'); });
+    await step(tag, 'A1 Signup → empty Home shows 3 setup steps', async () => { await onboard(pg); await pg.waitForSelector('text=Start here'); await pg.waitForSelector('text=Add your property'); });
+    await step(tag, 'A1b The name typed at signup is used, and Portfolio opens with no properties yet', async () => {
+      const st = await state(pg); if (st.profile.name !== 'Alex Morgan') throw new Error('name: ' + st.profile.name);
+      await go(pg, 'portfolio'); await pg.waitForSelector('h1:has-text("Portfolio")'); await go(pg, 'today');
+    });
     await step(tag, 'A2 Home "Add" → Rentals → add a property', async () => {
       await pg.locator('.start-steps a.btn:has-text("Add property")').click(); await pg.waitForSelector('h1:has-text("Rentals")');
       await pg.locator('text=Add your first property').click();
@@ -52,9 +62,10 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('text=Add a unit').first().click(); await pg.fill('#uf-l', 'Main'); await pg.fill('#uf-r', '2000'); await pg.locator('.drawer-foot >> text=Save unit').click(); await pg.waitForTimeout(250);
       await pg.waitForSelector('.unit-row:has-text("Main")');
     });
-    await step(tag, 'A4 Add a tenant (lease from today)', async () => {
+    await step(tag, 'A4 Add a tenant: two people on one lease, each with an email (lease from today)', async () => {
       await pg.locator('text=Add tenant').first().click();
-      await pg.fill('#tf-n0', 'Rita Gomez'); await pg.fill('#tf-e', 'rita@example.com');
+      await pg.fill('#tf-n0', 'Rita Gomez'); await pg.fill('#tf-e0', 'rita@example.com');
+      await pg.locator('.drawer >> text=Add another person').click(); await pg.fill('#tf-n1', 'Luis Gomez'); await pg.fill('#tf-e1', 'luis@example.com');
       const today = await pg.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; });
       await pg.fill('#tf-s', today); await pg.fill('#tf-r', '2000');
       await pg.locator('.drawer-foot >> text=Save tenant and lease').click(); await pg.waitForTimeout(300);
@@ -116,11 +127,11 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsB.push(`B ${e.message}`));
     pg.on('console', (m) => { if (m.type() === 'error' && !/fonts/.test(m.text())) errsB.push(`B console: ${m.text()}`); });
-    await onboard(pg, true);
+    await adminIn(pg);
     const btn = async (who) => (await row(who).locator('.row-act .btn').first().textContent())?.trim();
     await step(tag, 'B1 Each row shows status + one button', async () => {
-      const got = { Maya: await btn('Maya'), Jordan: await btn('Jordan'), 'Unit C': await btn('Unit C'), Sam: await btn('Sam') };
-      const want = { Maya: 'Send receipt', Jordan: 'Send reminder', 'Unit C': 'Review', Sam: 'Confirm' };
+      const got = { Maya: await btn('Maya'), Jordan: await btn('Jordan'), 'Unit C': await btn('Unit C'), Sam: await btn('Sam'), 'rooms rented': await btn('2 of 3 rooms rented') };
+      const want = { Maya: 'Send receipt', Jordan: 'Send reminder', 'Unit C': 'Review', Sam: 'Confirm', 'rooms rented': 'Review' };
       for (const k in want) if (got[k] !== want[k]) throw new Error(JSON.stringify(got));
       if (!(await pg.locator('.prop-line:has-text("mortgage renews")').count())) throw new Error('no mortgage line');
       if (await pg.locator('.journey-track, .jcard').count()) throw new Error('journey stages still shown');
@@ -242,8 +253,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const errsD = [];
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
-    await step(tag, 'D1 First visit shows the landing page with both buttons', async () => {
-      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Start free'); await pg.waitForSelector('.lp-hero >> text=Try a demo first');
+    await step(tag, 'D1 First visit: website with Start free and Sign in, no demo buttons, no "Open my dashboard"', async () => {
+      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Start free'); await pg.waitForSelector('.lp-hero >> text=Sign in');
+      for (const p of ['', 'provinces', 'pricing', 'questions']) {
+        await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(150);
+        if (await pg.locator('text=/Try a demo|sample properties first/i').count()) throw new Error(`demo link on ${p || 'overview'}`);
+        if (await pg.locator('text=Open my dashboard').count()) throw new Error(`"Open my dashboard" shown to a visitor on ${p || 'overview'}`);
+      }
+      await pg.goto(BASE);
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
@@ -262,8 +279,8 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question'); });
-    await step(tag, 'D6 "See it in action" → sample Home, banner and tour (5 steps)', async () => {
-      await pg.goto(BASE); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.waitForSelector('.sample-banner'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
+    await step(tag, 'D6 Admin sign in → sample Home, admin banner and tour (5 steps)', async () => {
+      await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Admin preview'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
       for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
       await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200); if (await pg.locator('.tour').count()) throw new Error('tour still open');
     });
@@ -277,7 +294,11 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator(tag === 'phone' ? '.lp-menu >> text=Open my dashboard' : '.lp-nav-cta >> text=Open my dashboard').click(); await pg.waitForSelector('.rent-row');
     });
     await step(tag, 'D10 Settings → "Show the tour again" replays it', async () => { await go(pg, 'settings'); await pg.locator('text=Show the tour again').click(); await pg.waitForSelector('.tour-card'); await pg.locator('.tour-card >> text=Skip tour').click(); });
-    await step(tag, 'D11 Sample banner → "Start with my own" → signup questions', async () => { await pg.locator('.sample-banner >> text=Start with my own').click(); await pg.waitForSelector('.q-question'); const st = await state(pg); if (st.properties.length) throw new Error('sample not cleared'); });
+    await step(tag, 'D11 Admin banner → Sign out → website, and the sample is gone', async () => {
+      await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      const st = await state(pg); if (st.profile.account || st.profile.onboarded) throw new Error('still signed in');
+      await go(pg, 'today'); await pg.waitForSelector('.lp-hero-h'); // the dashboard is closed again
+    });
     await step(tag, 'D12 Signup: Back on question 1 returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('.q-question'); await pg.locator('.q-foot >> text=Back to website').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
     await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
     await step(tag, 'D14 Signup: browser back goes to the previous question', async () => {
@@ -285,7 +306,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.goBack(); await pg.waitForSelector('h1:has-text("Where is your rental property?")');
     });
     await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
-      await pg.goto(BASE + '#/start'); await pg.locator('.q-exit').click(); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.locator('.tour-card >> text=Skip tour').click();
+      await adminIn(pg);
       await go(pg, 'rent/tenant/t-maya'); await pg.locator('.crumb:has-text("Back to")').click(); await pg.waitForSelector('h1, .pcard');
       if (tag === 'phone') for (const p of ['taxes', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
     });
@@ -343,7 +364,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (!box || box.y + box.height < vp.height - 2) throw new Error('sticky bar not at the bottom');
     });
     await step(tag, 'F3 Home: rent card, next step, coming up and milestones', async () => {
-      await pg.goto(BASE); await pg.locator('.lp-hero >> text=Try a demo first').click(); await pg.locator('.tour-card >> text=Skip tour').click();
+      await adminIn(pg);
       await pg.waitForSelector('.rent-card >> text=collected'); await pg.waitForSelector('.next-card');
       if ((await pg.locator('.timeline li').count()) < 3) throw new Error('coming up too short');
       if ((await pg.locator('.badges li').count()) !== 4) throw new Error('milestones missing');
@@ -422,6 +443,75 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const rgb = bg.color.match(/\d+/g).map(Number); if (rgb.slice(0, 3).some((v) => v < 235)) throw new Error('not light: ' + bg.color);
     });
     ok(tag, 'G errors', errsG.length === 0, errsG.slice(0, 3).join(' | '));
+
+    // ---------------- H. Admin-only sample, and several tenants per unit ----------------
+    const errsH = [];
+    pg = await (await b.newContext({ viewport: vp })).newPage();
+    pg.on('pageerror', (e) => errsH.push(`H ${e.message}`));
+    await step(tag, 'H1 Admin sign in: a wrong password is refused; admin / admin opens the sample', async () => {
+      await pg.goto(BASE + '#/signin'); await pg.click('text=Admin sign in');
+      await pg.fill('#admin-user', 'admin'); await pg.fill('#admin-pass', 'letmein'); await pg.click('text=Sign in as admin');
+      await pg.waitForSelector('.acct-error >> text=not right'); if (await pg.locator('.rent-row').count()) throw new Error('opened with a wrong password');
+      await pg.fill('#admin-pass', 'admin'); await pg.click('text=Sign in as admin'); await pg.waitForSelector('.sample-banner >> text=Admin preview');
+      await pg.locator('.tour-card >> text=Skip tour').click();
+      await go(pg, 'settings'); for (const t of ['Restore sample data', 'Replay the signup questions']) if (!(await pg.locator(`text=${t}`).count())) throw new Error(`admin has no "${t}"`);
+      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+    });
+    await step(tag, 'H2 Signing in as admin sets your own account aside; signing out brings it back', async () => {
+      await onboard(pg); await pg.waitForSelector('text=Start here');
+      await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); s.properties.push({ id: 'p-oak', nickname: 'Oak house', address: '9 Oak St', city: 'Toronto', province: 'ON', type: 'house', rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100, claimCCA: false }); localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
+      await pg.reload(); await go(pg, 'settings');
+      for (const t of ['Restore sample data', 'Replay the signup questions']) if (await pg.locator(`text=${t}`).count()) throw new Error(`a real account sees "${t}"`);
+      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await adminIn(pg); await go(pg, 'rentals'); await pg.waitForSelector('text=Maple triplex');
+      if (await pg.locator('text=Oak house').count()) throw new Error('own data mixed into the sample');
+      await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.goto(BASE + '#/signin'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Email me a sign-in link'); await pg.click('text=Open the link (preview)');
+      await pg.waitForSelector('.rent-card, .start-steps'); await go(pg, 'rentals'); await pg.waitForSelector('text=Oak house');
+      if (await pg.locator('text=Maple triplex').count()) throw new Error('sample left behind in the account');
+    });
+    await step(tag, 'H3 An old demo left in the browser is a visitor: Sign in and Start free both work', async () => {
+      await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); s.profile.sample = true; delete s.profile.account; localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
+      await pg.goto(BASE + '#/welcome'); await pg.reload(); await pg.waitForSelector('.lp-hero-h');
+      if (await pg.locator('text=Open my dashboard').count()) throw new Error('"Open my dashboard" shown to an old demo');
+      await pg.locator('.lp-hero >> text=Sign in').click(); await pg.waitForSelector('h1:has-text("Welcome back")');
+      await pg.goto(BASE + '#/welcome'); await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question');
+    });
+    await step(tag, 'H4 Shared lease: both people listed with their own email; the reminder goes to both', async () => {
+      await adminIn(pg); await go(pg, 'rent/tenant/t-patel');
+      if ((await pg.locator('.people-list li').count()) !== 2) throw new Error('not two people');
+      await pg.waitForSelector('.people-list >> text=priya.patel@example.com');
+      await go(pg, 'rentals'); await pg.locator('.unit-row', { hasText: 'Jordan' }).locator('text=Late rent options').click(); await pg.locator('.drawer >> text=Write reminder').click();
+      const to = await pg.locator('.drawer .to-line').textContent(); if (!/jpatel@example\.com/.test(to) || !/priya\.patel@example\.com/.test(to)) throw new Error('To: ' + to);
+      await pg.keyboard.press('Escape'); return to.trim();
+    });
+    await step(tag, 'H5 By the room: a row per rented room, and "2 of 3 rooms rented" with the free room', async () => {
+      await go(pg, 'today');
+      for (const [who, room] of [['Sam Okafor', 'Room 1'], ['Grace Liu', 'Room 2']]) if (!(await pg.locator('.rent-row', { hasText: who }).locator(`text=${room}`).count())) throw new Error(`${who} not shown in ${room}`);
+      await go(pg, 'rentals'); await pg.waitForSelector('.unit-row >> text=Room 3 is free');
+      await go(pg, 'rent/property/p-birch/find'); await pg.waitForSelector('text=2 of 3 rooms rented');
+    });
+    await step(tag, 'H6 Switch Unit C to "By the room": accepting one applicant keeps the others open', async () => {
+      await go(pg, 'rent/property/p-maple'); await pg.locator('text=Edit unit C').click();
+      await pg.locator('.drawer [aria-label="How is it rented?"] >> text=By the room').click(); await pg.fill('#uf-rooms', '2');
+      await pg.locator('.drawer-foot >> text=Save unit').click(); await pg.waitForTimeout(250);
+      await go(pg, 'rent/property/p-maple/find'); await pg.waitForSelector('text=0 of 2 rooms rented');
+      await pg.locator('.unit-row', { hasText: 'Daniel Osei' }).locator('text=Review').click();
+      await pg.locator('.drawer-foot >> text=Accept').click(); await pg.waitForSelector('.drawer >> text=Which room?');
+      await pg.locator('.drawer-foot >> text=Make them the tenant').click(); await pg.waitForTimeout(300);
+      const st = await state(pg);
+      const lease = st.leases.find((l) => l.unitId === 'u-c'); const novaks = st.applicants.find((a) => a.id === 'ap-2');
+      if (lease?.room !== 'Room 1') throw new Error('lease room: ' + lease?.room);
+      if (novaks.status === 'declined') throw new Error('other applicants were declined while a room is free');
+      if (!st.listings.some((l) => l.unitId === 'u-c')) throw new Error('listing closed while a room is free');
+      await pg.waitForSelector('text=1 of 2 rooms rented');
+    });
+    await step(tag, 'H7 Applications list each co-applicant with their own job and income', async () => {
+      await pg.locator('.unit-row', { hasText: 'Lena Novak' }).locator('text=Review').click();
+      await pg.waitForSelector('.drawer >> text=Novak Plumbing'); await pg.waitForSelector('.drawer >> text=City of Hamilton'); await pg.waitForSelector('.drawer >> text=Household income');
+      await pg.keyboard.press('Escape');
+    });
+    ok(tag, 'H errors', errsH.length === 0, errsH.slice(0, 3).join(' | '));
   }
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.tag.padEnd(7)} ${r.name}${r.note ? ' — ' + r.note : ''}`);
   const failed = results.filter((r) => !r.pass).length;

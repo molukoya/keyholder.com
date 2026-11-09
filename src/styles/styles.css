@@ -49,7 +49,7 @@
 /* ---------------------------------------------------------------- App surfaces */
 body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; font-feature-settings: 'tnum' 1; background: var(--paper); }
 h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: lining-nums; }
-.page h1, .q-wrap h1 { font-size: clamp(2rem, 3.6vw, 2.6rem); line-height: 1.08; }
+.page h1 { font-size: clamp(2rem, 3.6vw, 2.6rem); line-height: 1.08; }
 .page-head { padding-bottom: 4px; }
 .section-title { font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
 .pulse { font-size: clamp(1.8rem, 4.2vw, 2.6rem); line-height: 1.12; letter-spacing: -0.02em; font-weight: 700; }
@@ -104,55 +104,56 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .brand { text-decoration: none; }
 
 /* ---------------------------------------------------------------- Accounts (sign up / sign in) */
-.btn.acct-google { width: 100%; justify-content: center; gap: 12px; min-height: 54px; font-size: 17px; background: #fff; color: #1F1F1F; border: 1px solid #D0D3E0; margin-top: 18px; }
+.btn.acct-google { width: 100%; justify-content: center; gap: 12px; min-height: 52px; font-size: var(--fs-body); background: #fff; color: #1F1F1F; border: 1px solid #D0D3E0; margin-top: var(--sp-head); }
 .btn.acct-google:hover { background: #F7F8FC; }
-.acct-or { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--ink-faint); font-size: 14px; }
+.acct-or { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--ink-faint); font-size: var(--fs-label); }
 .acct-or::before, .acct-or::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
 .acct-email { display: flex; gap: 8px; flex-wrap: wrap; }
-.acct-email .input { flex: 1 1 220px; min-height: 52px; font-size: 17px; }
+.acct-email .input { flex: 1 1 220px; min-width: 0; min-height: 52px; font-size: var(--fs-body); }
 .acct-email .btn { min-height: 52px; }
-.acct-sent { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 12px; background: var(--accent-tint); }
+.acct-email .input.acct-name { flex-basis: 100%; }
+.acct-sent { display: flex; gap: 16px; align-items: flex-start; padding: var(--sp-card); border-radius: 12px; background: var(--accent-tint); }
 .acct-sent svg { flex: none; color: var(--primary); margin-top: 2px; }
 .acct-sent p { margin: 4px 0 12px; }
-.acct-save { max-width: 560px; width: 100%; margin-top: 24px; }
-.acct-save h2 { margin: 0; }
-.acct-switch { margin: 18px 0 0; }
+.acct-save { max-width: 560px; width: 100%; margin-top: var(--sp-sec); padding: var(--sp-card); }
+.acct-save h2 { margin: 0; font-size: var(--fs-sec); line-height: 1.15; }
+.acct-switch { margin: 16px 0 0; }
 .acct-admin-link { margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--rule); text-align: center; }
 .acct-admin-link .lp-link-inline { color: var(--ink-soft); font-weight: 600; }
 .acct-admin { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
-.acct-admin h2 { margin: 0; font-size: 20px; }
+.acct-admin h2 { margin: 0; font-size: var(--fs-card); line-height: 1.3; }
 .acct-admin > p.small { margin: 4px 0 16px; }
 .acct-admin .input { min-height: 48px; }
 .acct-error { margin: 0 0 12px; color: var(--rust); font-weight: 600; }
 .lp-link-inline { all: unset; cursor: pointer; color: var(--primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .lp-link-inline:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.plan-list { list-style: none; padding: 0; margin: 8px 0 12px; display: grid; gap: 10px; font-size: 18px; }
+.plan-list { list-style: none; padding: 0; margin: var(--sp-head) 0 16px; display: grid; gap: 12px; font-size: var(--fs-intro); }
 .plan-list li { display: flex; gap: 10px; align-items: center; }
 .plan-list svg { color: var(--pine); flex: none; }
 .acct-modal { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; }
 .acct-modal .scrim { position: absolute; inset: 0; z-index: 0; background: rgba(14,15,43,.45); }
-.acct-modal-card { position: relative; z-index: 1; width: min(420px, 100%); background: var(--paper-raised); border-radius: 18px; padding: 22px 24px; box-shadow: 0 40px 80px -20px rgba(0,0,0,.45); animation: kh-pop 200ms var(--ease); }
+.acct-modal-card { position: relative; z-index: 1; width: min(420px, 100%); background: var(--paper-raised); border-radius: 18px; padding: var(--sp-card); box-shadow: 0 40px 80px -20px rgba(0,0,0,.45); animation: kh-pop 200ms var(--ease); }
 @keyframes kh-pop { from { opacity: 0; transform: scale(.97) translateY(6px); } }
-.acct-modal-head { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--ink-soft); }
+.acct-modal-head { display: flex; align-items: center; gap: 8px; font-size: var(--fs-label); font-weight: 400; color: var(--ink-soft); }
 .acct-modal-head .btn { margin-left: auto; }
-.acct-modal-card h2 { margin: 18px 0 2px; font-size: 24px; }
+.acct-modal-card h2 { margin: 16px 0 4px; font-size: var(--fs-card); line-height: 1.3; }
 .acct-list { list-style: none; padding: 0; margin: 18px 0 8px; border-top: 1px solid var(--rule); }
 .acct-list li { border-bottom: 1px solid var(--rule); }
 .acct-list button { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 14px; align-items: center; width: 100%; padding: 14px 6px; }
 .acct-list button:hover { background: var(--paper-sunk); }
 .acct-list button:focus-visible { outline: 2px solid var(--primary); }
-.acct-list strong { display: block; font-size: 15px; }
-.acct-list span span { font-size: 14px; color: var(--ink-soft); }
+.acct-list strong { display: block; font-size: var(--fs-body); }
+.acct-list span span { font-size: var(--fs-label); color: var(--ink-soft); }
 .acct-av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: #7C3AED; color: #fff; font-weight: 700; flex: none; }
 .acct-av.other { background: var(--paper-sunk); color: var(--ink-soft); }
 .acct-note { margin-top: 12px; }
-.acct-page { min-height: 100vh; background: var(--paper); padding: 20px 20px 48px; }
-.acct-top { display: flex; justify-content: space-between; align-items: center; max-width: 1100px; margin: 0 auto 48px; }
+.acct-page { min-height: 100vh; background: var(--paper); padding: 16px var(--sp-side) var(--sp-sec); }
+.acct-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; max-width: 1100px; margin: 0 auto var(--sp-sec); }
 .acct-top a:first-child { color: var(--ink); text-decoration: none; }
-.acct-card { max-width: 460px; margin: 0 auto; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 20px; padding: 32px; box-shadow: var(--shadow-card); }
-.acct-card h1 { font-size: 34px; margin: 0; }
-.acct-card > p.soft { margin: 8px 0 0; }
-@media (max-width: 520px) { .acct-card { padding: 22px; } }
+.acct-card { max-width: 460px; margin: 0 auto; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 20px; padding: var(--sp-card); box-shadow: var(--shadow-card); }
+.acct-card h1 { font-size: var(--fs-page); line-height: 1.1; margin: 0; }
+.acct-card > p.soft { margin: 16px 0 0; font-size: var(--fs-intro); line-height: 1.5; }
+@media (max-width: 400px) { .acct-top .hide-xs { display: none; } }
 .term-wrap { position: relative; display: inline; }
 .term { all: unset; cursor: help; border-bottom: 1.5px dotted currentColor; font: inherit; color: inherit; }
 .term:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 2px; }
@@ -176,7 +177,7 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .all-in span { display: inline-grid; place-items: center; width: 1.1em; height: 1.1em; border-radius: 50%; background: var(--pine); color: #fff; font-size: .6em; vertical-align: .25em; animation: kh-pop-in 600ms var(--ease) both; }
 @keyframes kh-pop-in { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .all-in span { animation: none; } }
-.acct-preview-tag { padding: 2px 8px; border-radius: 999px; background: var(--accent-tint); color: var(--primary); font-size: 12px; font-weight: 700; }
+.acct-preview-tag { padding: 2px 8px; border-radius: 999px; background: var(--accent-tint); color: var(--primary); font-size: var(--fs-fine); font-weight: 700; }
 
 /* ---------------------------------------------------------------- Illustrations and avatars */
 .art { display: block; width: 100%; height: auto; }
@@ -280,7 +281,7 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
 @media (max-width: 640px) { .q-head { grid-template-columns: 1fr; } .q-pic { order: -1; width: 150px; margin-bottom: 4px; } }
 .plan-top { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: center; }
 .plan-art { border-radius: 22px; background: var(--paper-raised); border: 1px solid var(--rule); overflow: hidden; }
-@media (max-width: 720px) { .plan-top { grid-template-columns: 1fr; } .plan-art { max-width: 300px; order: -1; } }
+@media (max-width: 720px) { .plan-top { grid-template-columns: minmax(0, 1fr); } .plan-art { max-width: 300px; order: -1; } }
 .acct-art { margin: -8px -8px 16px; border-radius: 16px; background: #F7F8FC; overflow: hidden; }
 .q-wrap { background: transparent; }
 .q-lines span { border-top-width: 3px; border-radius: 3px; }
@@ -297,3 +298,43 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
 .people-list li > span > span { display: block; }
 .people-list strong { display: block; }
 .to-line { overflow-wrap: anywhere; }
+
+
+/* ================================================================ Website, Sign in and signup: one type scale, one spacing system
+   8 sizes and 3 weights (400, 600, 700; the logo wordmark keeps its 800). The four large sizes ease from
+   the phone value (600px wide and below) to the desktop value (1200px and up). The app keeps its own sizes. */
+:root {
+  --fs-hero: clamp(36px, calc(36px + 20 * (100vw - 600px) / 600), 56px);   /* Homepage headline: 56 / 36 */
+  --fs-page: clamp(32px, calc(32px + 12 * (100vw - 600px) / 600), 44px);   /* Page title: 44 / 32 */
+  --fs-sec: clamp(26px, calc(26px + 6 * (100vw - 600px) / 600), 32px);     /* Section title, prices: 32 / 26 */
+  --fs-card: clamp(18px, calc(18px + 2 * (100vw - 600px) / 600), 20px);    /* Card title: 20 / 18 */
+  --fs-intro: clamp(17px, calc(17px + 1 * (100vw - 600px) / 600), 18px);   /* Intro text: 18 / 17 */
+  --fs-body: 16px;                                                         /* Body text */
+  --fs-label: 14px;                                                        /* Labels, small buttons */
+  --fs-fine: 12px;                                                         /* Badges, fine print */
+  /* Spacing: between sections, heading to content, inside cards, page sides, below the menu bar */
+  --sp-sec: 64px; --sp-head: 24px; --sp-card: 24px; --sp-side: 32px; --sp-top: 48px;
+}
+@media (max-width: 600px) { :root { --sp-sec: 48px; --sp-card: 20px; --sp-side: 16px; --sp-top: 24px; } }
+/* Shared parts (buttons, fields, small print) take their sizes from the same scale on these pages. */
+.lp, .acct-page, .acct-modal, .q-wrap {
+  --t-12: var(--fs-fine); --t-14: var(--fs-label); --t-16: var(--fs-body); --t-20: var(--fs-card); --t-28: var(--fs-sec); --t-44: var(--fs-page);
+}
+.acct-page, .acct-modal, .q-wrap { font-size: var(--fs-body); }
+.acct-page .btn, .q-wrap .btn, .acct-modal .btn { justify-content: center; text-align: center; }
+.q-wrap { padding: 16px var(--sp-side) var(--sp-sec); }
+.q-wrap .q-top { margin-bottom: var(--sp-sec); }
+.q-wrap h1, .q-wrap .q-question { font-size: var(--fs-page); line-height: 1.1; margin: 0 0 16px; }
+.q-wrap .q-count { margin: 0 0 16px; font-size: var(--fs-label); }
+.q-wrap .q-aside { margin-bottom: var(--sp-head); font-size: var(--fs-body); }
+.q-wrap .q-foot { margin-top: var(--sp-head); }
+.q-wrap .choice { padding: var(--sp-card); }
+.q-wrap .choice.big .t { font-weight: 600; }
+.q-wrap .plan-top { gap: var(--sp-head); }
+
+/* The smallest phones (320px): long buttons wrap instead of running off the screen, and the tax table tightens. */
+@media (max-width: 400px) {
+  .page .btn-row .btn { white-space: normal; max-width: 100%; text-align: center; line-height: 1.3; padding-block: 8px; }
+  .tax-totals td { padding-inline: 6px; }
+  .tax-totals tfoot td { font-size: var(--t-16); }
+}
