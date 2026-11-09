@@ -53,7 +53,7 @@ export function Landing() {
 
   useEffect(() => { const on = () => setSolid(window.scrollY > 12); on(); window.addEventListener('scroll', on, { passive: true }); return () => window.removeEventListener('scroll', on); }, []);
   useEffect(() => { window.scrollTo(0, 0); setMenu(false); }, [page]);
-  useEffect(() => { document.title = idx === 0 ? 'Keyholder · Your rental, handled' : `${PAGES[idx].label} · Keyholder`; }, [idx]);
+  useEffect(() => { document.title = idx === 0 ? 'Keyholder · Rental automation for Canadian landlords' : `${PAGES[idx].label} · Keyholder`; }, [idx]);
   useEffect(() => { document.body.style.overflow = menu ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [menu]);
   useReveal(page);
 
@@ -101,7 +101,7 @@ export function Landing() {
           <div className="lp-wrap">
             <div className="lp-cta-card reveal">
               <div className="lp-cta-copy">
-                <h2 className="lp-h2">Get your weekends back.</h2>
+                <h2 className="lp-h2">Ready to automate your rental?</h2>
                 <p className="lp-lede">Answer 6 quick questions, about 2 minutes. Free for 1 rental unit, no card needed.</p>
                 <div className="btn-row">
                   <button className="btn lp-big lp-on-grad" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
@@ -116,7 +116,7 @@ export function Landing() {
 
       <footer className="lp-foot">
         <div className="lp-wrap lp-foot-grid">
-          <div><Brand size={26} /><p className="lp-foot-tag">Rent, paperwork and the numbers, handled for Canadian landlords.</p></div>
+          <div><Brand size={26} /><p className="lp-foot-tag">Rental automation for Canadian landlords: receipts, reminders, tracking, valuation and taxes.</p></div>
           <nav aria-label="Footer">
             <p>Product</p>{PAGES.map((p) => <Link key={p.id} to={href(p.id)}>{p.label}</Link>)}
           </nav>
@@ -191,6 +191,8 @@ function CountUp({ to, decimals = 0, prefix = '', suffix = '' }: { to: number; d
 
 // ================================================================ Overview
 const TONES = ['lilac', 'mint', 'sky', 'peach', 'sun', 'rose'] as const;
+const AUTO: [string, string, string][] = [['receipt', 'Receipts', 'mint'], ['bell', 'Reminders', 'peach'], ['bank', 'Tracking', 'sky'], ['trend', 'Valuation', 'lilac'], ['print', 'Taxes', 'sun']];
+const ModeBadge = ({ mode }: { mode: 'auto' | 'approve' }) => <span className={`mode-badge ${mode}`}><Icon name={mode === 'auto' ? 'sparkle' : 'check'} size={13} />{mode === 'auto' ? 'Automatic' : 'You approve'}</span>;
 
 function Overview({ start, demo, signedIn }: { start: () => void; demo: () => void; signedIn: boolean }) {
   return (
@@ -199,8 +201,11 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         <div className="lp-wrap lp-hero-grid">
           <div className="lp-hero-copy">
             <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
-            <h1 className="lp-hero-h">Your rental, <em>handled.</em></h1>
-            <p className="lp-lede">Keyholder keeps track of your rent, writes receipts and reminders for you, and keeps every bill in one place. You stay in charge.</p>
+            <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
+            <p className="lp-lede">Keyholder automates the busywork of renting: receipts, reminders, rent tracking, valuation and taxes. You approve, it does the rest.</p>
+            <ul className="lp-auto" aria-label="What Keyholder automates">
+              {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
+            </ul>
             <div className="btn-row">
               <button className="btn primary lp-big" onClick={start}>{signedIn ? 'Open my dashboard' : 'Start free'}</button>
               {!signedIn && <button className="btn lp-big" onClick={demo}>Try a demo first, no sign-up</button>}
@@ -273,11 +278,11 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
 
       <section className="lp-sec lp-alt">
         <div className="lp-wrap">
-          <SecHead kicker="What it does" title="Everything a landlord does, in one place." />
-          <div className="lp-grid3">
+          <SecHead kicker="What it does" title="What Keyholder automates for you.">Most of it runs on its own. Anything with a legal or money decision always comes to you first.</SecHead>
+          <div className="lp-grid4">
             {FEATURES.map((f, i) => (
-              <Link key={f.t} to="/welcome/features" className="lp-card reveal" style={{ transitionDelay: `${(i % 3) * 70}ms` }}>
-                <span className={`lp-tile-ic big ${TONES[i % TONES.length]}`}><Icon name={f.icon} size={22} /></span>
+              <Link key={f.t} to="/welcome/features" className="lp-card reveal" style={{ transitionDelay: `${(i % 4) * 60}ms` }}>
+                <div className="lp-card-top"><span className={`lp-tile-ic big ${TONES[i % TONES.length]}`}><Icon name={f.icon} size={22} /></span><ModeBadge mode={f.mode} /></div>
                 <h3>{f.t}</h3>
                 <p>{f.short}</p>
                 <span className="lp-card-more">Learn more<Icon name="next" size={16} /></span>
@@ -307,13 +312,15 @@ function CompareBars() {
 }
 
 // ================================================================ Features (tabs)
-const FEATURES: { t: string; icon: string; short: string; d: string; art: React.ReactNode }[] = [
-  { t: 'Get paid, without chasing', icon: 'cash', short: 'Paid, Late or Due for every unit, with receipts in one tap.', d: 'Every unit shows Paid, Late or Due. Rent from your bank is spotted on its own. Receipts go out with one tap, and reminders stop the moment rent lands.', art: <div className="art-rows"><div><Avatar name="Maya Chen" size={30} /><span>Maya</span><b className="status paid">Paid</b></div><div><Avatar name="Jordan Patel" size={30} /><span>Jordan</span><b className="status late">Late</b></div><div><Avatar name="Sam Okafor" size={30} /><span>Sam</span><b className="status due">Found</b></div></div> },
-  { t: 'Late rent, the legal way', icon: 'paper', short: 'The right official notice, with the dates worked out.', d: "If a reminder doesn't work, Keyholder fills in your province's official notice for unpaid rent (in Ontario, that's the N4 form). It works out the dates and checks every detail before you send it.", art: <div className="art-sheet"><b>N4</b><i /><i /><i className="s" /><span className="stamp served">Served</span></div> },
-  { t: 'Fill an empty unit faster', icon: 'users', short: 'People apply online. You compare and pick.', d: 'Share a link for people to apply. See everyone side by side, check references, and turn your pick into a tenant and a lease in one step.', art: <div className="art-apps"><div><Bust look={LOOKS.sam} size={34} bg="#FEF7C3" /><b>Daniel</b><i style={{ width: '70%' }} /></div><div className="pick"><Bust look={LOOKS.lena} size={34} bg="#EBE9FE" /><b>Lena &amp; Tom</b><i style={{ width: '90%' }} /></div></div> },
-  { t: 'Bills and mortgage from your banks', icon: 'receipt', short: 'Bills sorted for you. Mortgage payments checked off.', d: 'Connect one bank or several. Bills like gas and property tax are saved to the right property for you, and mortgage payments are checked off on their own.', art: <div className="art-receipts"><span><i className="lp-tile-ic peach"><Icon name="flame" size={14} /></i>Enbridge gas · $212</span><span><i className="lp-tile-ic sky"><Icon name="home" size={14} /></i>City tax · $1,300</span><span><i className="lp-tile-ic mint"><Icon name="check" size={14} /></i>RBC mortgage · paid</span></div> },
-  { t: 'Know if it is worth it', icon: 'trend', short: 'See if your rental makes money, in plain words.', d: 'See what your property is worth, what you keep each year, and how that compares with putting the money in a savings account or the stock market.', art: <div className="art-bars"><i style={{ ['--h' as string]: '92%' }} className="you" /><i style={{ ['--h' as string]: '30%' }} /><i style={{ ['--h' as string]: '38%' }} /><i style={{ ['--h' as string]: '70%' }} /></div> },
-  { t: 'Tax time, already done', icon: 'print', short: 'Your tax numbers, ready when you need them.', d: 'Every rent payment and cost is saved as you go. At tax time, Keyholder shows the numbers for the rental part of your tax return (CRA form T776), plus a list of anything missing.', art: <div className="art-sheet"><b>T776</b><i /><i /><i /><span className="stamp paid">Ready</span></div> },
+const FEATURES: { t: string; icon: string; mode: 'auto' | 'approve'; short: string; d: string; art: React.ReactNode }[] = [
+  { t: 'Rent tracking', icon: 'bank', mode: 'auto', short: 'Your banks are checked every 4 hours. Rent is matched to the right tenant.', d: 'Keyholder checks your banks every 4 hours (view only) and matches each deposit to the right tenant and month. Every unit shows Paid, Late or Due at a glance. No bank? Tap "Mark paid" instead.', art: <div className="art-rows"><div><Avatar name="Maya Chen" size={30} /><span>Maya</span><b className="status paid">Paid</b></div><div><Avatar name="Jordan Patel" size={30} /><span>Jordan</span><b className="status late">Late</b></div><div><Avatar name="Sam Okafor" size={30} /><span>Sam</span><b className="status due">Found</b></div></div> },
+  { t: 'Rent receipts', icon: 'receipt', mode: 'auto', short: 'A receipt is written for every payment. Send it with one tap, or automatically.', d: 'Every payment gets a proper rent receipt, numbered and dated. Send it with one tap, or switch on automatic sending once you trust it. Every receipt is kept for you and your tenant.', art: <div className="art-sheet"><b>Receipt</b><i /><i /><i className="s" /><span className="stamp paid">Sent</span></div> },
+  { t: 'Friendly reminders', icon: 'bell', mode: 'auto', short: 'Written the day after rent is due. They stop the moment rent arrives.', d: 'If rent is late, a polite reminder is written for you the day after it is due, in the tone you choose. It stops the moment rent arrives, so you never chase someone who already paid.', art: <div className="art-msgs"><p className="out">Hi Jordan, a friendly reminder that November rent of $1,450 was due on the 1st.</p><p className="in">Sorry! Sent it just now.</p><span className="status paid">Paid</span></div> },
+  { t: 'Bills and mortgage', icon: 'cash', mode: 'auto', short: 'Bills are filed to the right property. Mortgage payments are checked off.', d: 'Connect one bank or several. Bills like gas and property tax are saved to the right property, learned from what you filed before, and mortgage payments are checked off on their own.', art: <div className="art-receipts"><span><i className="lp-tile-ic peach"><Icon name="flame" size={14} /></i>Enbridge gas · $212</span><span><i className="lp-tile-ic sky"><Icon name="home" size={14} /></i>City tax · $1,300</span><span><i className="lp-tile-ic mint"><Icon name="check" size={14} /></i>RBC mortgage · paid</span></div> },
+  { t: 'Property valuation', icon: 'trend', mode: 'auto', short: 'A value estimate every month, and your return next to a GIC.', d: 'Keyholder estimates what your property is worth each month, shows what you have gained, and compares your yearly return with savings, a GIC and the stock market. Estimates, clearly labelled with their source.', art: <div className="art-bars"><i style={{ ['--h' as string]: '92%' }} className="you" /><i style={{ ['--h' as string]: '30%' }} /><i style={{ ['--h' as string]: '38%' }} /><i style={{ ['--h' as string]: '70%' }} /></div> },
+  { t: 'Tax summary', icon: 'print', mode: 'auto', short: 'Your rental tax numbers build themselves as you go.', d: 'Every rent payment and cost is sorted as it happens. At tax time, the numbers for the rental part of your return (CRA form T776) are ready, with a list of anything missing. Keyholder does not file for you.', art: <div className="art-sheet"><b>T776</b><i /><i /><i /><span className="stamp paid">Ready</span></div> },
+  { t: 'Late-rent notices', icon: 'paper', mode: 'approve', short: 'The right official notice, filled in. Nothing is served without you.', d: "If reminders don't work, Keyholder fills in your province's official notice for unpaid rent (in Ontario, the N4) and works out the dates. Legal notices always wait for your sign-off.", art: <div className="art-sheet"><b>N4</b><i /><i /><i className="s" /><span className="stamp served">Ready to sign</span></div> },
+  { t: 'Finding tenants', icon: 'users', mode: 'approve', short: 'People apply online. You compare and choose.', d: 'Share a link for people to apply. See everyone side by side and check references. You make the choice, and Keyholder turns it into a tenant and a lease in one step.', art: <div className="art-apps"><div><Bust look={LOOKS.sam} size={34} bg="#FEF7C3" /><b>Daniel</b><i style={{ width: '70%' }} /></div><div className="pick"><Bust look={LOOKS.lena} size={34} bg="#EBE9FE" /><b>Lena &amp; Tom</b><i style={{ width: '90%' }} /></div></div> },
 ];
 
 function Features() {
@@ -321,7 +328,7 @@ function Features() {
   const f = FEATURES[tab];
   return (
     <>
-      <PageHead kicker="Features" icon="sparkle" title={<>Everything a small landlord does, <em>in one calm place.</em></>} aside={<div className="lp-aside-art"><SceneTap /></div>}>Six jobs Keyholder takes off your plate. Pick one to see how it works.</PageHead>
+      <PageHead kicker="Features" icon="sparkle" title={<>What Keyholder <em>automates.</em></>} aside={<div className="lp-aside-art"><SceneTap /></div>}>Eight jobs taken off your plate. Six run on their own; the two that need a decision always wait for you. Pick one to see how it works.</PageHead>
       <section className="lp-sec lp-sec-top0">
         <div className="lp-wrap lp-tabs">
           <div className="lp-tablist" role="tablist" aria-label="Features" aria-orientation="vertical">
@@ -329,13 +336,13 @@ function Features() {
               <button key={x.t} role="tab" id={`ft-${i}`} aria-selected={tab === i} aria-controls="ft-panel" tabIndex={tab === i ? 0 : -1} className={`lp-tab${tab === i ? ' on' : ''}`} onClick={() => setTab(i)}
                 onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); setTab((tab + 1) % FEATURES.length); } if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); setTab((tab + FEATURES.length - 1) % FEATURES.length); } }}>
                 <span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={x.icon} size={18} /></span>
-                <span><strong>{x.t}</strong><span>{x.short}</span></span>
+                <span><strong>{x.t} <ModeBadge mode={x.mode} /></strong><span>{x.short}</span></span>
               </button>
             ))}
           </div>
           <div className="lp-tabpanel" role="tabpanel" id="ft-panel" aria-labelledby={`ft-${tab}`} key={tab}>
             <div className="lp-art" aria-hidden>{f.art}</div>
-            <h2>{f.t}</h2>
+            <div className="lp-panel-head"><h2>{f.t}</h2><ModeBadge mode={f.mode} /></div>
             <p>{f.d}</p>
           </div>
         </div>
@@ -423,7 +430,7 @@ function Pricing({ start }: { start: () => void }) {
           <div className="lp-price reveal">
             <span className="lp-tile-ic big mint"><Icon name="home" size={22} /></span>
             <h3>Starter</h3>
-            <p className="lp-amt">Free</p><p className="lp-per">For one rental unit</p>
+            <p className="lp-amt">Free</p><p className="lp-per">Automation for one rental unit</p>
             <ul><li>Rent tracking and receipts</li><li>Reminders</li><li>Expenses and receipt photos</li><li>Tax summary</li></ul>
             <button className="btn lp-big" onClick={start}>Start free</button>
           </div>
@@ -431,7 +438,7 @@ function Pricing({ start }: { start: () => void }) {
             <span className="lp-flag">Most landlords pick this</span>
             <span className="lp-tile-ic big lilac"><Icon name="users" size={22} /></span>
             <h3>Landlord</h3>
-            <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">For 2 to 10 units</p>
+            <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
             <ul><li>Everything in Starter</li><li>Several banks: rent, bills and mortgage read for you</li><li>Notices and forms for your province</li><li>Applications and tenant screening tools</li><li>Silver and Gold insights, full tax pack</li></ul>
             <button className="btn primary lp-big" onClick={start}>Get started</button>
           </div>
@@ -456,6 +463,7 @@ function Pricing({ start }: { start: () => void }) {
 
 // ================================================================ Questions
 const FAQ: [string, string, string][] = [
+  ['sparkle', 'What does Keyholder do automatically?', 'It checks your banks for rent and bills, writes receipts and reminders, files your costs, estimates your property value each month and keeps your tax numbers up to date. Receipts and reminders go out with one tap, or automatically once you switch that on. Legal notices and choosing a tenant always need your approval.'],
   ['heart', "I'm new to being a landlord. Is this for me?", 'Yes. Keyholder was made for people with one or a few rentals. It explains each step in plain words and tells you what to do next.'],
   ['cash', 'What does it cost?', 'Free for one rental unit. For 2 to 10 units, it is planned at $8 per unit a month. Early-access prices are not final, and you will never be charged without agreeing first.'],
   ['lock', 'Is my bank information safe?', 'Yes. Keyholder can only look at deposits and bills. It can never move money, and it never sees your bank password.'],

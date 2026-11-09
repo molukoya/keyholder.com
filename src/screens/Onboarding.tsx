@@ -8,7 +8,7 @@ import { Brand } from '../components/Brand';
 import { EmailLink, GoogleButton, GooglePicker, type Who } from './Account';
 import { QGoal, QHard, QPay, QTax, QWhat, QWhere, SceneWelcome } from '../components/Art';
 
-// Signup: six short questions in plain words, one per screen, then "Save your plan" (Google or email).
+// Signup: six short questions in plain words, one per screen, then "Turn on your automation" (Google or email).
 
 const HARD = [
   { id: 'who-paid', label: 'Knowing who has paid' },
@@ -160,12 +160,12 @@ function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profi
   const [emails, setEmails] = useState(true);
   const d = a.dreads ?? [];
   const plan: string[] = [];
-  if (d.includes('who-paid') || a.goal === 'no-chasing') plan.push('See who has paid, at a glance');
+  if (d.includes('who-paid') || a.goal === 'no-chasing') plan.push('Rent spotted and marked paid for you');
   if (d.includes('receipts')) plan.push('Rent receipts written for you');
   if (d.includes('chasing') || d.includes('awkward')) plan.push('Friendly reminders, written for you');
   if (d.includes('which-notice')) plan.push(`Step-by-step help when rent is late in ${province(a.province ?? 'ON').name}`);
   if ((a.taxWorries ?? []).some((x) => x !== 'none') || a.goal === 'tax-ready') plan.push('Every receipt and cost saved for tax time');
-  if (a.goal === 'makes-money') plan.push('A plain answer: are you making money?');
+  if (a.goal === 'makes-money') plan.push('A monthly value estimate, and a plain answer: are you making money?');
   if (a.goal === 'fill-unit') plan.push('Rental applications in one place');
   if (a.setup === 'part-home') plan.push('Shared costs, like heat, split for you');
   const shown = [...new Set(plan)].slice(0, 4);
@@ -177,7 +177,7 @@ function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profi
       <div className="plan-top">
         <div>
           <p className="q-count">Your plan is ready</p>
-          <h1 className="q-question">Here's how Keyholder will help you</h1>
+          <h1 className="q-question">Here's what Keyholder will automate for you</h1>
           <ul className="plan-list">{shown.map((l) => <li key={l}><Icon name="check" size={18} />{l}</li>)}</ul>
           <p className="small soft">Set up for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
         </div>
@@ -185,7 +185,7 @@ function SavePlan({ a, onBack, onExit, onAccount, onSample }: { a: Partial<Profi
       </div>
 
       <div className="sheet acct-save">
-        <h2>Save your plan</h2>
+        <h2>Turn on your automation</h2>
         <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
         <GoogleButton onClick={() => setPicker(true)} />
         <div className="acct-or"><span>or</span></div>
