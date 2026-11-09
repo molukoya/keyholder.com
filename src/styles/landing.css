@@ -86,7 +86,7 @@
 .lp-chip-float strong { display: block; font-size: 14px; }
 .lp-chip-float span span { display: block; font-size: 13px; color: var(--lp-soft); }
 @keyframes lp-in { from { opacity: 0; transform: translateY(16px); } }
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .lp-hero-grid { grid-template-columns: 1fr; }
   .lp-hero-visual { padding-bottom: 0; }
   .lp-photo.hero { aspect-ratio: 4 / 3; }
@@ -350,3 +350,17 @@ a.lp-card:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px;
 
 /* Pricing: trust as one compact row under the plans */
 .lp-trust-under { max-width: 940px; margin-top: 28px; padding: 20px 0 0; border-top: 1px solid var(--lp-rule); }
+
+/* Hero automation pills: always one line (smaller and icon-free on narrow phones) */
+.lp-auto { flex-wrap: nowrap; }
+.lp-auto li { white-space: nowrap; }
+@media (max-width: 420px) {
+  .lp-auto { gap: 6px; }
+  .lp-auto li { padding: 6px 11px; font-size: 13px; }
+  .lp-auto .lp-tile-ic { display: none; }
+}
+@media (min-width: 961px) and (max-width: 1180px) {
+  .lp-auto { gap: 6px; }
+  .lp-auto li { padding: 4px 10px 4px 4px; font-size: 13px; gap: 6px; }
+  .lp-auto .lp-tile-ic { width: 22px; height: 22px; }
+}

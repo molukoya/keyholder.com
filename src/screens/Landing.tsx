@@ -180,7 +180,7 @@ function CountUp({ to, decimals = 0, prefix = '', suffix = '' }: { to: number; d
 
 // ================================================================ Overview
 const TONES = ['lilac', 'mint', 'sky', 'peach', 'sun', 'rose'] as const;
-const AUTO: [string, string, string][] = [['receipt', 'Receipts', 'mint'], ['bell', 'Reminders', 'peach'], ['bank', 'Tracking', 'sky'], ['trend', 'Valuation', 'lilac'], ['print', 'Taxes', 'sun']];
+const AUTO: [string, string, string][] = [['receipt', 'Receipts', 'mint'], ['bell', 'Reminders', 'peach'], ['trend', 'Valuation', 'lilac'], ['print', 'Taxes', 'sun']];
 const ModeBadge = ({ mode }: { mode: 'auto' | 'approve' }) => <span className={`mode-badge ${mode}`}><Icon name={mode === 'auto' ? 'sparkle' : 'check'} size={13} />{mode === 'auto' ? 'Automatic' : 'You approve'}</span>;
 
 function Overview({ start, demo, signedIn }: { start: () => void; demo: () => void; signedIn: boolean }) {
@@ -229,21 +229,6 @@ function Overview({ start, demo, signedIn }: { start: () => void; demo: () => vo
         </div>
       </section>
 
-      <section className="lp-sec lp-alt">
-        <div className="lp-wrap">
-          <SecHead kicker="What it does" title="What Keyholder automates for you.">Most of it runs on its own. Anything with a legal or money decision always comes to you first.</SecHead>
-          <div className="lp-grid4">
-            {FEATURES.map((f, i) => (
-              <Link key={f.t} to="/welcome/features" className="lp-card reveal" style={{ transitionDelay: `${(i % 4) * 60}ms` }}>
-                <div className="lp-card-top"><span className={`lp-tile-ic big ${TONES[i % TONES.length]}`}><Icon name={f.icon} size={22} /></span><ModeBadge mode={f.mode} /></div>
-                <h3>{f.t}</h3>
-                <p>{f.short}</p>
-                <span className="lp-card-more">Learn more<Icon name="next" size={16} /></span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
     </>
   );
 }
