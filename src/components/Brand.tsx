@@ -11,8 +11,8 @@ export const WORDMARKS: { id: WordmarkId; name: string; note: string }[] = [
   { id: 'd', name: 'Keyhole “o”', note: 'Word only. The first “o” carries a keyhole, and doubles as the app icon.' },
 ];
 const listeners = new Set<(v: WordmarkId) => void>();
-// Chosen: D (keyhole "o"). The other versions stay here for reference only.
-function readChoice(): WordmarkId { return 'd'; }
+// Chosen: B (house key). The other versions stay here for reference only.
+function readChoice(): WordmarkId { return 'b'; }
 export function setWordmark(v: WordmarkId) { listeners.forEach((f) => f(v)); }
 export function useWordmark() {
   const [v, setV] = useState<WordmarkId>(readChoice);
