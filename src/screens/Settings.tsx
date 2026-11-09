@@ -1,7 +1,7 @@
 import { BackToMore, PageSub } from '../components/Guide';
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { isAdmin, useStore } from '../data/store';
+import { isPreviewUser, useStore } from '../data/store';
 
 import { LEVELS } from '../lib/levels';
 import { LevelBadge } from '../components/levels';
@@ -15,7 +15,7 @@ import { Icon } from '../components/Icon';
 export function Settings() {
   const { state, act } = useStore();
   const p = state.profile;
-  const admin = isAdmin(state);
+  const admin = isPreviewUser(state);
   const loc = useLocation();
   const nav = useNavigate();
   useEffect(() => { if (loc.hash) document.getElementById(loc.hash.slice(1))?.scrollIntoView(); }, [loc.hash]);
@@ -29,7 +29,7 @@ export function Settings() {
         <div className="sheet">
           {admin ? (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>Admin preview</strong><div className="small soft">You're looking at the sample properties. Signing out takes you back to the website.</div></div>
+              <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">You're looking at the sample properties. Signing out takes you back to the website.</div></div>
               <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
             </div>
           ) : p.account ? (

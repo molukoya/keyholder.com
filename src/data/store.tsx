@@ -41,9 +41,16 @@ function readStash(): AppState | null {
   } catch { return null; }
 }
 
-/** Preview lock only (Stage 1): these sit in the website's code. Real admin accounts come with the backend. */
-export const ADMIN_LOGIN = { username: 'admin', password: 'admin' };
+/**
+ * Preview logins only (Stage 1): these sit in the website's code, so they are a lock, not security.
+ * test / test opens the demo (sample properties); admin / admin opens the support dashboard.
+ * Real admin accounts with proper passwords come with the backend.
+ */
+export const PREVIEW_LOGINS = { demo: { username: 'test', password: 'test' }, admin: { username: 'admin', password: 'admin' } } as const;
+export type PreviewKind = keyof typeof PREVIEW_LOGINS;
 export const isAdmin = (s: AppState) => s.profile.account?.provider === 'admin';
+/** The demo or the admin: both look at the sample properties, never at a real account's data. */
+export const isPreviewUser = (s: AppState) => s.profile.account?.provider === 'admin' || s.profile.account?.provider === 'demo';
 
 function save(s: AppState) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage full or blocked: keep working in memory */ }
@@ -105,10 +112,10 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
   return {
     // ---- Profile & onboarding ----
     /**
-     * Admin sign in (preview): set aside this browser's own data, then open a fresh copy of the sample
-     * properties. Signing out puts the set-aside data back, so testing the sample never wipes an account.
+     * Demo or admin sign in (preview): set aside this browser's own data, then open a fresh copy of the sample
+     * properties (admin starts on the support dashboard). Signing out puts the set-aside data back.
      */
-    signInAdmin() {
+    signInPreview(kind: PreviewKind) {
       mut((d) => {
         if (!d.profile.sample && (d.profile.onboarded || d.profile.account)) {
           const own = structuredClone(d);
@@ -116,7 +123,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
           try { localStorage.setItem(STASH, JSON.stringify(own)); } catch { /* storage blocked: nothing to keep */ }
         }
         const profile = sampleLandlord({ ...defaultProfile(), onboarded: true, sample: true, tourDone: false,
-          account: { provider: 'admin', email: 'admin', name: 'Admin', signedIn: true, created: today() } });
+          account: { provider: kind, email: kind, name: kind === 'admin' ? 'Admin' : 'Demo', signedIn: true, created: today() } });
         Object.assign(d, seedState(profile));
       });
     },
@@ -136,7 +143,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
     signOut() {
       const own = readStash();
       mut((d) => {
-        if (d.profile.account?.provider === 'admin') Object.assign(d, own ? structuredClone(own) : seedState());
+        if (d.profile.account?.provider === 'admin' || d.profile.account?.provider === 'demo') Object.assign(d, own ? structuredClone(own) : seedState());
         else if (d.profile.account) d.profile.account.signedIn = false;
       });
       toast('Signed out. See you soon.');

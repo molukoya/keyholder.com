@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { ADMIN_LOGIN, useStore } from '../data/store';
+import { PREVIEW_LOGINS, useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
 import { SceneWelcome } from '../components/Art';
@@ -125,11 +125,10 @@ export function SignIn() {
           <>
             <GoogleButton onClick={() => setPicker(true)} />
             <div className="acct-or"><span>or</span></div>
-            <EmailLink cta="Email me a sign-in link" onDone={done} />
+            <CentralLogin onAccount={(email) => done({ provider: 'email', email, name: '' })} />
           </>
         )}
         <p className="small soft acct-switch">New to Keyholder? <Link to="/start">Create a free account</Link></p>
-        <AdminSignIn />
       </div>
       {picker && <GooglePicker onPick={done} onClose={() => setPicker(false)} />}
     </div>
@@ -137,31 +136,35 @@ export function SignIn() {
 }
 
 /**
- * "Admin sign in": the only way into the sample properties. This is a preview lock, not real security:
- * the username and password sit in the website's code. Real admin accounts come with the backend (Stage 2).
+ * One sign-in form for everyone. test / test opens the demo (sample properties), admin / admin opens the
+ * support dashboard, and anything else is a normal sign-in to the account saved in this browser.
+ * The two preview logins are a lock, not security: they sit in the website's code. Real passwords and
+ * admin accounts come with the backend (Stage 2); until then a normal account's password is not checked.
  */
-function AdminSignIn() {
+function CentralLogin({ onAccount }: { onAccount: (email: string) => void }) {
   const { act } = useStore();
   const nav = useNavigate();
-  const [open, setOpen] = useState(false);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [wrong, setWrong] = useState(false);
-  if (!open) return <p className="tiny acct-admin-link"><button type="button" className="lp-link-inline" onClick={() => setOpen(true)}>Admin sign in</button></p>;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (user.trim().toLowerCase() === ADMIN_LOGIN.username && pass === ADMIN_LOGIN.password) { act.signInAdmin(); nav('/today'); }
-    else setWrong(true);
+    const u = user.trim().toLowerCase();
+    for (const kind of ['demo', 'admin'] as const) {
+      if (u !== PREVIEW_LOGINS[kind].username) continue;
+      if (pass !== PREVIEW_LOGINS[kind].password) { setWrong(true); return; }
+      act.signInPreview(kind); nav(kind === 'admin' ? '/support' : '/today'); return;
+    }
+    if (!validEmail(u)) { setWrong(true); return; }
+    onAccount(user.trim());
   };
   const edit = (f: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { f(e.target.value); setWrong(false); };
   return (
-    <form className="acct-admin" onSubmit={submit} aria-labelledby="admin-title">
-      <h2 id="admin-title">Admin sign in</h2>
-      <p className="small soft">Opens the sample properties. Anything already saved in this browser is set aside and comes back when you sign out.</p>
-      <div className="field"><label htmlFor="admin-user">Username</label><input id="admin-user" className="input" value={user} onChange={edit(setUser)} autoComplete="username" autoCapitalize="none" autoFocus /></div>
-      <div className="field"><label htmlFor="admin-pass">Password</label><input id="admin-pass" type="password" className="input" value={pass} onChange={edit(setPass)} autoComplete="current-password" /></div>
-      {wrong && <p className="small acct-error" role="alert">That username or password is not right.</p>}
-      <div className="btn-row"><button className="btn primary" disabled={!user.trim() || !pass}>Sign in as admin</button><button type="button" className="btn ghost" onClick={() => { setOpen(false); setWrong(false); setPass(''); }}>Cancel</button></div>
+    <form className="acct-login" onSubmit={submit}>
+      <div className="field"><label htmlFor="login-user">Email or username</label><input id="login-user" className="input" value={user} onChange={edit(setUser)} autoComplete="username" autoCapitalize="none" placeholder="you@example.com" /></div>
+      <div className="field"><label htmlFor="login-pass">Password</label><input id="login-pass" type="password" className="input" value={pass} onChange={edit(setPass)} autoComplete="current-password" /></div>
+      {wrong && <p className="small acct-error" role="alert">That email, username or password is not right.</p>}
+      <button className="btn primary acct-login-btn" disabled={!user.trim() || !pass}>Sign in</button>
     </form>
   );
 }

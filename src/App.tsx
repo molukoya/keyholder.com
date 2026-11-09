@@ -17,6 +17,8 @@ import { Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
 import { Landing } from './screens/Landing';
 import { SignIn } from './screens/Account';
+import { Support } from './screens/Support';
+import { AnnouncementBar } from './support/Announcement';
 import { SampleBanner, Tour, PageSub, HelpButton } from './components/Guide';
 
 export function App() {
@@ -48,7 +50,9 @@ function Root() {
   const signedIn = !!p.account?.signedIn;
   const inApp = p.onboarded && (signedIn || (!p.account && !p.sample));
   if (loc.pathname.startsWith('/welcome')) return <Landing />;
-  if (!signedIn && loc.pathname.startsWith('/signin')) return <SignIn />;
+  // admin / admin: the support dashboard. Anyone else asking for it gets their own home instead.
+  if (loc.pathname.startsWith('/support') && signedIn && p.account?.provider === 'admin') return <Routes><Route path="/support/*" element={<Support />} /></Routes>;
+  if (loc.pathname.startsWith('/signin')) return signedIn ? <Navigate to={p.account?.provider === 'admin' ? '/support' : '/today'} replace /> : <SignIn />;
   if (!inApp) return onStart ? <Onboarding /> : <Landing />;
   return <Shell />;
 }
@@ -106,6 +110,7 @@ function Shell() {
           <HelpButton compact />
         </div>
         <main>
+          <AnnouncementBar where="app" />
           <SampleBanner />
           <Routes>
             <Route path="/" element={<Navigate to="/today" replace />} />

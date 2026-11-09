@@ -46,8 +46,8 @@ export interface Profile {
   /** Showing the sample properties (demo). */
   sample?: boolean;
   tourDone?: boolean;
-  /** Account (Stage 1: simulated). 'admin' is the preview login that opens the sample properties. */
-  account?: { provider: 'google' | 'email' | 'admin'; email: string; name: string; signedIn: boolean; created: ISODate };
+  /** Account (Stage 1: simulated). 'demo' (test / test) opens the sample properties; 'admin' (admin / admin) the support dashboard. */
+  account?: { provider: 'google' | 'email' | 'demo' | 'admin'; email: string; name: string; signedIn: boolean; created: ISODate };
   /** Email me on rent day and once a month (preview only: nothing is sent). */
   emailUpdates?: boolean;
   /** Today's visit and the one before, for "Since your last visit". */

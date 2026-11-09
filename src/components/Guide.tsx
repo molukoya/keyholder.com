@@ -18,11 +18,14 @@ export function SampleBanner() {
   const { state, act } = useStore();
   const nav = useNavigate();
   if (!state.profile.sample || !state.properties.length) return null;
+  const admin = state.profile.account?.provider === 'admin';
   return (
     <div className="sample-banner" role="status">
-      <span><strong>Admin preview:</strong> you're looking at sample properties. Click around, nothing here is real.</span>
+      <span><strong>{admin ? 'Admin:' : 'Demo:'}</strong> you're looking at sample properties. Click around, nothing here is real.</span>
       <span className="btn-row">
-        <button className="btn small ghost" onClick={() => act.setProfile({ tourDone: false })}>Show me around</button>
+        {admin
+          ? <button className="btn small ghost" onClick={() => nav('/support')}>Back to support</button>
+          : <button className="btn small ghost" onClick={() => act.setProfile({ tourDone: false })}>Show me around</button>}
         <button className="btn small" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
       </span>
     </div>

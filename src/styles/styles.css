@@ -341,3 +341,7 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
 .q-wrap .q-name { display: block; width: 100%; max-width: 420px; min-height: 56px; font-size: var(--fs-intro); }
 /* The smallest phones: the signup progress lines move under the logo and Exit. */
 @media (max-width: 400px) { .q-wrap .q-top { flex-wrap: wrap; row-gap: 12px; } .q-wrap .q-lines { order: 4; flex-basis: 100%; max-width: none; } }
+
+/* The one sign-in form */
+.acct-login .input { min-height: 48px; }
+.acct-login .acct-login-btn { width: 100%; min-height: 52px; }

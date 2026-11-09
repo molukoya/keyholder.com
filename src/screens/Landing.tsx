@@ -5,6 +5,7 @@ import type { Province } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
+import { AnnouncementBar } from '../support/Announcement';
 import { Avatar, Bust, LOOKS } from '../components/Art';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
@@ -103,9 +104,10 @@ export function Landing() {
   // Everyone else, including an old demo left in this browser, sees Sign in and Start free.
   const signedIn = !!state.profile.account?.signedIn;
   // Signed out of an account that lives in this browser: Sign in is the main button.
-  const returning = !signedIn && !!state.profile.account && state.profile.account.provider !== 'admin';
-  const start = () => nav(signedIn ? '/today' : '/start');
-  const signIn = () => nav(signedIn ? '/today' : '/signin');
+  const returning = !signedIn && !!state.profile.account && state.profile.account.provider !== 'admin' && state.profile.account.provider !== 'demo';
+  const home = state.profile.account?.provider === 'admin' ? '/support' : '/today';
+  const start = () => nav(signedIn ? home : '/start');
+  const signIn = () => nav(signedIn ? home : '/signin');
   // Tapping the page you are already on: back to its top (or to the tour, for Features).
   const same = (id: string) => { setMenu(false); if (id !== page) return; if (id === 'features') toTour(); else window.scrollTo(0, 0); };
 
@@ -121,13 +123,14 @@ export function Landing() {
   const isOn = (id: string) => (overview ? (id === 'features' ? inTour : id === '' ? !inTour : false) : id === page);
 
   const ctas = signedIn
-    ? <Link className="btn primary" to="/today">Open my dashboard</Link>
+    ? <Link className="btn primary" to={home}>Open my dashboard</Link>
     : returning
       ? <><button className="btn ghost" onClick={start}>Start free</button><button className="btn primary" onClick={signIn}>Sign in</button></>
       : <><Link className="btn ghost" to="/signin">Sign in</Link><button className="btn primary" onClick={start}>Start free</button></>;
 
   return (
     <div className="lp">
+      <AnnouncementBar where="website" />
       <header className={`lp-nav${solid || menu ? ' solid' : ''}`}>
         <div className="lp-wrap lp-nav-in">
           <Link to="/welcome" className="lp-brand" aria-label="Keyholder home" onClick={() => same('')}><Brand size={28} /></Link>
