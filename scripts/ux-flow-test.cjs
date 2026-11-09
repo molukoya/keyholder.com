@@ -247,7 +247,9 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
-    const menuGo = async (label) => { if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
+    // The phone menu must really fill the screen (it once collapsed to a 40px strip that a test could still click into).
+    const menuOpen = async () => { await pg.locator('.lp-burger').click(); const box = await pg.locator('.lp-menu').boundingBox(); if (!box || box.height < vp.height * 0.6) throw new Error(`menu only ${box ? Math.round(box.height) : 0}px tall`); };
+    const menuGo = async (label) => { if (tag === 'phone') { await menuOpen(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
     await step(tag, 'D3 Menu → Provinces page → tap BC → BC forms', async () => { await menuGo('Provinces'); await pg.waitForSelector('h1:has-text("Built for every province")'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
     await step(tag, 'D4 Every menu page opens, Next/Back pager works, browser back works', async () => {
       for (const [l, h] of [['Features', 'Everything a small landlord'], ['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Your rental']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }

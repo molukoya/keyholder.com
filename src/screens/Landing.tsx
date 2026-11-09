@@ -73,13 +73,14 @@ export function Landing() {
           <div className="btn-row lp-nav-cta">{ctas}</div>
           <button className="btn lp-burger" aria-expanded={menu} aria-controls="lp-menu" onClick={() => setMenu((m) => !m)}><Icon name={menu ? 'close' : 'menu'} size={20} /><span>Menu</span></button>
         </div>
-        {menu && (
-          <div className="lp-menu" id="lp-menu">
-            {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={p.id === page && !logo ? 'on' : ''}>{p.label}<Icon name="next" size={18} /></Link>)}
-            <div className="btn-row">{ctas}</div>
-          </div>
-        )}
       </header>
+      {/* Outside the header on purpose: the header's frosted-glass effect would trap a full-screen menu inside its 72px. */}
+      {menu && (
+        <div className="lp-menu" id="lp-menu">
+          {PAGES.map((p) => <Link key={p.id} to={href(p.id)} className={p.id === page && !logo ? 'on' : ''}>{p.label}<Icon name="next" size={18} /></Link>)}
+          <div className="btn-row">{ctas}</div>
+        </div>
+      )}
 
       <main>
         {!logo && page === '' && <Overview start={start} demo={demo} signedIn={signedIn} />}
