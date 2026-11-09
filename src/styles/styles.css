@@ -338,3 +338,4 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
   .tax-totals td { padding-inline: 6px; }
   .tax-totals tfoot td { font-size: var(--t-16); }
 }
+.q-wrap .q-name { display: block; width: 100%; max-width: 420px; min-height: 56px; font-size: var(--fs-intro); }

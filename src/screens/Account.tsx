@@ -70,8 +70,8 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
 }
 
 /** "Continue with email": type an email (and, when signing up, your name), then open the sign-in link (simulated). */
-export function EmailLink({ cta = 'Continue with email', askName = false, onDone }: { cta?: string; askName?: boolean; onDone: (w: Who) => void }) {
-  const [name, setName] = useState('');
+export function EmailLink({ cta = 'Continue with email', askName = false, defaultName = '', onDone }: { cta?: string; askName?: boolean; defaultName?: string; onDone: (w: Who) => void }) {
+  const [name, setName] = useState(defaultName);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const ready = validEmail(email) && (!askName || !!name.trim());
@@ -87,7 +87,7 @@ export function EmailLink({ cta = 'Continue with email', askName = false, onDone
     <form className="acct-email" onSubmit={(e) => { e.preventDefault(); if (ready) setSent(true); }}>
       {askName && <>
         <label htmlFor="ob-name" className="sr-only">Your name</label>
-        <input id="ob-name" className="input acct-name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+        <input id="ob-name" className="input acct-name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
       </>}
       <label htmlFor="ob-email" className="sr-only">Email</label>
       <input id="ob-email" type="email" className="input" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

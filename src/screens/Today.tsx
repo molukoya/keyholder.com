@@ -39,7 +39,7 @@ export function Today() {
         <div className="start-hero">
           <div>
             <h1 style={{ marginBottom: 8 }}>Welcome{state.profile.name ? `, ${state.profile.name.split(' ')[0]}` : ''}.</h1>
-            <p className="page-sub">Three steps and Keyholder starts tracking your rent for you.</p>
+            <p className="page-sub">{next === 0 ? "Let's add your first property. Three steps, and Keyholder starts tracking your rent for you." : next === 1 ? 'Your property is in. Next, add your tenant.' : 'Almost done: choose how rent is tracked.'}</p>
           </div>
           <div className="start-art" aria-hidden><SceneEmptyHome /></div>
         </div>

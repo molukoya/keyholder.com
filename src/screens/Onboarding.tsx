@@ -8,7 +8,8 @@ import { Brand } from '../components/Brand';
 import { EmailLink, GoogleButton, GooglePicker, type Who } from './Account';
 import { QGoal, QHard, QPay, QTax, QWhat, QWhere, SceneWelcome } from '../components/Art';
 
-// Signup: six short questions in plain words, one per screen, then "Turn on your automation" (Google or email).
+// Signup: your first name, six short questions in plain words (one per screen, using your name along the way),
+// then "Turn on your automation" (Google or email). Addresses: /start (name), /start/1 to /start/6, /start/7 (plan).
 
 const HARD = [
   { id: 'who-paid', label: 'Knowing who has paid' },
@@ -37,6 +38,7 @@ export function Onboarding() {
   const nav = useNavigate();
   const loc = useLocation();
   // The step lives in the address (/start/2) so the browser's back button goes to the previous question.
+  // Step 0 asks for a first name; steps 1 to 6 are the questions.
   const step = Math.max(0, Number(loc.pathname.split('/')[2]) || 0);
   const setStep = (n: number) => (n < 0 ? nav('/welcome') : nav(n === 0 ? '/start' : `/start/${n}`));
   const exit = () => nav('/welcome');
@@ -52,6 +54,9 @@ export function Onboarding() {
 
   const tone: Tone = a.dreads?.includes('awkward') ? 'gentle' : a.dreads?.includes('chasing') ? 'standard' : 'gentle';
   const answers = (): Partial<Profile> => ({ ...a, reminderTone: tone, rentArrival: a.rentMethod === 'etransfer' || a.rentMethod === 'mix' ? 'bank' : 'manual' });
+  const first = (a.name ?? '').trim().split(/\s+/)[0] ?? '';
+  // A Google account's full name wins when it starts with the name typed here; otherwise keep what they typed.
+  const nameFor = (w: Who) => (!first || w.name.toLowerCase().startsWith(first.toLowerCase()) ? w.name : (a.name ?? '').trim());
 
   const steps: { q: string; why: string; hint?: string; ok: boolean; pic: React.ReactNode; body: React.ReactNode }[] = [
     {
@@ -126,21 +131,25 @@ export function Onboarding() {
     },
   ];
 
-  if (step >= steps.length) return <SavePlan a={a} onBack={() => setStep(steps.length - 1)} onExit={exit}
-    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, w)} />;
-  const s = steps[step];
+  if (step === 0) return <NameStep name={a.name ?? ''} onName={(name) => set({ name })} onNext={() => setStep(1)} onBack={exit} onExit={exit} total={steps.length} />;
+  if (step > steps.length) return <SavePlan a={a} first={first} onBack={() => setStep(steps.length)} onExit={exit}
+    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, { ...w, name: nameFor(w) })} />;
+  const q = step - 1;
+  const s = steps[q];
+  // A few words of encouragement, by name, along the way.
+  const cheer = !first ? '' : q === 0 ? `Nice to meet you, ${first}! ` : q === 2 ? `Halfway there, ${first}. ` : q === steps.length - 1 ? `Last one, ${first}! ` : '';
   return (
     <div className="q-wrap">
       <div className="q-top">
         <span className="brand" style={{ margin: 0 }}><Brand /></span>
         <button className="btn ghost q-exit" onClick={exit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button>
         <div className="q-lines" aria-hidden>
-          {steps.map((_, i) => <span key={i} className={i < step ? 'done' : i === step ? 'now' : ''} />)}
+          {steps.map((_, i) => <span key={i} className={i < q ? 'done' : i === q ? 'now' : ''} />)}
         </div>
       </div>
       <div className="q-head">
         <div>
-          <p className="q-count">Question {step + 1} of {steps.length}</p>
+          <p className="q-count">{cheer}Question {q + 1} of {steps.length}</p>
           <h1 className="q-question">{s.q}</h1>
           <p className="q-aside"><Icon name="info" size={16} />{s.why}{s.hint ? ` ${s.hint}` : ''}</p>
         </div>
@@ -148,15 +157,46 @@ export function Onboarding() {
       </div>
       {s.body}
       <div className="q-foot">
-        <button className="btn ghost" onClick={() => setStep(step - 1)}><Icon name="back" size={16} />{step === 0 ? 'Back to website' : 'Back'}</button>
-        <button className="btn primary" onClick={() => setStep(step + 1)} disabled={!s.ok}>{step === steps.length - 1 ? 'See my plan' : 'Next'}</button>
+        <button className="btn ghost" onClick={() => setStep(step - 1)}><Icon name="back" size={16} />Back</button>
+        <button className="btn primary" onClick={() => setStep(step + 1)} disabled={!s.ok}>{q === steps.length - 1 ? 'See my plan' : 'Next'}</button>
       </div>
       <p className="tiny faint" style={{ marginTop: 'auto', paddingTop: 48 }}>About 2 minutes. You can change any answer later in Settings.</p>
     </div>
   );
 }
 
-function SavePlan({ a, onBack, onExit, onAccount }: { a: Partial<Profile>; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void }) {
+/** Step 0: a first name, so the questions and the app can greet people by name. */
+function NameStep({ name, onName, onNext, onBack, onExit, total }: { name: string; onName: (n: string) => void; onNext: () => void; onBack: () => void; onExit: () => void; total: number }) {
+  const ok = !!name.trim();
+  return (
+    <div className="q-wrap">
+      <div className="q-top">
+        <span className="brand" style={{ margin: 0 }}><Brand /></span>
+        <button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button>
+        <div className="q-lines" aria-hidden>{Array.from({ length: total }, (_, i) => <span key={i} />)}</div>
+      </div>
+      <form onSubmit={(e) => { e.preventDefault(); if (ok) onNext(); }}>
+        <div className="q-head">
+          <div>
+            <p className="q-count">Let's get started</p>
+            <h1 className="q-question">What's your first name?</h1>
+            <p className="q-aside"><Icon name="info" size={16} />So we know what to call you. Then {total} quick questions about your rental.</p>
+          </div>
+          <div className="q-pic"><SceneWelcome /></div>
+        </div>
+        <label htmlFor="ob-first" className="sr-only">Your first name</label>
+        <input id="ob-first" className="input q-name" value={name} onChange={(e) => onName(e.target.value)} placeholder="First name" autoComplete="given-name" autoCapitalize="words" autoFocus />
+        <div className="q-foot">
+          <button type="button" className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back to website</button>
+          <button className="btn primary" disabled={!ok}>Next</button>
+        </div>
+      </form>
+      <p className="tiny faint" style={{ marginTop: 'auto', paddingTop: 48 }}>About 2 minutes. You can change any answer later in Settings.</p>
+    </div>
+  );
+}
+
+function SavePlan({ a, first, onBack, onExit, onAccount }: { a: Partial<Profile>; first: string; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void }) {
   const [picker, setPicker] = useState(false);
   const [emails, setEmails] = useState(true);
   const d = a.dreads ?? [];
@@ -178,7 +218,7 @@ function SavePlan({ a, onBack, onExit, onAccount }: { a: Partial<Profile>; onBac
       <div className="plan-top">
         <div>
           <p className="q-count">Your plan is ready</p>
-          <h1 className="q-question">Here's what Keyholder will automate for you</h1>
+          <h1 className="q-question">{first ? `${first}, here's` : "Here's"} what Keyholder will automate for you</h1>
           <ul className="plan-list">{shown.map((l) => <li key={l}><Icon name="check" size={18} />{l}</li>)}</ul>
           <p className="small soft">Set up for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
         </div>
@@ -190,7 +230,7 @@ function SavePlan({ a, onBack, onExit, onAccount }: { a: Partial<Profile>; onBac
         <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
         <GoogleButton onClick={() => setPicker(true)} />
         <div className="acct-or"><span>or</span></div>
-        <EmailLink askName onDone={(w) => onAccount(w, emails)} />
+        <EmailLink askName defaultName={a.name ?? ''} onDone={(w) => onAccount(w, emails)} />
         <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me on rent day and once a month with a summary</label>
       </div>
       <div className="q-foot" style={{ marginTop: 16 }}><button className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back</button><span /></div>
