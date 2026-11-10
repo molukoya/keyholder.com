@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { PageHead, Tile } from '../screens/Support';
@@ -7,7 +7,8 @@ import { PACK_VERSION, PROVINCES } from '../lib/jurisdiction';
 import { formsFor } from '../lib/forms';
 import { Seg } from '../components/ui';
 import { BarChart, HBars, Status } from './charts';
-import { live, sup, useSupport } from './store';
+import { isLive, live, sup, useSupport } from './store';
+import { api } from '../data/api';
 import { BANKS, type Announcement } from './data';
 
 export function Health() {
@@ -30,6 +31,7 @@ export function Health() {
     { label: 'Applications', value: Math.round(sent * 0.04) },
   ];
   const days = Array.from({ length: 7 }, (_, i) => ({ label: new Date(Date.parse(`${s.today}T12:00:00`) - (6 - i) * 864e5).toLocaleString('en-CA', { weekday: 'short' }), value: Math.round((sent / 7) * (i === 6 ? 0.4 : 0.8 + ((i * 37) % 10) / 25)) }));
+  if (isLive()) return <LiveHealth />;
   return (
     <>
       <PageHead eyebrow="Platform" title="System health" sub="Banks, email and automations" />
@@ -60,6 +62,51 @@ export function Health() {
         <section className="sp-card"><h2 className="sp-h3">Receipts and reminders · 7 days</h2><BarChart bars={days} fmt={(v) => String(v)} label="Receipts and reminders sent per day, last 7 days" head={['Day', 'Sent']} /></section>
         <section className="sp-card"><h2 className="sp-h3">Automations this week</h2><HBars rows={autos} /></section>
       </div>
+    </>
+  );
+}
+
+type Mail = { id: string; kind: string; to_email: string; subject: string; status: string; last_error: string | null; created_at: string };
+const MAIL_KIND: Record<string, string> = { receipt: 'Receipt', reminder: 'Reminder', welcome: 'Welcome', reset: 'Password reset', invite: 'Team invite', 'ticket-ack': 'Request received', 'ticket-reply': 'Support reply', 'ticket-new': 'New request (team)', digest: 'Daily summary' };
+const MAIL_STATUS: Record<string, ['good' | 'warn' | 'bad', string]> = { sent: ['good', 'Sent'], logged: ['warn', 'Kept (sending off)'], queued: ['warn', 'Waiting'], sending: ['warn', 'Sending'], failed: ['bad', 'Failed'], skipped: ['warn', 'Test address'] };
+
+/** System health on live data: real problems and the real email log (no estimates). */
+function LiveHealth() {
+  const s = useSupport();
+  const [mails, setMails] = useState<Mail[] | null>(null);
+  const [err, setErr] = useState('');
+  useEffect(() => { api<Mail[]>('GET', '/api/admin/email').then(setMails).catch((e) => setErr((e as Error).message)); }, []);
+  const cs = live(s);
+  const links = cs.flatMap((c) => c.banks);
+  const week = (mails ?? []).filter((m) => Date.now() - Date.parse(m.created_at) < 7 * 864e5);
+  return (
+    <>
+      <PageHead eyebrow="Platform" title="System health" sub="Problems, email and bank links" />
+      <div className="sp-tiles">
+        <Tile label="Emails · 7 days" value={String(week.length)} note={`${week.filter((m) => m.status === 'sent').length} sent · ${week.filter((m) => m.status === 'logged').length} kept`} />
+        <Tile label="Emails failed" value={String(week.filter((m) => m.status === 'failed').length)} good={false} />
+        <Tile label="Bank links" value={String(links.length)} note={`${links.filter((b) => b.status === 'failing').length} need a new sign-in`} />
+        <Tile label="Open problems" value={String(s.errors.length)} good={false} />
+      </div>
+      {s.errors.length > 0 && (
+        <section className="sp-card sp-sec"><h2 className="sp-h3">Problems</h2>
+          <ul className="sp-rows">{s.errors.map((e) => (
+            <li key={e.id}><span><strong>{e.message}</strong><span>{e.area} · {e.count} time{e.count === 1 ? '' : 's'} · last {new Date(e.at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span>
+              <button className="btn small" onClick={() => sup((d) => { d.errors = d.errors.filter((x) => x.id !== e.id); }, { action: 'Problem marked fixed', detail: e.message }, 'Fixed')}><Icon name="check" size={14} />Fixed</button></li>
+          ))}</ul>
+        </section>
+      )}
+      <section className="sp-card sp-sec"><h2 className="sp-h3">Recent emails</h2>
+        {err ? <p className="sp-empty">{err}</p> : !mails ? <p className="sp-empty">Loading…</p> : mails.length === 0 ? <p className="sp-empty">No emails yet.</p> : (
+          <div className="table-scroll"><table className="ledger sp-table">
+            <thead><tr><th>When</th><th>What</th><th>To</th><th>Status</th></tr></thead>
+            <tbody>{mails.slice(0, 50).map((m) => { const [tone, label] = MAIL_STATUS[m.status] ?? ['warn', m.status]; return (
+              <tr key={m.id}><td>{new Date(m.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td>{MAIL_KIND[m.kind] ?? m.kind}<span className="sp-small"> · {m.subject}</span></td><td>{m.to_email}</td><td title={m.last_error ?? ''}><Status tone={tone}>{label}</Status></td></tr>
+            ); })}</tbody>
+          </table></div>
+        )}
+        <p className="sp-small">"Kept" means email sending is not switched on yet (EMAIL_PROVIDER=log): see docs/BACKEND.md.</p>
+      </section>
     </>
   );
 }

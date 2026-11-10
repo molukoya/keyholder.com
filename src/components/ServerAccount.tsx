@@ -18,7 +18,7 @@ export function SaveStatus() {
 
 export function ServerAccount() {
   const { state, act } = useStore();
-  const { user } = useConn();
+  const { user, config } = useConn();
   const nav = useNavigate();
   const [sentVerify, setSentVerify] = useState(false);
   const [pw, setPw] = useState(false);
@@ -31,7 +31,7 @@ export function ServerAccount() {
         <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
       </div>
       <SaveStatus />
-      {!user.emailVerified && (
+      {!user.emailVerified && config?.emailDelivery && (
         <div className="callout" style={{ marginTop: 12 }}>
           <strong>Please confirm your email.</strong> We sent a link to {user.email}.{' '}
           {sentVerify ? <span className="soft">Sent again.</span> : <button className="btn small ghost" onClick={() => api('POST', '/api/auth/resend-verify').then(() => setSentVerify(true)).catch(() => setSentVerify(true))}>Send it again</button>}
