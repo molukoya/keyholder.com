@@ -22,14 +22,14 @@ export function Settings() {
 
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>You, rent tracking, banks, reminders and how the app looks.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Account, rent tracking, reminders, display</PageSub></div></div>
 
       <section className="section" id="account">
         <h2 className="section-title">Your account</h2>
         <div className="sheet">
           {admin ? (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">You're looking at the sample properties. Signing out takes you back to the website.</div></div>
+              <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">Sample properties only. Nothing here is real.</div></div>
               <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
             </div>
           ) : p.account ? (
@@ -39,17 +39,17 @@ export function Settings() {
             </div>
           ) : (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>No account yet</strong><div className="small soft">Your data is saved in this browser only.</div></div>
+              <div><strong>No account yet</strong><div className="small soft">Saved in this browser only.</div></div>
             </div>
           )}
-          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />Email me on rent day and once a month with a summary <span className="soft small">(preview: no emails are sent yet)</span></label>
+          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />Email me on rent day, plus a monthly summary <span className="soft small">(preview: no emails are sent yet)</span></label>
         </div>
       </section>
 
       <section className="section" id="levels">
         <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
         <div className="sheet">
-          <p className="soft" style={{ marginTop: 0 }}>A property's card changes colour as you add more about it. Nothing beyond Bronze is required.</p>
+          <p className="soft" style={{ marginTop: 0 }}>Cards change colour as you add details. Only Bronze is needed.</p>
           <ul className="rows">{LEVELS.map((l) => (
             <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
               <LevelBadge level={l.id} />
@@ -82,11 +82,11 @@ export function Settings() {
         <h2 className="section-title">Receipts and reminders</h2>
         <div className="sheet">
           <Field label="Reminder tone"><Seg label="Tone" value={p.reminderTone} onChange={(reminderTone) => act.setProfile({ reminderTone })} options={TONES.map((t) => ({ id: t.id, label: t.label }))} /></Field>
-          <Field label="Grace period (days)" htmlFor="st-g" hint="A courtesy. Rent is legally late the day after it is due; the firm reminder waits until the grace period ends.">
+          <Field label="Grace period (days)" htmlFor="st-g" hint="Rent is legally late the day after it's due. The firm reminder waits until this ends.">
             <input id="st-g" type="number" min={1} max={15} className="input" style={{ maxWidth: 120 }} value={p.graceDays} onChange={(e) => act.setProfile({ graceDays: Math.max(1, Number(e.target.value) || 5) })} />
           </Field>
           <label className="check"><input type="checkbox" checked={p.autoSend} onChange={(e) => act.setAutoSend(e.target.checked)} />
-            <span>Send receipts and reminders automatically<span className="tiny soft" style={{ display: 'block' }}>Off means co-pilot: every message waits for your tap. Legal notices always wait for you.</span></span>
+            <span>Send receipts and reminders automatically<span className="tiny soft" style={{ display: 'block' }}>Off: every message waits for you. Legal notices always do.</span></span>
           </label>
         </div>
       </section>
@@ -102,14 +102,14 @@ export function Settings() {
       <section className="section">
         <h2 className="section-title">Data</h2>
         <div className="sheet stack">
-          <p className="small soft">Stage 1 keeps everything in this browser only. Clearing your browser data clears Keyholder.</p>
+          <p className="small soft">Everything is saved in this browser. Clearing browser data clears Keyholder.</p>
           <div className="btn-row">
             {admin && <button className="btn" onClick={act.resetDemo}>Restore sample data</button>}
             {admin && <button className="btn" onClick={() => { act.signOut(); nav('/start'); }}>Replay the signup questions</button>}
             <button className="btn" onClick={() => { act.setProfile({ tourDone: false }); nav('/today'); }}>Show the tour again</button>
             <Link className="btn ghost" to="/welcome">What is Keyholder?</Link>
           </div>
-          <div className="callout warn">Clearing removes every property, tenant, payment and expense in this browser. It cannot be undone.</div>
+          <div className="callout warn">This deletes every property, tenant, payment and expense. It can't be undone.</div>
           <SlideToConfirm label="Slide to clear all data" onConfirm={act.clearAll} />
         </div>
       </section>

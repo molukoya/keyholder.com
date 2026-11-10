@@ -37,8 +37,8 @@ export function ReminderDrawer({ lease, period, tone: initial, onClose }: { leas
         <input aria-label="Subject" value={subject} onChange={(e) => { setSubject(e.target.value); setTouched(true); }} style={{ fontWeight: 600, marginBottom: 8 }} />
         <textarea aria-label="Message" value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
       </div>
-      <p className="letter-foot">Sends now. Cancels automatically if payment arrives first.</p>
-      {tone === 'firm' && <div className="callout">A reminder is not a legal notice. If rent stays unpaid, Keyholder can prepare your province's official notice next.</div>}
+      <p className="letter-foot">Sends now. Cancelled if rent arrives first.</p>
+      {tone === 'firm' && <div className="callout">A reminder isn't a legal notice. If rent stays unpaid, we can prepare the official one next.</div>}
     </Drawer>
   );
 }

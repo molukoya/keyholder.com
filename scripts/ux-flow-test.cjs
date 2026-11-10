@@ -568,7 +568,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsJ.push(`J ${e.message}`));
     await step(tag, 'J1 admin / admin opens the support dashboard: what needs you, and the numbers', async () => {
-      await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head h1:has-text("Good to see you")');
+      await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head h1:has-text("Overview")');
       if ((await pg.locator('.sp-needs li').count()) < 3) throw new Error('needs-you list short');
       if ((await pg.locator('.sp-tiles.six .sp-tile').count()) !== 6) throw new Error('number tiles');
     });
@@ -581,20 +581,20 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     await step(tag, 'J3 Inbox: open a request, send a saved reply; it waits on the customer and is logged', async () => {
       await go(pg, 'support/inbox'); const subject = (await pg.locator('.sp-tickets strong').first().textContent()).trim();
       await pg.locator('.sp-tickets a').first().click(); await pg.waitForSelector('.sp-thread');
-      await pg.locator('.sp-reply select').selectOption({ index: 1 }); await pg.locator('text=Send reply').click(); await pg.waitForTimeout(200);
-      await pg.waitForSelector('.sp-head >> text=Waiting on customer');
+      await pg.locator('.sp-reply select').selectOption({ index: 1 }); await pg.locator('.sp-reply-foot .btn.primary').click(); await pg.waitForTimeout(200);
+      await pg.waitForSelector('.sp-head >> text=Waiting on them');
       await go(pg, 'support/privacy'); await pg.waitForSelector('.ledger >> text=Reply sent'); return subject;
     });
-    await step(tag, 'J4 Search finds a customer; give 30 free days and add a note', async () => {
+    await step(tag, 'J4 Search finds a customer; extend the trial and add a note', async () => {
       await go(pg, 'support'); const name = (await pg.locator('.sp-list strong').first().textContent()).trim();
       await pg.fill('#sp-q', name); await pg.locator(`.sp-search-res >> text=${name}`).first().click(); await pg.waitForSelector(`.sp-head h1:has-text("${name}")`);
-      await pg.locator('text=Give 30 more free days').click(); await pg.waitForSelector('text=Free period until');
+      await pg.locator('text=Extend trial 30 days').click(); await pg.waitForSelector('text=Trial until');
       await pg.fill('#cn', 'Called about rooms'); await pg.locator('.sp-addrow button').first().click(); await pg.waitForSelector('text=Called about rooms');
       return name;
     });
     await step(tag, 'J5 Announcements: a message for both shows on the website and in the app, then hides', async () => {
       await go(pg, 'support/announcements'); await pg.fill('.sp-card textarea', 'Bank checks pause tonight at 2 a.m.');
-      await pg.locator('.seg[aria-label="Show on"] >> text=Both').click(); await pg.locator('text=Post message').click(); await pg.waitForTimeout(200);
+      await pg.locator('.seg[aria-label="Show on"] >> text=Both').click(); await pg.locator('.sp-card .btn.primary', { hasText: 'Post' }).click(); await pg.waitForTimeout(200);
       await go(pg, 'welcome'); await pg.waitForSelector('.announce.website >> text=Bank checks pause');
       await go(pg, 'today'); await pg.waitForSelector('.announce.app >> text=Bank checks pause');
       await go(pg, 'support/announcements'); await pg.locator('.sp-rows li', { hasText: 'Bank checks pause' }).locator('text=Hide').click(); await pg.waitForTimeout(200);

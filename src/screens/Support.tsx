@@ -60,14 +60,14 @@ export function Support() {
           ))}
         </nav>
         <div className="sp-rail-foot">
-          <button className="btn small" onClick={() => nav('/today')}>Open the sample landlord app</button>
+          <button className="btn small" onClick={() => nav('/today')}>Sample landlord app</button>
           <button className="btn small ghost" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
         </div>
       </aside>
       <div className="sp-main">
         <header className="sp-top">
           <Search />
-          <span className="sp-sample" title="Stage 1 preview: the backend will connect real accounts">Sample data</span>
+          <span className="sp-sample" title="Preview: real accounts connect with the backend">Sample data</span>
         </header>
         <main className="sp-page">
           <Routes>
@@ -112,7 +112,7 @@ function Search() {
     <div className="sp-search" ref={box}>
       <Icon name="search" size={16} />
       <label htmlFor="sp-q" className="sr-only">Search customers and support requests</label>
-      <input id="sp-q" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={(e) => { if (e.key === 'Enter' && res[0]) go(res[0].to); if (e.key === 'Escape') setOpen(false); }} placeholder="Search customers, emails, requests" autoComplete="off" />
+      <input id="sp-q" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={(e) => { if (e.key === 'Enter' && res[0]) go(res[0].to); if (e.key === 'Escape') setOpen(false); }} placeholder="Search customers or requests" autoComplete="off" />
       {open && term.length >= 2 && (
         <ul className="sp-search-res" role="listbox">
           {res.length ? res.map((r) => <li key={r.to}><button onClick={() => go(r.to)}><Icon name={r.icon} size={16} /><span><strong>{r.title}</strong><span>{r.sub}</span></span></button></li>) : <li className="sp-none">Nothing found for "{q}".</li>}
@@ -139,7 +139,7 @@ export function Tile({ label, value, delta, good = true, spark, note }: { label:
     <div className="sp-tile">
       <p className="sp-tile-k">{label}</p>
       <div className="sp-tile-v"><strong>{value}</strong>{spark && <Spark values={spark} />}</div>
-      {delta !== undefined && <p className={`sp-delta ${tone}`}>{up ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% <span>vs the 30 days before</span></p>}
+      {delta !== undefined && <p className={`sp-delta ${tone}`}>{up ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% <span>vs last 30 days</span></p>}
       {note && <p className="sp-tile-note">{note}</p>}
     </div>
   );
@@ -173,52 +173,52 @@ function Overview() {
   const bounces = cs.filter((c) => c.emailBounces > 0);
   const weeks = weekly(cs.map((c) => c.signedUp), t);
   const needs = [
-    { n: overdue.length, icon: 'clock', tone: 'rose', text: `${overdue.length} support request${overdue.length === 1 ? ' is' : 's are'} past the reply time`, to: '/support/inbox', btn: 'Open inbox' },
-    { n: open.filter((x) => x.priority === 'urgent').length, icon: 'alert', tone: 'peach', text: `${open.filter((x) => x.priority === 'urgent').length} urgent request${open.filter((x) => x.priority === 'urgent').length === 1 ? '' : 's'} open`, to: '/support/inbox', btn: 'Answer' },
-    { n: failingBanks.length, icon: 'bank', tone: 'sun', text: `${failingBanks.length} landlord${failingBanks.length === 1 ? ' has' : 's have'} a bank that stopped connecting`, to: '/support/health', btn: 'See banks' },
-    { n: failedPay.length, icon: 'cash', tone: 'peach', text: `${failedPay.length} payment${failedPay.length === 1 ? '' : 's'} failed (${fmtMoney(failedPay.reduce((a, c) => a + mrr(c), 0))})`, to: '/support/revenue', btn: 'Review' },
-    { n: dueRequests.length, icon: 'shield', tone: 'lilac', text: `${dueRequests.length} privacy request${dueRequests.length === 1 ? '' : 's'} due within 7 days`, to: '/support/privacy', btn: 'Handle' },
-    { n: bounces.length, icon: 'mail', tone: 'sky', text: `${bounces.length} landlord${bounces.length === 1 ? '' : 's'} with bounced emails`, to: '/support/health', btn: 'See emails' },
+    { n: overdue.length, icon: 'clock', tone: 'rose', text: `${overdue.length} request${overdue.length === 1 ? '' : 's'} overdue`, to: '/support/inbox', btn: 'Inbox' },
+    { n: open.filter((x) => x.priority === 'urgent').length, icon: 'alert', tone: 'peach', text: `${open.filter((x) => x.priority === 'urgent').length} urgent`, to: '/support/inbox', btn: 'Answer' },
+    { n: failingBanks.length, icon: 'bank', tone: 'sun', text: `${failingBanks.length} bank link${failingBanks.length === 1 ? '' : 's'} down`, to: '/support/health', btn: 'Banks' },
+    { n: failedPay.length, icon: 'cash', tone: 'peach', text: `${failedPay.length} failed payment${failedPay.length === 1 ? '' : 's'} · ${fmtMoney(failedPay.reduce((a, c) => a + mrr(c), 0))}`, to: '/support/revenue', btn: 'Review' },
+    { n: dueRequests.length, icon: 'shield', tone: 'lilac', text: `${dueRequests.length} privacy request${dueRequests.length === 1 ? '' : 's'} due this week`, to: '/support/privacy', btn: 'Handle' },
+    { n: bounces.length, icon: 'mail', tone: 'sky', text: `${bounces.length} bounced email${bounces.length === 1 ? '' : 's'}`, to: '/support/health', btn: 'Emails' },
   ].filter((x) => x.n > 0);
   return (
     <>
-      <PageHead eyebrow="Today" title="Good to see you" sub={`${fmtDate(t)} · Here's what needs you, and how Keyholder is doing.`} />
+      <PageHead eyebrow="Today" title="Overview" sub={fmtDate(t)} />
       <section className="sp-sec" aria-labelledby="needs">
         <h2 id="needs" className="sp-h2">Needs you now</h2>
         {needs.length ? (
           <ul className="sp-needs">{needs.map((x) => (
             <li key={x.text}><span className={`tile-ic ${x.tone}`} aria-hidden><Icon name={x.icon} size={18} /></span><span>{x.text}</span><Link className="btn small" to={x.to}>{x.btn}</Link></li>
           ))}</ul>
-        ) : <p className="sp-empty"><Status tone="good">All clear</Status> Nothing needs you right now.</p>}
+        ) : <p className="sp-empty"><Status tone="good">All clear</Status></p>}
       </section>
       <section className="sp-sec" aria-labelledby="nums">
         <h2 id="nums" className="sp-h2">Last 30 days</h2>
         <div className="sp-tiles six">
           <Tile label="New signups" value={String(new30)} delta={pct(new30, prev30)} spark={weeks.map((w) => w.value)} />
-          <Tile label="Active landlords" value={String(active)} note={`${Math.round((active / cs.length) * 100)}% of ${cs.length} accounts`} />
-          <Tile label="Paying accounts" value={String(paying.length)} note={`${cs.length - paying.length} on the free plan`} />
+          <Tile label="Active landlords" value={String(active)} note={`${Math.round((active / cs.length) * 100)}% of all`} />
+          <Tile label="Paying accounts" value={String(paying.length)} note={`${cs.length - paying.length} free`} />
           <Tile label="Monthly revenue" value={fmtMoney(revenue)} delta={pct(revenue, prevRevenue)} />
           <Tile label="Units managed" value={units.toLocaleString('en-CA')} note={`${cs.reduce((a, c) => a + c.tenants, 0).toLocaleString('en-CA')} tenants`} />
-          <Tile label="Open support requests" value={String(open.length)} note={overdue.length ? `${overdue.length} past the reply time` : 'All within reply time'} good={false} />
+          <Tile label="Open support requests" value={String(open.length)} note={overdue.length ? `${overdue.length} overdue` : 'None overdue'} good={false} />
         </div>
       </section>
       <div className="sp-two">
         <section className="sp-card" aria-labelledby="sg">
-          <h2 id="sg" className="sp-h3">New signups per week</h2>
+          <h2 id="sg" className="sp-h3">Signups per week</h2>
           <BarChart bars={weeks} fmt={(v) => String(v)} label="New signups per week for the last 12 weeks" head={['Week of', 'Signups']} />
         </section>
         <section className="sp-card" aria-labelledby="recent">
           <h2 id="recent" className="sp-h3">Newest landlords</h2>
           <ul className="sp-list">{cs.slice(0, 6).map((c) => (
-            <li key={c.id}><Link to={`/support/customers/${c.id}`}><strong>{c.name}</strong><span>{c.city}, {c.province} · {c.units} unit{c.units > 1 ? 's' : ''} · {c.plan === 'landlord' ? 'Landlord plan' : 'Starter'}</span></Link><span className="sp-when">{daysBetween(c.signedUp, t) === 0 ? 'Today' : `${daysBetween(c.signedUp, t)} d ago`}</span></li>
+            <li key={c.id}><Link to={`/support/customers/${c.id}`}><strong>{c.name}</strong><span>{c.city}, {c.province} · {c.units} unit{c.units > 1 ? 's' : ''} · {c.plan === 'landlord' ? 'Paid' : 'Free'}</span></Link><span className="sp-when">{daysBetween(c.signedUp, t) === 0 ? 'Today' : `${daysBetween(c.signedUp, t)}d ago`}</span></li>
           ))}</ul>
           <Link className="sp-more" to="/support/customers">All customers</Link>
         </section>
       </div>
       <section className="sp-card sp-sec" aria-labelledby="act">
-        <h2 id="act" className="sp-h3">Latest admin actions</h2>
+        <h2 id="act" className="sp-h3">Recent admin actions</h2>
         <ul className="sp-list">{s.audit.slice(0, 5).map((a) => <li key={a.id}><span><strong>{a.action}</strong><span>{a.detail} · {a.who}</span></span><span className="sp-when">{new Date(a.at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></li>)}</ul>
-        <Link className="sp-more" to="/support/privacy">Full audit log</Link>
+        <Link className="sp-more" to="/support/privacy">Audit log</Link>
       </section>
     </>
   );

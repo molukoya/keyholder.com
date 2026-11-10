@@ -108,7 +108,7 @@ function ValueTab({ id }: { id: string }) {
       <details className="more">
         <summary>How we worked this out</summary>
         <div className="more-body">
-          <p className="small soft">We combine up to three estimates and show a range, because no estimate is exact.</p>
+          <p className="small soft">Up to three estimates, shown as a range.</p>
           <div className="grid2" style={{ gap: 16 }}>
             <div className="sheet">
               <h3>Local price trend</h3>
@@ -333,7 +333,7 @@ function SilverInsights({ p }: { p: Property }) {
             {ret.rows.map((r) => <li key={r.label}><span>{r.label}</span><i style={{ width: `${(r.pct / max) * 100}%` }} /><strong>{r.pct.toFixed(1)}%</strong></li>)}
           </ul>
         )}
-        <p className="tiny soft">A year of rent left over, mortgage paid off and value growth, divided by your money in it. Comparison rates are placeholders.</p>
+        <p className="tiny soft">Rent left over, mortgage paid down and value growth, divided by your money in it. Comparison rates are estimates.</p>
       </section>
 
       <section className="sheet">
@@ -348,7 +348,7 @@ function SilverInsights({ p }: { p: Property }) {
             </li>
           );
         })}</ul>
-        <p className="tiny soft">Rent increases are limited by the law in many provinces. Keyholder suggests the allowed amount when a renewal comes up.</p>
+        <p className="tiny soft">Many provinces limit rent increases. We suggest the allowed amount at renewal.</p>
       </section>
 
       <section className="sheet">

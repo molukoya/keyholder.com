@@ -217,7 +217,7 @@ export function ScoreList() {
     <section className="section" id="score">
       <h2 className="section-title">Finish setting up · {score}% done</h2>
       <div className="sheet">
-        <div className="score-hero"><ScoreRing score={score} big /><p style={{ margin: 0 }}>{score >= 100 ? 'Everything is set up.' : 'Optional. Each one makes your numbers more accurate. Pick any.'}</p></div>
+        <div className="score-hero"><ScoreRing score={score} big /><p style={{ margin: 0 }}>{score >= 100 ? 'All set up.' : 'Optional. Each one makes your numbers more accurate.'}</p></div>
         {todo.length > 0 && <ul className="rows">{(all ? todo : todo.slice(0, 3)).map((i) => {
           const pr = i.propertyId ? state.properties.find((x) => x.id === i.propertyId) : undefined;
           return (

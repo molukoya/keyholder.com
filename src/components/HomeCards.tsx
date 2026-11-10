@@ -78,7 +78,7 @@ export function NextStep() {
   if (!card) return (
     <section className="next-card done">
       <span className="tile-ic mint big"><Icon name="check" size={24} /></span>
-      <div><p className="next-k">You're all caught up</p><h3>Nothing needs you right now.</h3><p className="next-text">Keyholder keeps watching. We'll show the next step here when there is one.</p></div>
+      <div><p className="next-k">You're all caught up</p><h3>Nothing needs you right now.</h3><p className="next-text">All caught up. New steps will show here.</p></div>
     </section>
   );
   return (

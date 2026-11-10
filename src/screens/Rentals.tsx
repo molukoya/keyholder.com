@@ -31,7 +31,7 @@ export function Rentals() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1 className="title-ic"><span className="tile-ic sky" aria-hidden><Icon name="home" size={22} /></span>Rentals</h1><PageSub>Your properties, units and tenants. Find tenants, raise rent and send notices here.</PageSub></div>
+        <div><h1 className="title-ic"><span className="tile-ic sky" aria-hidden><Icon name="home" size={22} /></span>Rentals</h1><PageSub>Properties, units, tenants and notices</PageSub></div>
         <button className="btn" onClick={() => setAddProp(true)}><Icon name="plus" size={16} />Add property</button>
       </div>
       {!props.length && <div className="sheet"><Empty title="No properties yet." art={<SceneEmptyHome />} action={<button className="btn primary" onClick={() => setAddProp(true)}>Add your first property</button>}>Start with the address. Units and tenants come next.</Empty></div>}
@@ -167,7 +167,7 @@ const SAFE_DECLINE = ['The unit has been rented to another applicant', 'Income d
 export function FindTenantTab({ propertyId }: { propertyId: string }) {
   const { state, today } = useStore();
   const empty = state.units.filter((u) => u.propertyId === propertyId && hasSpace(state, u, today));
-  if (!empty.length) return <div className="sheet"><Empty title="Every unit is rented.">When a unit or a room is free, you can list it and send the application form from here.</Empty></div>;
+  if (!empty.length) return <div className="sheet"><Empty title="Every unit is rented.">List a free unit or room here.</Empty></div>;
   return <>{empty.map((u) => <FindTenantUnit key={u.id} unit={u} />)}</>;
 }
 
@@ -189,7 +189,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
   return (
     <section className="section">
       <h2 className="section-title">Unit {unit.label} · {what} for {days} days <span className="small urgent">about {fmt0(Math.round((unit.rent * (free?.length ?? 1) * 12 * days) / 365))} rent lost so far</span></h2>
-      {free && <p className="small soft" style={{ margin: '-8px 0 16px' }}>Rented by the room: {roomsLine(state, unit, today)}. Each room gets its own tenant, lease and rent, and applications stay open until every room is taken.</p>}
+      {free && <p className="small soft" style={{ margin: '-8px 0 16px' }}>By the room: {roomsLine(state, unit, today)}. Applications stay open until every room is taken.</p>}
       <div className="split">
         <div className="sheet">
           <h3 style={{ marginBottom: 12 }}>1. Your listing</h3>
@@ -202,7 +202,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
         </div>
         <div className="sheet">
           <h3 style={{ marginBottom: 8 }}>2. Send the application form</h3>
-          <p className="small soft" style={{ marginTop: 0 }}>People fill it in on their phone. No account needed.</p>
+          <p className="small soft" style={{ marginTop: 0 }}>Works on any phone. No account needed.</p>
           <div className="copy-row"><code>{link}</code></div>
           <div className="btn-row" style={{ marginTop: 12 }}>
             <button className="btn primary" onClick={() => setSend(true)}><Icon name="mail" size={16} />Send by email or text</button>
@@ -215,7 +215,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
 
       <div className="sheet tight" style={{ marginTop: 16 }}>
         <div className="sheet-head"><h3>3. Applications ({live.length})</h3>{live.length > 1 && <button className="btn small" onClick={() => setCompare(true)}>Compare side by side</button>}</div>
-        {apps.length === 0 ? <Empty title="No applications yet.">Send the form to people who ask about the unit.</Empty> : (
+        {apps.length === 0 ? <Empty title="No applications yet.">Send the form to anyone who asks.</Empty> : (
           <ul className="unit-list">{apps.map((a) => (
             <li key={a.id} className="unit-row">
               <span className="unit-label"><Icon name="user" /></span>
@@ -239,7 +239,7 @@ function FindTenantUnit({ unit }: { unit: Unit }) {
               ))}
             </tbody>
           </table></div>
-          <p className="tiny soft">Tip: many landlords look for income of about 3× the rent. In Ontario a "no pets" clause in a lease can't be enforced, so decide on pets before you sign.</p>
+          <p className="tiny soft">Tip: many landlords look for income about 3× the rent. In Ontario a "no pets" clause can't be enforced.</p>
         </Drawer>
       )}
     </section>
@@ -251,7 +251,7 @@ function QR({ text }: { text: string }) {
   useEffect(() => { QRCode.toString(text, { type: 'svg', margin: 1, color: { dark: '#1B2421', light: '#FFFDF8' } }).then(setSvg).catch(() => setSvg('')); }, [text]);
   if (!svg) return null;
   return (
-    <div className="qr"><div className="qr-img" dangerouslySetInnerHTML={{ __html: svg }} /><span className="small soft">QR code for a sign at the door or in the window.</span></div>
+    <div className="qr"><div className="qr-img" dangerouslySetInnerHTML={{ __html: svg }} /><span className="small soft">QR code for a sign in the window.</span></div>
   );
 }
 
@@ -364,7 +364,7 @@ export function LateRentDrawer({ lease, onClose }: { lease: Lease; onClose: () =
       <p style={{ marginTop: 0 }}><strong>{fmt(a.total)} owing</strong> for {a.periods.map((p) => fmtPeriod(p.period)).join(', ')}.</p>
       <ol className="late-steps">
         <li>
-          <div><strong>Send a reminder</strong><span>Most late rent is paid after a friendly note.</span></div>
+          <div><strong>Send a reminder</strong><span>Most late rent comes in after a friendly note.</span></div>
           <button className="btn" onClick={() => setStep('reminder')}>Write reminder</button>
         </li>
         {forms.map((f) => {
@@ -495,7 +495,7 @@ function ApplicantDetails({ a, rent }: { a: Applicant; rent: number }) {
         <div className="field"><span className="label">Your rating</span><div className="btn-row">{[1, 2, 3, 4, 5].map((n) => <button key={n} className={`btn small${(as.rating ?? 0) >= n ? ' primary' : ''}`} onClick={() => setA({ rating: n })} aria-label={`${n} out of 5`}>{n}</button>)}</div></div>
       </div>
       <Field label="Your notes" htmlFor={`an-${a.id}`}><textarea id={`an-${a.id}`} className="input" style={{ minHeight: 70 }} value={as.notes ?? ''} onChange={(e) => setA({ notes: e.target.value })} placeholder="Called the landlord: always paid on time" /></Field>
-      <p className="tiny soft">Look at the whole picture: rental history, references and income together. Income alone can't be the reason to say no.</p>
+      <p className="tiny soft">Weigh history, references and income together. Income alone can't be the reason to say no.</p>
     </>
   );
 }

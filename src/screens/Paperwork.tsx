@@ -21,7 +21,7 @@ export function Paperwork() {
   const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="paper" size={22} /></span>Paperwork</h1><PageSub>Every receipt, rent record, lease and notice, kept in one place.</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="paper" size={22} /></span>Paperwork</h1><PageSub>Receipts, rent records, leases and notices</PageSub></div></div>
       <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
       {cur === 'expenses' && <Expenses />}
       {cur === 'income' && <Income />}
@@ -44,7 +44,7 @@ function Income() {
     const l = state.leases.find((x) => x.id === p.leaseId); return state.units.find((u) => u.id === l?.unitId)?.propertyId === prop;
   }).sort((a, b) => b.date.localeCompare(a.date));
   const total = rows.reduce((a, p) => a + p.amount, 0);
-  if (!state.payments.length) return <div className="sheet"><Empty title="No rent received yet." art={<SceneTap />}>Every payment you mark paid, or the bank finds, is listed here.</Empty></div>;
+  if (!state.payments.length) return <div className="sheet"><Empty title="No rent received yet." art={<SceneTap />}>Every payment, marked by you or found by the bank.</Empty></div>;
   return (
     <>
       <div className="btn-row" style={{ marginBottom: 16 }}>
@@ -78,7 +78,7 @@ function NoticesLog() {
     <section className="section">
       <h2 className="section-title">Notices</h2>
       <div className="sheet">
-        {ns.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices served. Late-rent notices are prepared from a tenant's page or Rentals.</p> : (
+        {ns.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices yet. Prepare one from a tenant's page.</p> : (
           <ul className="rows">{ns.map((n) => {
             const t = state.tenants.find((x) => x.id === n.tenantId);
             return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · delivered {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{({ served: 'Served', 'voided-by-payment': 'Paid', filed: 'Ready', signed: 'Signed' } as Record<string, string>)[n.status]}</Stamp></li>;
@@ -93,7 +93,7 @@ function Letters() {
   const { state, today } = useStore();
   const [open, setOpen] = useState<Message | null>(null);
   const ms = state.messages.filter((m) => m.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''));
-  if (!ms.length) return <div className="sheet"><Empty title="Nothing sent yet." art={<SceneTap />}>Every receipt and reminder is kept here, exactly as it went out.</Empty></div>;
+  if (!ms.length) return <div className="sheet"><Empty title="Nothing sent yet." art={<SceneTap />}>Every receipt and reminder, exactly as sent.</Empty></div>;
   return (
     <>
       <div className="sheet"><ul className="rows">{ms.slice(0, 100).map((m) => {
@@ -127,7 +127,7 @@ function increaseText(start: string, prov: string, today: string): string {
 function Leases() {
   const { state, today } = useStore();
   const [inc, setInc] = useState<Lease | null>(null);
-  if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet." art={<SceneWelcome />}>Add a tenant to create the first lease record.</Empty></div>;
+  if (!state.leases.length) return <div className="sheet"><Empty title="No leases yet." art={<SceneWelcome />}>Add a tenant to start a lease record.</Empty></div>;
   return (
     <>
     <div className="sheet tight table-scroll"><table className="ledger">
@@ -148,7 +148,7 @@ function Log() {
   const { state } = useStore();
   return (
     <div className="sheet">
-      <p className="small soft">Append-only record of every change. In stage 2 this is stored server-side and cannot be edited.</p>
+      <p className="small soft">Every change, in order. It can't be edited.</p>
       <ul className="rows">{state.audit.slice(0, 150).map((a) => (
         <li key={a.id} className="row"><span className="margin">{fmtDate(a.at.slice(0, 10))}<br />{fmtTime(a.at)}</span><span><span className="title">{a.action}</span><span className="sub" style={{ display: 'block' }}>{a.detail}</span></span><span /></li>
       ))}</ul>

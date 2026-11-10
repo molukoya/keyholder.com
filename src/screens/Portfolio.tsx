@@ -19,7 +19,7 @@ export function Portfolio() {
   const { tab = 'overview' } = useParams();
   return (
     <div className="page">
-      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic lilac" aria-hidden><Icon name="chart" size={22} /></span>Portfolio</h1><PageSub>What your properties are worth, what they earn, and how that compares with a GIC.</PageSub></div></div>
+      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic lilac" aria-hidden><Icon name="chart" size={22} /></span>Portfolio</h1><PageSub>Value, earnings, and how they compare with a GIC</PageSub></div></div>
       <nav className="tabs" aria-label="Portfolio sections">
         <NavLink end to="/portfolio" className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to="/portfolio/cash-flow">Cash flow</NavLink>
@@ -87,7 +87,7 @@ function Overview() {
             {pr.pct === null ? 'Add what you paid and what is owed on a property to compare it.' : pr.pct >= pr.rows[1].pct ? `Your properties are beating a 5-year GIC by ${(pr.pct - pr.rows[1].pct).toFixed(1)} points.` : `A 5-year GIC is ahead by ${(pr.rows[1].pct - pr.pct).toFixed(1)} points this year.`}
             {pr.missing.length > 0 && <> {' '}<span className="soft">Not included yet: {pr.missing.map((p, i) => <span key={p.id}>{i ? ', ' : ''}<Link to={`/rent/property/${p.id}/value`}>{p.nickname}</Link></span>)} (add what you paid).</span></>}
           </p>
-          <p className="tiny soft" style={{ margin: '6px 0 0' }}>A year of rent left over, mortgage paid off and value growth, divided by your money in the property. Comparison rates are placeholders.</p>
+          <p className="tiny soft" style={{ margin: '6px 0 0' }}>Rent left over, mortgage paid down and value growth, divided by your money in it. Comparison rates are estimates.</p>
         </div>
       </section>
 
@@ -120,7 +120,7 @@ function Overview() {
         ) : (
           <div className="pcards">{pf.rows.map((r) => <PropertyCard key={r.property.id} property={r.property} />)}</div>
         )}
-        {pf.estimates > 0 && <p className="small soft" style={{ marginTop: 12 }}>Property values are estimates. Add your own estimate or nearby sales on a property's Value tab. <Link to="/today">Complete details on Home</Link></p>}
+        {pf.estimates > 0 && <p className="small soft" style={{ marginTop: 12 }}>Values are estimates. Add your own or nearby sales on the Value tab. <Link to="/today">Complete details on Home</Link></p>}
       </section>
       {addProp && <PropertyForm onClose={() => setAddProp(false)} />}
     </div>

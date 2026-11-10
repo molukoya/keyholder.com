@@ -21,7 +21,7 @@ export function SampleBanner() {
   const admin = state.profile.account?.provider === 'admin';
   return (
     <div className="sample-banner" role="status">
-      <span><strong>{admin ? 'Admin:' : 'Demo:'}</strong> you're looking at sample properties. Click around, nothing here is real.</span>
+      <span><strong>{admin ? 'Admin:' : 'Demo:'}</strong> sample properties. Nothing here is real.</span>
       <span className="btn-row">
         {admin
           ? <button className="btn small ghost" onClick={() => nav('/support')}>Back to support</button>
@@ -54,11 +54,11 @@ export function StatusPill({ tone, children }: { tone: string; children: React.R
 
 // ---------- The guided tour ----------
 const STEPS: { sel: string; title: string; body: string; path?: string }[] = [
-  { sel: '[data-tour="rent"]', title: 'Your rent, at a glance', body: 'Each unit shows who has paid. The one button beside it is the next thing to do: send a receipt, send a reminder, or review applications.', path: '/today' },
-  { sel: '[data-tour="score"]', title: 'Your setup progress', body: 'It rises as you set things up. Pick any item from the list below to raise it, or hide the ones you don\'t care about.', path: '/today' },
-  { sel: '[data-tour="portfolio"]', title: 'Is it worth it?', body: 'Portfolio shows what your properties are worth, what you earn a year, and how that compares with a GIC and the stock market.' },
-  { sel: '[data-tour="rentals"]', title: 'Your rentals', body: 'Properties, units, tenants, applications and notices. Rent increase suggestions show up here too.' },
-  { sel: '[data-tour="receipt"]', title: 'Snap a receipt', body: 'Add a receipt any time. Bills from your connected banks are filed for you; you just confirm.' },
+  { sel: '[data-tour="rent"]', title: 'Your rent, at a glance', body: 'Who has paid, and the one next step for each unit.', path: '/today' },
+  { sel: '[data-tour="score"]', title: 'Your setup progress', body: 'Goes up as you add details. Pick any item, or hide the ones you don\'t need.', path: '/today' },
+  { sel: '[data-tour="portfolio"]', title: 'Is it worth it?', body: 'What your properties are worth and earn, next to a GIC and the stock market.' },
+  { sel: '[data-tour="rentals"]', title: 'Your rentals', body: 'Properties, units, tenants, applications and notices.' },
+  { sel: '[data-tour="receipt"]', title: 'Snap a receipt', body: 'Add a receipt any time. Bank bills are filed for you to confirm.' },
 ];
 
 export function Tour() {

@@ -25,44 +25,44 @@ export function Revenue() {
   const invoices = s.invoices.filter((i) => filter === 'all' || i.status === filter).slice(0, 40);
   return (
     <>
-      <PageHead eyebrow="Business" title="Revenue" sub="Plans, payments and refunds. Landlord plan: $8 per unit a month; Starter is free for one unit." />
+      <PageHead eyebrow="Business" title="Revenue" sub="Paid: $8 per unit a month · Free: 1 unit" />
       <div className="sp-tiles">
         <Tile label="Monthly revenue" value={fmtMoney(total)} spark={months.map((m) => m.value)} />
-        <Tile label="Paying accounts" value={String(paying.length)} note={`${free} in their free first month`} />
-        <Tile label="Average per paying account" value={fmtMoney(paying.length ? total / paying.length : 0, 2)} />
-        <Tile label="Failed payments" value={String(failed.length)} note={failed.length ? fmtMoney(failed.reduce((a, c) => a + mrr(c), 0)) + ' at stake' : 'None'} />
+        <Tile label="Paying accounts" value={String(paying.length)} note={`${free} on trial`} />
+        <Tile label="Average per account" value={fmtMoney(paying.length ? total / paying.length : 0, 2)} />
+        <Tile label="Failed payments" value={String(failed.length)} note={failed.length ? fmtMoney(failed.reduce((a, c) => a + mrr(c), 0)) + ' at risk' : 'None'} />
       </div>
       <div className="sp-two">
-        <section className="sp-card"><h2 className="sp-h3">Monthly revenue, last 12 months</h2>
+        <section className="sp-card"><h2 className="sp-h3">Monthly revenue · 12 months</h2>
           <LineChart points={months} fmt={(v) => fmtMoney(v)} label="Monthly revenue over the last 12 months" head={['Month', 'Monthly revenue']} /></section>
-        <section className="sp-card"><h2 className="sp-h3">Accounts by plan</h2>
+        <section className="sp-card"><h2 className="sp-h3">Plans</h2>
           <HBars rows={[
-            { label: 'Landlord plan (paying)', value: paying.length - free },
-            { label: 'Landlord plan, free first month', value: free },
-            { label: 'Starter (free, one unit)', value: cs.length - paying.length },
+            { label: 'Paid', value: paying.length - free },
+            { label: 'Paid, on trial', value: free },
+            { label: 'Free (1 unit)', value: cs.length - paying.length },
           ]} />
-          <p className="sp-muted sp-small">Most paying landlords have {Math.round(paying.reduce((a, c) => a + c.units, 0) / Math.max(1, paying.length))} units.</p>
+          <p className="sp-muted sp-small">Paid accounts average {Math.round(paying.reduce((a, c) => a + c.units, 0) / Math.max(1, paying.length))} units.</p>
         </section>
       </div>
       {failed.length > 0 && (
         <section className="sp-card sp-sec"><h2 className="sp-h3">Failed payments</h2>
           <ul className="sp-rows">{failed.map((c) => (
             <li key={c.id}><Link to={`/support/customers/${c.id}`}><strong>{c.name}</strong><span>{fmtMoney(mrr(c), 2)} · {c.units} units</span></Link>
-              <span className="btn-row"><button className="btn small primary" onClick={() => sup((d) => { d.customers.find((x) => x.id === c.id)!.paymentStatus = 'ok'; const inv = d.invoices.find((i) => i.customerId === c.id && i.status === 'failed'); if (inv) inv.status = 'paid'; }, { action: 'Payment retried', detail: c.name }, `${c.name.split(' ')[0]}'s payment went through.`)}>Retry payment</button>
-                <button className="btn small" onClick={() => sup(() => undefined, { action: 'Card update email sent', detail: c.email }, 'Asked them to update their card.')}>Ask to update card</button></span></li>
+              <span className="btn-row"><button className="btn small primary" onClick={() => sup((d) => { d.customers.find((x) => x.id === c.id)!.paymentStatus = 'ok'; const inv = d.invoices.find((i) => i.customerId === c.id && i.status === 'failed'); if (inv) inv.status = 'paid'; }, { action: 'Payment retried', detail: c.name }, `${c.name.split(' ')[0]}'s payment went through`)}>Retry payment</button>
+                <button className="btn small" onClick={() => sup(() => undefined, { action: 'Card update email sent', detail: c.email }, 'Card update request sent')}>Ask for new card</button></span></li>
           ))}</ul>
         </section>
       )}
       <section className="sp-card sp-sec">
         <div className="sp-card-head"><h2 className="sp-h3">Invoices</h2>
-          <div className="seg" role="group" aria-label="Show">{(['all', 'failed', 'refunded'] as const).map((k) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'Latest' : k === 'failed' ? 'Failed' : 'Refunded'}</button>)}</div></div>
+          <div className="seg" role="group" aria-label="Show">{(['all', 'failed', 'refunded'] as const).map((k) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'Recent' : k === 'failed' ? 'Failed' : 'Refunded'}</button>)}</div></div>
         <div className="table-scroll"><table className="ledger"><thead><tr><th>Date</th><th>Landlord</th><th className="num">Amount</th><th>Status</th><th /></tr></thead>
           <tbody>{invoices.map((i) => { const c = customerOf(s, i.customerId); return (
             <tr key={i.id}><td className="date">{fmtDate(i.date)}</td><td>{c ? <Link to={`/support/customers/${c.id}`}>{c.name}</Link> : 'Deleted'}</td><td className="num">{fmtMoney(i.amount, 2)}</td>
               <td><Status tone={i.status === 'paid' ? 'good' : i.status === 'failed' ? 'bad' : 'off'}>{i.status === 'paid' ? 'Paid' : i.status === 'failed' ? 'Failed' : 'Refunded'}</Status></td>
-              <td>{i.status === 'paid' && <button className="btn small ghost" onClick={() => sup((d) => { d.invoices.find((x) => x.id === i.id)!.status = 'refunded'; }, { action: 'Refund issued', detail: `${fmtMoney(i.amount, 2)} to ${c?.name ?? ''}` }, `Refunded ${fmtMoney(i.amount, 2)}.`)}>Refund</button>}</td></tr>
+              <td>{i.status === 'paid' && <button className="btn small ghost" onClick={() => sup((d) => { d.invoices.find((x) => x.id === i.id)!.status = 'refunded'; }, { action: 'Refund issued', detail: `${fmtMoney(i.amount, 2)} to ${c?.name ?? ''}` }, `Refunded ${fmtMoney(i.amount, 2)}`)}>Refund</button>}</td></tr>
           ); })}</tbody></table></div>
-        {invoices.length === 0 && <p className="sp-muted">Nothing here.</p>}
+        {invoices.length === 0 && <p className="sp-muted">None</p>}
       </section>
     </>
   );
@@ -85,14 +85,14 @@ export function Growth() {
   const prop = Math.round(n * 0.86), tenant = Math.min(prop, recent.filter((c) => c.tenants > 0).length - Math.round(n * 0.12)), bank = Math.min(tenant, recent.filter((c) => c.banks.length > 0).length - Math.round(n * 0.1));
   const visits = n * 14, started = Math.round(n * 1.9), finished = Math.round(n * 1.25);
   const funnel = [
-    { label: 'Visited the website', value: visits },
-    { label: 'Started signup (typed their name)', value: started },
-    { label: 'Answered all 6 questions', value: finished },
-    { label: 'Created an account', value: n },
-    { label: 'Added a property', value: prop },
-    { label: 'Added a tenant', value: Math.max(0, tenant) },
-    { label: 'Connected a bank', value: Math.max(0, bank) },
-  ].map((r, i, all) => ({ ...r, sub: i ? `(${Math.round((r.value / all[i - 1].value) * 100)}% of the step before)` : undefined }));
+    { label: 'Visited', value: visits },
+    { label: 'Started signup', value: started },
+    { label: 'Finished questions', value: finished },
+    { label: 'Created account', value: n },
+    { label: 'Added property', value: prop },
+    { label: 'Added tenant', value: Math.max(0, tenant) },
+    { label: 'Connected bank', value: Math.max(0, bank) },
+  ].map((r, i, all) => ({ ...r, sub: i ? `· ${Math.round((r.value / all[i - 1].value) * 100)}%` : undefined }));
   const qs = ['Where is your rental?', 'What are you renting out?', 'How do tenants pay?', 'Hardest part', 'Taxes', 'Main goal'];
   const drop = qs.map((q, i) => ({ label: `${i + 1}. ${q}`, value: Math.round(started - ((started - finished) * Math.pow(i + 1, 1.3)) / Math.pow(6, 1.3)) }));
   const sources = Object.entries(cs.reduce<Record<string, number>>((a, c) => ({ ...a, [c.source]: (a[c.source] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
@@ -104,23 +104,23 @@ export function Growth() {
   const prev = cs.filter((c) => daysBetween(c.signedUp, t) >= 30 && daysBetween(c.signedUp, t) < 60).length;
   return (
     <>
-      <PageHead eyebrow="Business" title="Growth" sub="Where new landlords come from, and where they stop during signup and setup." />
+      <PageHead eyebrow="Business" title="Growth" sub="Where landlords come from, and where they drop off" />
       <div className="sp-tiles">
-        <Tile label="Signups, last 30 days" value={String(n)} delta={prev ? ((n - prev) / prev) * 100 : 0} spark={weeks.map((w) => w.value)} />
-        <Tile label="Visit to account" value={`${((n / visits) * 100).toFixed(1)}%`} note="Of website visitors" />
-        <Tile label="Finished setup" value={`${Math.round((Math.max(0, tenant) / Math.max(1, n)) * 100)}%`} note="Added a property and a tenant" />
-        <Tile label="Connected a bank" value={`${Math.round((Math.max(0, bank) / Math.max(1, n)) * 100)}%`} note="Of new accounts" />
+        <Tile label="Signups · 30 days" value={String(n)} delta={prev ? ((n - prev) / prev) * 100 : 0} spark={weeks.map((w) => w.value)} />
+        <Tile label="Visitors who sign up" value={`${((n / visits) * 100).toFixed(1)}%`} />
+        <Tile label="Finished setup" value={`${Math.round((Math.max(0, tenant) / Math.max(1, n)) * 100)}%`} note="Property and tenant added" />
+        <Tile label="Connected a bank" value={`${Math.round((Math.max(0, bank) / Math.max(1, n)) * 100)}%`} />
       </div>
-      <section className="sp-card sp-sec"><h2 className="sp-h3">New signups per day, last 90 days</h2>
+      <section className="sp-card sp-sec"><h2 className="sp-h3">Signups per day · 90 days</h2>
         <LineChart points={days} fmt={(v) => String(v)} label="New signups per day over the last 90 days" head={['Day', 'Signups']} /></section>
       <div className="sp-two">
-        <section className="sp-card"><h2 className="sp-h3">From visit to set up, last 30 days</h2><HBars rows={funnel} /></section>
-        <section className="sp-card"><h2 className="sp-h3">Still there after each signup question</h2><HBars rows={drop} color={C.second} />
-          <p className="sp-muted sp-small">The biggest drop is the screen to improve first.</p></section>
+        <section className="sp-card"><h2 className="sp-h3">Visit to setup · 30 days</h2><HBars rows={funnel} /></section>
+        <section className="sp-card"><h2 className="sp-h3">Signup drop-off by question</h2><HBars rows={drop} color={C.second} />
+          <p className="sp-muted sp-small">Fix the biggest drop first.</p></section>
       </div>
       <div className="sp-two">
-        <section className="sp-card"><h2 className="sp-h3">How they heard about Keyholder</h2><HBars rows={sources} /></section>
-        <section className="sp-card"><h2 className="sp-h3">Landlords by province</h2>
+        <section className="sp-card"><h2 className="sp-h3">How they found us</h2><HBars rows={sources} /></section>
+        <section className="sp-card"><h2 className="sp-h3">By province</h2>
           <div className="sp-map" role="img" aria-label="Landlords by province">{TILES.map(([p, col, row]) => (
             <div key={p} className="sp-map-tile" style={{ gridColumn: col, gridRow: row, background: step(byProv[p] ?? 0), color: (byProv[p] ?? 0) / maxP > 0.55 ? '#fff' : C.ink }} title={`${province(p).name}: ${byProv[p] ?? 0}`}>
               <strong>{p}</strong><span>{byProv[p] ?? 0}</span></div>

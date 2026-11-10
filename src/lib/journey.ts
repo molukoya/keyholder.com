@@ -68,7 +68,7 @@ function tenantCard(state: AppState, lease: Lease, today: ISODate): JourneyCard 
       const f = formsFor(prop.province, 'inspection')[0];
       return { ...base, stepKey: 'move-out-inspection', stage: 'moving-out', text: `Do the move-out inspection with ${who}`, detail: `Last day ${fmtDate(lease.end)}`, priority: 3.5, step: { kind: 'form', lease, formId: f.id, text: 'Start inspection' }, progress: 'Step 1 of 2' };
     }
-    if (!lease.depositReturned) return { ...base, stepKey: 'deposit', stage: 'moving-out', text: `Settle ${who}'s last month's deposit`, detail: 'Apply it to the last month, or return it with interest owed', priority: 3.5, step: { kind: 'deposit', lease }, progress: 'Step 2 of 2' };
+    if (!lease.depositReturned) return { ...base, stepKey: 'deposit', stage: 'moving-out', text: `Settle ${who}'s last month's deposit`, detail: 'Use it for the last month, or return it with interest', priority: 3.5, step: { kind: 'deposit', lease }, progress: 'Step 2 of 2' };
     return null;
   }
 
@@ -89,7 +89,7 @@ function tenantCard(state: AppState, lease: Lease, today: ISODate): JourneyCard 
   // Paying rent: payment came in → receipt; or late → reminder → notice → tribunal
   const match = tray.find((t) => t.kind === 'match' && t.suggestion?.leaseId === lease.id);
   if (match && match.kind === 'match' && match.suggestion) {
-    return { ...base, stepKey: `confirm-${match.txn.id}`, stage: 'paying', text: `${(match.txn.amount / 100).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })} came in from ${match.txn.payer}. Is this ${who}'s rent?`, priority: 1, step: { kind: 'confirm-payment', txn: match.txn, leaseId: lease.id, period: match.suggestion.period }, progress: 'Step 1 of 2' };
+    return { ...base, stepKey: `confirm-${match.txn.id}`, stage: 'paying', text: `${(match.txn.amount / 100).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })} from ${match.txn.payer}. Is it ${who}'s rent?`, priority: 1, step: { kind: 'confirm-payment', txn: match.txn, leaseId: lease.id, period: match.suggestion.period }, progress: 'Step 1 of 2' };
   }
   const receipt = tray.find((t) => t.kind === 'message' && t.message.leaseId === lease.id && t.message.kind === 'receipt');
   if (receipt && receipt.kind === 'message') {
@@ -131,15 +131,15 @@ function unitCard(state: AppState, unit: Unit, today: ISODate): JourneyCard | nu
   if (offered) return { ...base, stage: 'approved', stepKey: `make-${offered.id}`, text: `Make ${offered.names.join(' & ')} the tenant`, detail: rooms ? 'They accepted? Pick the room, move-in date and rent' : 'They accepted? Set the move-in date and rent', step: { kind: 'make-tenant', unit, applicantId: offered.id, name: offered.names[0] }, progress: 'Step 4 of 4' };
   const fresh = apps.filter((a) => a.status === 'new' || a.status === 'shortlisted');
   if (fresh.length) return { ...base, stepKey: `review-${fresh.length}`, text: `Review ${fresh.length} application${fresh.length > 1 ? 's' : ''}`, detail: 'Check references, then send an offer', step: { kind: 'review', unit, count: fresh.length }, progress: 'Step 3 of 4' };
-  if (!listing) return { ...base, stepKey: 'list', text: rooms ? (open.length === 1 ? `List ${open[0]}` : 'List the free rooms') : 'List the unit', detail: 'Asking rent, date available, a short description', step: { kind: 'list-unit', unit }, progress: 'Step 1 of 4' };
-  return { ...base, stepKey: 'send', text: 'Send the application form to people who ask', detail: 'By email, text, or a QR code on a sign', step: { kind: 'send-form', unit }, progress: 'Step 2 of 4' };
+  if (!listing) return { ...base, stepKey: 'list', text: rooms ? (open.length === 1 ? `List ${open[0]}` : 'List the free rooms') : 'List the unit', detail: 'Rent, move-in date, short description', step: { kind: 'list-unit', unit }, progress: 'Step 1 of 4' };
+  return { ...base, stepKey: 'send', text: 'Send the application form', detail: 'By email, text, or a QR code on a sign', step: { kind: 'send-form', unit }, progress: 'Step 2 of 4' };
 }
 
 function mortgageCard(state: AppState, m: Mortgage, today: ISODate): JourneyCard | null {
   const n = daysBetween(today, m.termEnd);
   if (n < 0 || n > 120) return null;
   const prop = state.properties.find((p) => p.id === m.propertyId);
-  return { id: `mortgage-${m.id}`, stepKey: `renew-${m.termEnd}`, title: 'Mortgage renewal', subtitle: prop?.nickname ?? '', stage: null, text: `Renews in ${n} days with ${m.lender}`, detail: 'Compare rates, then enter the new rate and term', priority: 6, step: { kind: 'mortgage', mortgage: m } };
+  return { id: `mortgage-${m.id}`, stepKey: `renew-${m.termEnd}`, title: 'Mortgage renewal', subtitle: prop?.nickname ?? '', stage: null, text: `Renews in ${n} days with ${m.lender}`, detail: 'Compare rates, then enter the new terms', priority: 6, step: { kind: 'mortgage', mortgage: m } };
 }
 
 /**

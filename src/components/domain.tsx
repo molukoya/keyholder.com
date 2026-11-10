@@ -19,13 +19,6 @@ function ago(iso: string): string {
   const h = Math.round(m / 60);
   return `${h} hour${h === 1 ? '' : 's'} ago`;
 }
-function until(iso: string): string {
-  const m = Math.round((new Date(iso).getTime() + BANK_CHECK_HOURS * 3600_000 - Date.now()) / 60000);
-  if (m <= 1) return 'in a moment';
-  if (m < 60) return `in ${m} minutes`;
-  const h = Math.round(m / 60);
-  return `in about ${h} hour${h === 1 ? '' : 's'}`;
-}
 
 // ---------- How rent is tracked: one line that says it plainly ----------
 export function BankStatus({ compact }: { compact?: boolean }) {
@@ -44,7 +37,7 @@ export function BankStatus({ compact }: { compact?: boolean }) {
   return (
     <div className={`track-line${compact ? ' compact' : ''}`}>
       <Icon name="bank" size={18} />
-      <span>Checking <strong>{banks.map((x) => x.bank).join(' and ')}</strong> every {BANK_CHECK_HOURS} hours for rent, bills and mortgage payments. Last check {ago(b.lastSync)}, next {until(b.lastSync)}.</span>
+      <span><strong>{banks.map((x) => x.bank).join(' and ')}</strong> checked every {BANK_CHECK_HOURS} h · last {ago(b.lastSync)}</span>
       <button className="btn small" onClick={() => act.syncBank()}>Check now</button>
     </div>
   );
@@ -214,7 +207,7 @@ export function MessageEditor({ message, onDone }: { message: Message; onDone: (
       <div className="letter-foot">
         {message.kind === 'reminder' ? 'Sends now. Further reminders stop automatically when payment arrives.' : 'Sends now, with the receipt attached as a PDF. A copy is kept in Paperwork.'}
       </div>
-      {!canEmail && <div className="callout warn">No email on file for this tenant. Print the receipt instead, or add an email on the tenant page.</div>}
+      {!canEmail && <div className="callout warn">No email for this tenant. Print the receipt, or add an email.</div>}
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button className="btn ghost" onClick={() => { act.discardMessage(message.id); onDone(); }}>Don't send</button>
         <button className="btn" onClick={() => setEditing((e) => !e)}><Icon name="edit" size={16} />{editing ? 'Preview' : 'Edit wording'}</button>

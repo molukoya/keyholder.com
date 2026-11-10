@@ -103,7 +103,7 @@ export function TenantDetail() {
           <section className="section">
             <h2 className="section-title">Messages sent</h2>
             <div className="sheet">
-              {msgs.length === 0 ? <p className="soft small">Nothing sent yet. Every receipt and reminder will be listed here automatically.</p> : (
+              {msgs.length === 0 ? <p className="soft small">Nothing sent yet. Receipts and reminders appear here.</p> : (
                 <ul className="rows">{msgs.slice(0, 12).map((m) => (
                   <li key={m.id} className="row"><span className="margin">{fmtDate(m.sentAt!.slice(0, 10))}</span>
                     <span><span className="title">{m.kind === 'receipt' ? 'Rent receipt' : `${m.tone ?? ''} reminder`}</span><span className="sub" style={{ display: 'block' }}>{m.period ? fmtPeriod(m.period) : ''} · sent {fmtTime(m.sentAt!)}</span></span>
@@ -176,7 +176,7 @@ export function TenantDetail() {
                 ))}
               </tbody>
             </table>
-            <p className="tiny">Shows due date, date received, amount and allocation for each period, as tribunals expect for arrears and persistent-late-payment claims.</p>
+            <p className="tiny">Due dates, payments and balances per month, as tribunals expect.</p>
           </div>
         </Drawer>
       )}
@@ -213,7 +213,7 @@ export function TenantDetail() {
           </fieldset>
         ))}
         <button className="btn small ghost" onClick={() => setPs([...ps, { name: '', email: '', phone: '' }])} style={{ marginBottom: 16 }}><Icon name="plus" size={14} />Add another person</button>
-        <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>{ps.length > 1 ? 'Everyone on the lease consents' : 'Consents'} to notices by email<span className="tiny soft" style={{ display: 'block' }}>Withdrawing consent switches legal notices to print and hand delivery.</span></span></label>
+        <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>{ps.length > 1 ? 'Everyone on the lease consents' : 'Consents'} to notices by email<span className="tiny soft" style={{ display: 'block' }}>Without consent, legal notices go on paper.</span></span></label>
       </Drawer>
     );
   }
@@ -223,8 +223,8 @@ function PauseDrawer({ onClose, onSave }: { onClose: () => void; onSave: (reason
   const [reason, setReason] = useState('Agreed payment arrangement');
   return (
     <Drawer title="Pause reminders" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!reason.trim()} onClick={() => onSave(reason)}>Pause</button></>}>
-      <Field label="Why?" htmlFor="pz-r" hint="Kept with the tenant file, so you remember later"><input id="pz-r" className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-      <p className="small soft">The ledger keeps counting. Only the reminder drafts stop.</p>
+      <Field label="Why?" htmlFor="pz-r" hint="Saved on the tenant's file"><input id="pz-r" className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      <p className="small soft">Rent is still tracked. Only reminders stop.</p>
     </Drawer>
   );
 }

@@ -33,7 +33,7 @@ export function Money() {
 export function Taxes() {
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic sun" aria-hidden><Icon name="print" size={22} /></span>Taxes</h1><PageSub>Your rent and costs for the year, ready for the rental part of your tax return (CRA form T776).</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic sun" aria-hidden><Icon name="print" size={22} /></span>Taxes</h1><PageSub>Your year's rent and costs, ready for your tax return (T776)</PageSub></div></div>
       <TaxPackPage />
     </div>
   );
@@ -153,7 +153,7 @@ export function RentTracking() {
 
   return (
     <>
-      <p className="lead">How should Keyholder know rent has arrived?</p>
+      <p className="lead">How do we know rent arrived?</p>
       <div className="choices two" role="radiogroup" aria-label="How rent is tracked">
         <button role="radio" aria-checked={manual} className="choice big" onClick={() => !manual && act.useManualTracking()}>
           <Icon name="check" size={28} />
@@ -180,7 +180,7 @@ export function RentTracking() {
             </li>
           ))}</ul>
           <div className="btn-row" style={{ marginTop: 8 }}><button className="btn" onClick={() => act.syncBank()}><Icon name="sync" size={16} />Check all now</button></div>
-          <p className="small soft" style={{ marginTop: 12 }}>View only. Keyholder can see deposits and payments. It can never move money.</p>
+          <p className="small soft" style={{ marginTop: 12 }}>View only. Keyholder sees deposits and payments, and can never move money.</p>
         </div>
       )}
 
@@ -223,7 +223,7 @@ function ConnectBank({ onClose }: { onClose: () => void }) {
       <div className="choices">{POPULAR_BANKS.map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>
       <Field label="Somewhere else?" htmlFor="cb-q"><input id="cb-q" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type your bank or credit union" /></Field>
       {matches.length > 0 && <div className="choices">{matches.slice(0, 6).map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>}
-      <div className="callout pine" style={{ marginTop: 16 }}>You sign in on your bank's own page. Keyholder never sees your password and can never move money.</div>
+      <div className="callout pine" style={{ marginTop: 16 }}>You sign in on your bank's page. We never see your password or move money.</div>
       <p className="tiny soft">Preview only: no real bank is contacted.</p>
     </Drawer>
   );
@@ -303,7 +303,7 @@ export function ThePicture() {
             {pic.rentCollected > 0 && <li>Running costs take <strong>{pic.expenseRatio.toFixed(0)}%</strong> of the rent.</li>}
             {pic.hasMortgageData && !pic.mortgageIsRough && pic.mortgageInterest + pic.mortgagePrincipal > 0 && <li>Rent covers the mortgage <strong>{(pic.noi / (pic.mortgageInterest + pic.mortgagePrincipal)).toFixed(1)} times</strong>. Banks like to see 1.2 or more.</li>}
           </ul>
-          {!pic.hasMortgageData && <p className="tiny soft" style={{ marginTop: 12 }}>No mortgage included. Add it on the property's Mortgage tab.</p>}
+          {!pic.hasMortgageData && <p className="tiny soft" style={{ marginTop: 12 }}>No mortgage yet. Add it on the property's Mortgage tab.</p>}
         </div>
       </div>
     </>
@@ -392,7 +392,7 @@ function TaxPackPage() {
 
       <div className="sheet print-me">
         <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname}</h2>
-        <p className="small soft" style={{ marginTop: 0 }}>Line numbers are for your accountant (CRA form T776).</p>
+        <p className="small soft" style={{ marginTop: 0 }}>Line numbers match CRA form T776.</p>
         <table className="ledger tax-totals">
           <tbody>
             <tr><td>Rent received</td><td className="line">8141</td><td className="num">{fmt(pack.grossRents)}</td></tr>
@@ -420,12 +420,12 @@ function TaxPackPage() {
                 <thead><tr><th>Class</th><th className="num">Start of year</th><th className="num">Added</th><th className="num">Rate</th><th className="num">Claimed</th><th className="num">End of year</th></tr></thead>
                 <tbody>{pack.cca.map((r) => <tr key={r.cls}><td>{r.label}</td><td className="num">{fmt(r.opening)}</td><td className="num">{fmt(r.additions)}</td><td className="num">{r.ratePct}%</td><td className="num">{fmt(r.claimed)}</td><td className="num">{fmt(r.closing)}</td></tr>)}</tbody>
               </table>
-              <p className="tiny soft">Only half the rate applies in the year something is bought. Depreciation can't create a loss. Claiming it can mean paying some back when you sell.</p>
+              <p className="tiny soft">Half rate in the year you buy. It can't create a loss, and some may be paid back when you sell.</p>
             </div>
           </details>
         )}
         {propertyLevel(state, p) !== 'gold' && <p className="small" style={{ marginTop: 16 }}><strong>Missing mortgage interest and depreciation.</strong> <Link to={`/rent/property/${p.id}/mortgage`}>Reach Gold for {p.nickname}</Link> to include them. They usually lower your tax.</p>}
-        <p className="tiny soft" style={{ marginTop: 16 }}>Keyholder prepares the numbers. It doesn't file your return or give tax advice.</p>
+        <p className="tiny soft" style={{ marginTop: 16 }}>We prepare the numbers. We don't file returns or give tax advice.</p>
       </div>
     </>
   );
