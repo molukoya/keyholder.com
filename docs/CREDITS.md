@@ -5,8 +5,8 @@ All photos come from [Unsplash](https://unsplash.com) and are used under the [Un
 
 | File | Unsplash photo | Used on |
 |---|---|---|
-| `home-hero.webp` | `photo-1449844908441-8829872d2607` | Website homepage (top) |
-| `apartment.webp` | `photo-1522708323590-d24dbb6b0267` | Provinces page |
+| `home-modern.webp` | `photo-1600047509807-ba8f99d2cdde` | Website homepage (top) |
+| `apartment.webp` | `photo-1522708323590-d24dbb6b0267` | About page |
 | `keys.webp` | `photo-1560518883-ce09059eeffa` | Pricing page |
 
 Only homes, rooms and objects are used: no identifiable people, so no real person appears to endorse Keyholder.

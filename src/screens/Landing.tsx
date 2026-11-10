@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
@@ -8,6 +8,7 @@ import { Brand } from '../components/Brand';
 import { AnnouncementBar } from '../support/Announcement';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
+import heroPhoto from '../assets/photos/home-modern.webp';
 import keysPhoto from '../assets/photos/keys.webp';
 import aptPhoto from '../assets/photos/apartment.webp';
 import shotRent from '../assets/screens/rent.webp';
@@ -266,19 +267,23 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
   return (
     <>
       <section className="lp-hero">
-        <div className="lp-wrap lp-hero-copy">
-          <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
-          <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
-          <p className="lp-lede lp-hero-lede">Keyholder automates the busywork of renting. You approve, it does the rest.</p>
-          <ul className="lp-auto" aria-label="What Keyholder automates">
-            {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
-          </ul>
-          <div className="btn-row" data-cta>
-            <CtaPair start={start} signIn={signIn} returning={returning} big />
+        <div className="lp-hero-bg" aria-hidden><i /><i /><i /><i /></div>
+        <div className="lp-wrap lp-hero-grid">
+          <div className="lp-hero-copy">
+            <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
+            <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
+            <p className="lp-lede lp-hero-lede">Keyholder automates the busywork of renting. You approve, it does the rest.</p>
+            <ul className="lp-auto" aria-label="What Keyholder automates">
+              {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
+            </ul>
+            <div className="btn-row" data-cta>
+              <CtaPair start={start} signIn={signIn} returning={returning} big />
+            </div>
           </div>
-        </div>
-        <div className="lp-wrap lp-hero-stage">
-          <WeekCard />
+          <div className="lp-hero-visual">
+            <Photo src={heroPhoto} alt="A modern two-storey rental home with wood and grey panels and a green lawn" className="hero" />
+            <WeekStrip />
+          </div>
         </div>
       </section>
 
@@ -529,47 +534,50 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
-// ================================================================ "Your week" card in the hero
-// Monday to Friday, one thing Keyholder did for you each day (matching the four pills). The weekend is empty: yours.
-const WEEK: [string, string, string, string, string][] = [
-  ['Mon', 'receipt', 'mint', 'Maya paid $1,650', 'Receipt sent'],
-  ['Tue', 'bell', 'peach', 'Reminder sent', 'To Jordan & Priya'],
-  ['Wed', 'trend', 'lilac', 'Home value updated', '$812,000 · up 1.2%'],
-  ['Thu', 'print', 'sun', '3 bills sorted', 'Ready for taxes'],
-  ['Fri', 'chart', 'sky', 'Month summary', 'You kept $726'],
+// ================================================================ "Your week" strip over the hero photo
+// Three cards show at a time: the middle one is in focus, the two beside it fade out. It steps from Monday to
+// Sunday and starts again. Pauses on hover; stays still for people who turn motion off.
+const WEEK: { day: string; ic?: string; tone?: string; t: string; d: string }[] = [
+  { day: 'Mon', ic: 'receipt', tone: 'mint', t: 'Maya paid $1,650', d: 'Receipt sent' },
+  { day: 'Tue', ic: 'bell', tone: 'peach', t: 'Reminder sent', d: 'To Jordan & Priya' },
+  { day: 'Wed', ic: 'trend', tone: 'lilac', t: 'Home value updated', d: '$812,000 · up 1.2%' },
+  { day: 'Thu', ic: 'print', tone: 'sun', t: '3 bills sorted', d: 'Ready for taxes' },
+  { day: 'Fri', ic: 'chart', tone: 'sky', t: 'Month summary', d: 'You kept $726' },
+  { day: 'Sat', t: 'Yours', d: 'Nothing to do' },
+  { day: 'Sun', t: 'Yours', d: 'Nothing to do' },
 ];
-const Sun = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+const SunIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
     <circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
   </svg>
 );
-function WeekCard() {
+function WeekStrip() {
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [still] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    if (still || paused) return;
+    const t = setTimeout(() => setI((x) => (x + 1) % WEEK.length), 2200);
+    return () => clearTimeout(t);
+  }, [i, paused, still]);
+  const n = WEEK.length;
   return (
-    <figure className="lp-week" aria-label="A week with Keyholder: Monday to Friday done for you, the weekend free">
-      <figcaption className="lp-week-head"><span>Your week with Keyholder</span><span className="lp-week-tag"><Icon name="check" size={14} />5 jobs done</span></figcaption>
-      <ol className="lp-week-grid">
-        {WEEK.map(([day, ic, tone, t, d]) => (
-          <li key={day} className="lp-week-day">
-            <span className="lp-week-dn">{day}</span>
-            <span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={18} /></span>
-            <span className="lp-week-txt"><strong>{t}</strong><span>{d}</span></span>
-            <span className="lp-week-ok" aria-label="Done"><Icon name="check" size={12} /></span>
-          </li>
-        ))}
-        {['Sat', 'Sun'].map((day) => (
-          <li key={day} className="lp-week-day off">
-            <span className="lp-week-dn">{day}</span>
-            <span className="lp-week-sun"><Sun /></span>
-            <span className="lp-week-txt"><strong><em>Yours</em></strong><span>Nothing to do</span></span>
-          </li>
-        ))}
-        <li className="lp-week-day off both">
-          <span className="lp-week-dn">Sat – Sun</span>
-          <span className="lp-week-sun"><Sun /></span>
-          <span className="lp-week-txt"><strong><em>Yours</em></strong><span>Nothing to do</span></span>
-        </li>
+    <div className="lp-week" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <p className="lp-week-label"><Icon name="sparkle" size={14} />Your week with Keyholder</p>
+      <ol className="lp-week-track" aria-label="A week with Keyholder: Monday to Friday done for you, the weekend is yours">
+        {WEEK.map((w, k) => {
+          const off = ((k - i + n + Math.floor(n / 2)) % n) - Math.floor(n / 2); // -3..3, 0 is the middle
+          const free = !w.ic;
+          return (
+            <li key={w.day} className={`lp-week-card${off === 0 ? ' on' : ''}${free ? ' free' : ''}`} style={{ '--off': off } as CSSProperties} data-off={off} aria-hidden={off !== 0}>
+              <span className="lp-week-dn">{w.day}</span>
+              {free ? <span className="lp-week-sun"><SunIcon /></span> : <span className={`lp-tile-ic ${w.tone}`}><Icon name={w.ic!} size={18} /></span>}
+              <span className="lp-week-txt"><strong>{free ? <em>{w.t}</em> : w.t}</strong><span>{w.d}</span></span>
+              {!free && <span className="lp-week-ok" aria-label="Done"><Icon name="check" size={12} /></span>}
+            </li>
+          );
+        })}
       </ol>
-      <p className="lp-week-foot">Done for you. You only had to approve.</p>
-    </figure>
+    </div>
   );
 }
