@@ -297,7 +297,7 @@ export function QPay() {
     <Mini bg="#D3F8DF">
       <Phone x={22} y={20} s={0.55}><path d="M18 44 h22 m-7 -7 l7 7 -7 7" stroke="#10B981" strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Phone>
       <g transform="translate(66 34) rotate(-6)"><rect width={58} height={28} rx={4} fill="#fff" stroke="#A7F3D0" strokeWidth={2} /><rect x={8} y={9} width={26} height={3} rx={1.5} fill="#94A3B8" /><rect x={8} y={17} width={18} height={3} rx={1.5} fill="#CBD5E1" /><path d="M40 20 q4 -6 8 0 t8 0" stroke="#4F46E5" strokeWidth={1.6} fill="none" /></g>
-      <g transform="translate(92 62)"><rect width={52} height={24} rx={4} fill="#34D399" /><circle cx={26} cy={12} r={7} fill="#D1FAE5" /><text x={26} y={16} fontSize={10} fontWeight={700} textAnchor="middle" fill="#047857" fontFamily="Inter, sans-serif">$</text></g>
+      <g transform="translate(92 62)"><rect width={52} height={24} rx={4} fill="#34D399" /><circle cx={26} cy={12} r={7} fill="#D1FAE5" /><text x={26} y={16} fontSize={10} fontWeight={700} textAnchor="middle" fill="#047857" fontFamily="Hanken Grotesk, sans-serif">$</text></g>
     </Mini>
   );
 }
@@ -309,7 +309,7 @@ export function QHard() {
         <circle cx={-24} cy={30} r={3} fill="#fff" /><circle cx={-16} cy={22} r={4.5} fill="#fff" />
         <rect x={-12} y={-16} width={52} height={36} rx={14} fill="#fff" />
         <rect x={0} y={-8} width={26} height={22} rx={3} fill="#FED7AA" /><rect x={0} y={-8} width={26} height={6} rx={3} fill="#FB923C" />
-        <text x={13} y={11} fontSize={11} fontWeight={800} textAnchor="middle" fill="#C2410C" fontFamily="Inter, sans-serif">1</text>
+        <text x={13} y={11} fontSize={11} fontWeight={800} textAnchor="middle" fill="#C2410C" fontFamily="Hanken Grotesk, sans-serif">1</text>
       </g>
     </Mini>
   );

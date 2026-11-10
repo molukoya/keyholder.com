@@ -18,10 +18,11 @@
   --lilac: #EBE9FE; --lilac-ink: #5925DC;
   --rose: #FFE4E8; --rose-ink: #C01048;
   --night: #101828;
-  --font-display: 'Raleway', 'Inter', 'Helvetica Neue', sans-serif;
-  --font-ui: 'Inter', 'Helvetica Neue', Helvetica, sans-serif;
-  /* Numbers use Inter's even-width figures (friendlier than a typewriter font, still line up). */
-  --font-mono: 'Inter', 'Helvetica Neue', Helvetica, sans-serif;
+  /* Headlines: Newsreader, a light editorial serif. Everything else: Hanken Grotesk. The logo keeps Raleway. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Hanken Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Numbers use Hanken Grotesk's even-width figures, so columns line up. */
+  --font-mono: 'Hanken Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --radius: 12px; --btn-radius: 12px; --card-radius: 20px; --bw: 1px;
   --shadow-line: 0 1px 2px rgba(16,24,40,.05);
   --shadow-lift: 0 1px 2px rgba(16,24,40,.04), 0 6px 16px -12px rgba(16,24,40,.10);
@@ -47,7 +48,7 @@
 }
 
 /* ---------------------------------------------------------------- App surfaces */
-body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; font-feature-settings: 'tnum' 1; background: var(--paper); }
+body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; font-feature-settings: 'tnum' 1; background: var(--paper); font-synthesis: none; }
 h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: lining-nums; }
 .page h1 { font-size: clamp(2rem, 3.6vw, 2.6rem); line-height: 1.08; }
 .page-head { padding-bottom: 4px; }
@@ -345,3 +346,12 @@ h1.title-ic .tile-ic { width: 44px; height: 44px; border-radius: 14px; }
 /* The one sign-in form */
 .acct-login .input { min-height: 48px; }
 .acct-login .acct-login-btn { width: 100%; min-height: 52px; }
+
+/* ================================================================ Type: Newsreader headlines, light and tight
+   Large headlines are regular weight; smaller serif titles use medium (500), the heaviest Newsreader loaded.
+   Emphasised words in big headlines are set in italic. */
+html body :is(h1, h2, .section-title, .greet-hi, .side-title, .rent-meter-nums strong, .review-grid strong, .tl-date, .pulse,
+  .sp-h2, .sp-tile-v strong, .lp-demo-head, .lp-map-info h3, .lp-amt) { font-weight: 500; }
+html body :is(.lp-hero-h, .lp-h1, .lp-h2, .q-question, .acct-card h1, .page h1, .sp-head h1, .greet-hi, .pulse, .lp-amt, .lp-map-info h3) { font-weight: 400; letter-spacing: -0.025em; }
+html body .lp-hero-h { line-height: 1.04; }
+html body :is(.lp-hero-h, .lp-h1, .lp-h2, .pulse) em { font-style: italic; padding-right: .04em; }

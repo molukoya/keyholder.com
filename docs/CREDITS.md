@@ -18,4 +18,4 @@ The screens in the website's "Take a closer look" tour are taken from Keyholder 
 All illustrations (people, homes, scenes, signup pictures, avatars) and icons were drawn for Keyholder as SVG in `src/components/Art.tsx` and `src/components/Icon.tsx`.
 
 ## Fonts
-[Raleway](https://fonts.google.com/specimen/Raleway) and [Inter](https://fonts.google.com/specimen/Inter), both under the SIL Open Font License, loaded from Google Fonts.
+[Newsreader](https://fonts.google.com/specimen/Newsreader) (headlines), [Hanken Grotesk](https://fonts.google.com/specimen/Hanken+Grotesk) (text) and [Raleway](https://fonts.google.com/specimen/Raleway) (the logo wordmark), all under the SIL Open Font License, loaded from Google Fonts.
