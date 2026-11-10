@@ -109,7 +109,8 @@ export async function readState(q: Q, accountId: string): Promise<Saved> {
   return r ? { revision: r.revision, data: r.data, updatedAt: r.updated_at } : { revision: 0, data: null };
 }
 
-const HISTORY_KEEP = 100;
+/** Saved versions kept per account (for merging two devices, and for support to undo a mistake). */
+const HISTORY_KEEP = 50;
 
 /**
  * Saves a landlord's data. `baseRevision` is the version the device started from. If someone else saved

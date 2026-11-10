@@ -11,6 +11,8 @@ const Env = z.object({
   HOST: z.string().default('0.0.0.0'),
   /** Public address of the site, used in email links and to check where requests come from. */
   APP_URL: z.string().url().optional(),
+  /** Set by Render automatically; used when APP_URL is not set. */
+  RENDER_EXTERNAL_URL: z.string().url().optional(),
   /** Postgres connection string. Without it the server uses an embedded Postgres (PGlite) on disk. */
   DATABASE_URL: z.string().optional(),
   /** Where the embedded Postgres keeps its files; "memory://" keeps nothing (tests). */
@@ -44,7 +46,7 @@ export type Config = ReturnType<typeof loadConfig>;
 export function loadConfig(env: Record<string, string | undefined> = process.env) {
   const e = Env.parse(env);
   const production = e.NODE_ENV === 'production';
-  const appUrl = (e.APP_URL ?? `http://localhost:${e.PORT}`).replace(/\/$/, '');
+  const appUrl = (e.APP_URL ?? e.RENDER_EXTERNAL_URL ?? `http://localhost:${e.PORT}`).replace(/\/$/, '');
   if (production && e.DEV_TOOLS === 'on') throw new Error('DEV_TOOLS cannot be on in production.');
   if (e.EMAIL_PROVIDER === 'resend' && !e.RESEND_API_KEY) throw new Error('EMAIL_PROVIDER=resend needs RESEND_API_KEY.');
   if (e.EMAIL_PROVIDER === 'postmark' && !e.POSTMARK_TOKEN) throw new Error('EMAIL_PROVIDER=postmark needs POSTMARK_TOKEN.');

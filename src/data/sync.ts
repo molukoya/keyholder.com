@@ -75,7 +75,17 @@ async function push(): Promise<void> {
       retryMs = 0;
       setStatus({ state: 'saved', at: Date.now() });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) { setStatus({ state: 'signed-out', message: 'Signed out on the server. Sign in again to keep saving.' }); return; }
+      if (e instanceof ApiError && e.status === 401) {
+        // The sign-in ended (expired, or signed out on another device). Changes stay on this device and are
+        // saved after signing in again (the server merges them).
+        setStatus({ state: 'signed-out', message: 'Signed out on the server. Sign in again to keep saving.' });
+        const cur = get();
+        if (cur.profile.account?.signedIn) {
+          set({ ...cur, profile: { ...cur.profile, account: { ...cur.profile.account, signedIn: false } } });
+          if (typeof window !== 'undefined') window.location.hash = '#/signin?expired=1';
+        }
+        return;
+      }
       if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 429) { setStatus({ state: 'error', message: e.message }); return; }
       retryMs = Math.min(60_000, retryMs ? retryMs * 2 : 5000);
       setStatus({ state: 'offline', message: 'Saved on this device. Keyholder will save to your account when you are back online.' });
@@ -100,6 +110,8 @@ export async function flush() {
 export async function hydrate(): Promise<'loaded' | 'pushed' | 'empty'> {
   const u = getConn().user;
   if (!u || u.role !== 'owner') return 'empty';
+  // Signing in again on this device: this copy is signed in again too.
+  if (owned(get()) && !get().profile.account!.signedIn) set(signedInCopy(get()));
   const local = get();
   const r = await api<{ revision: number; data: AppState | null }>('GET', '/api/state');
   const mine = owned(local) && meta?.userId === u.id;

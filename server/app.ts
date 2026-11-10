@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
@@ -308,7 +308,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
     const me = needStaff(req);
     const b = z.object({ next: z.any(), log: z.object({ action: z.string().max(100), detail: z.string().max(500) }).optional() }).parse(req.body);
     if (!b.next || typeof b.next !== 'object') fail(400, 'Nothing to save.');
-    if (me.role === 'support' && b.log && /Role changed|Team member|Account deleted|Reply-time|Province rules/.test(b.log.action)) fail(403, 'Only an owner can do that.');
+    if (me.role === 'support' && b.log && /Role changed|Team member|Account deleted|Reply-time|Province rules|Saved reply/.test(b.log.action)) fail(403, 'Only an owner can do that.');
     const done = await applyChange(db, cfg, me, b.next, b.log, ip(req));
     return { done, snapshot: await snapshot(db, me) };
   });
@@ -334,17 +334,24 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
   }
 
   // ---------------- The website and app ----------------
+  // index.html gets a marker so the app knows a Keyholder server is behind it (static hosts serve the
+  // file without it, and the app then stays in browser-only mode without asking).
   const dir = staticDir === undefined ? resolve(process.cwd(), 'dist') : staticDir;
-  if (dir && existsSync(join(dir, 'index.html'))) {
+  const indexFile = dir ? join(dir, 'index.html') : '';
+  const page = indexFile && existsSync(indexFile)
+    ? readFileSync(indexFile, 'utf8').replace(/<head>/i, '<head>\n    <meta name="keyholder-server" content="1" />')
+    : null;
+  if (dir && page) {
     await app.register(fstatic, {
-      root: dir, wildcard: false, index: ['index.html'],
+      root: dir, wildcard: true, index: false,
       setHeaders: (res, path) => res.header('Cache-Control', /[\\/]assets[\\/]/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache'),
     });
   }
+  const sendPage = (reply: FastifyReply) => reply.header('Cache-Control', 'no-cache').type('text/html; charset=utf-8').send(page);
+  if (page) { app.get('/', async (_req, reply) => sendPage(reply)); app.get('/index.html', async (_req, reply) => sendPage(reply)); }
   app.setNotFoundHandler(async (req, reply) => {
-    if (req.url.startsWith('/api/') || req.method !== 'GET' || !dir || !existsSync(join(dir, 'index.html'))) return reply.code(404).send({ error: 'Not found.' });
-    reply.header('Cache-Control', 'no-cache');
-    return reply.sendFile('index.html');
+    if (req.url.startsWith('/api/') || req.method !== 'GET' || !page) return reply.code(404).send({ error: 'Not found.' });
+    return sendPage(reply);
   });
 
   return app;

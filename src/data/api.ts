@@ -25,6 +25,9 @@ export function useConn(): Conn {
 /** Asks the page's own server who is signed in. No answer (or not JSON) means local mode. */
 export async function detectServer(timeoutMs = 3000): Promise<Conn> {
   if (embedded || typeof window === 'undefined' || !/^https?:$/.test(location.protocol)) return conn;
+  // The Keyholder server marks the page it serves. Static hosts (GitHub Pages, `vite preview`) don't, so
+  // the app stays in browser-only mode without making a request. `npm run dev` asks anyway (it proxies /api).
+  if (!document.querySelector('meta[name="keyholder-server"]') && !import.meta.env.DEV) return conn;
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {

@@ -170,7 +170,9 @@ export function SignIn() {
   const nav = useNavigate();
   const [picker, setPicker] = useState(false);
   const [unknown, setUnknown] = useState<string | null>(null);
-  const googleFailed = new URLSearchParams(useLocation().search).get('error') === 'google';
+  const params = new URLSearchParams(useLocation().search);
+  const googleFailed = params.get('error') === 'google';
+  const expired = params.get('expired') === '1';
   useEffect(() => { window.scrollTo(0, 0); }, []);
   const acct = state.profile.account;
   const done = (w: Who) => {
@@ -193,6 +195,7 @@ export function SignIn() {
         ) : (
           <>
             {googleFailed && <p className="small acct-error" role="alert">Google sign-in did not work. Try again, or use your email.</p>}
+            {expired && <p className="callout" role="status">You were signed out. Sign in again: your changes are kept on this device.</p>}
             {googleOn() && <>
               <GoogleButton onClick={() => (serverMode() ? startGoogle('signin') : setPicker(true))} />
               <div className="acct-or"><span>or</span></div>

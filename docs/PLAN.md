@@ -67,7 +67,7 @@ biggest gain first. A property's % complete uses the same items.
 
 | | Stage 1 — front end on sample data | Stage 2 — backend, real data |
 |---|---|---|
-| **Phase 1 — Run the rental** | ✅ built | next |
+| **Phase 1 — Run the rental** | ✅ built | ✅ accounts, saving, email, automation (bank data still simulated) |
 | **Phase 2 — Know what it is worth** | ✅ built | after Phase 1 |
 | **Phase 3 — Mortgage, tax and capital** | ✅ built | after Phase 2 |
 
@@ -123,12 +123,33 @@ Larger type (17px body, 48px buttons), one main action per row, plain labels ("M
 - **Portfolio:** "Your money compared" always shows your return next to savings, a GIC and a stock index fund, using the properties that have a purchase price and listing the ones that don't yet.
 
 ## Stage 1 notes
-- All data is in `localStorage`. Sample data is dated relative to today.
+- Without the server (Claude preview, GitHub Pages) all data is in `localStorage`. Sample data is dated relative to today.
 - Bank linking, email forwarding and sending are **simulated**. The matcher and parser are real code with tests.
 - Price index, benchmark and rate figures in `src/lib/jurisdiction.ts` are **placeholders** for design work.
 - `src/data/store.tsx` actions (`logPayment`, `confirmMatch`, `saveExpense`, …) are the contract for the Stage 2 API.
 
-## Stage 2 — backend on Render (Node.js)
+## Stage 2 — backend (built)
+
+What was built, and why it differs from the first design below (details in `docs/BACKEND.md`):
+- **One service, not four.** Website, app and API in one Node 22 + Fastify service, with the email sender
+  and daily jobs inside it (`WORKER=inline`); a separate worker is one setting away. Postgres for the data.
+  No Redis/BullMQ: the email queue and jobs are Postgres tables (row locks, de-duplication), one less
+  service to pay for and run. No ORM: plain SQL migrations, so the database stays easy to read.
+- **Data saved per account, merged per record.** The app's store actions stay the contract and keep
+  working in the browser; each change saves the landlord's whole record to the server with the version it
+  started from, and the server merges two devices record by record and keeps the last 50 versions. This
+  moves every screen to real accounts without rewriting them. Next: move the ledger into tables as the
+  server takes over bank matching.
+- **Real**: accounts (email + password, Google when configured), password reset, email confirmation,
+  sessions, team roles and invitations, receipts and reminders emailed to every tenant on the lease,
+  automatic late-rent reminders and a daily summary email, support requests, live support dashboard,
+  announcements, data download, account deletion, audit log, security headers and rate limits.
+- **Still simulated, needs an outside service**: bank data (Flinks or Plaid Canada), card payments
+  (Stripe), valuation data, receipt-photo storage (S3 in Canada).
+- **Tests**: server API and merge tests (embedded Postgres), browser end-to-end against the real server,
+  and the browser-only UX test; all in GitHub Actions.
+
+## Stage 2 — first design (for reference)
 
 **Database: PostgreSQL, using Render Postgres (managed).** The ledger needs relational integrity
 (payments → leases → units → properties), transactions for "log payment + draft receipt + cancel reminder"

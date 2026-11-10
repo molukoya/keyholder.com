@@ -1,42 +1,57 @@
 # Keyholder
 
-A personal assistant for the self-managing Canadian landlord.
+Rental automation for Canadian landlords with 1 to 10 units.
 
-This repository is in **Stage 1**: the complete front end for all three product phases, running on
-sample data saved in the browser. There is no backend yet. See [docs/PLAN.md](docs/PLAN.md) for the
-phase and stage plan and the Stage 2 backend design for Render.
+This repository has the whole product: the website, the landlord app, the support dashboard and the
+**Stage 2 backend** (Node.js API with a Postgres database, real accounts, data saved to the account,
+email for receipts and reminders, daily automation). See [docs/BACKEND.md](docs/BACKEND.md) for the
+backend and [docs/PLAN.md](docs/PLAN.md) for the product plan.
+
+The app runs two ways. Served by the Keyholder server, accounts and data live on the server. Opened
+without a server (the Claude preview, GitHub Pages), it keeps everything in the browser, as in Stage 1.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm test           # financial formulas, payment matcher, e-Transfer parser
-npm run build      # type-check and build to dist/
+npm run build && npm start      # website + app + API on http://localhost:8080 (embedded Postgres, no setup)
+npm run dev:server              # API only, reloads on change (:8080)
+npm run dev                     # website with hot reload (:5173, /api goes to :8080)
 ```
 
-In the app, **Settings → Build phase preview** switches between Phase 1, 2 and 3. Each phase is a complete app.
+Sign in as the support team locally: start with `ADMIN_EMAIL=you@example.ca ADMIN_PASSWORD=a-long-password`.
+The sample logins always work: **test / test** (demo landlord) and **admin / admin** (sample support dashboard).
 
-Keyboard shortcuts on desktop: `P` log a payment, `E` add an expense, `T` open the tray.
+## Tests
 
-## Live preview on GitHub Pages
+```bash
+npm run typecheck && npm test   # types; finance, matching, server API and merge tests
+npm run build && npm run test:e2e   # browser test of website + app + API against the real server
+npx vite preview --port 4173 & npm run test:ux   # every page and journey, browser-only mode
+```
 
-https://molukoya.github.io/keyholder.com/ is published by `.github/workflows/pages.yml` on every push to
-`main` (and the working branch). One-time setup: repository **Settings → Pages → Build and deployment →
-Source: GitHub Actions**.
+GitHub Actions runs all of them on every push (`.github/workflows/ci.yml`).
 
-## Deploy to Render
+## Deploy
 
-`render.yaml` is a Render Blueprint. In the Render dashboard choose **New → Blueprint**, pick this repo,
-and it deploys the static site.
+- **Render (full product)**: Render → New → Blueprint → this repository. `render.yaml` creates the web
+  service and a Postgres database and asks for the first admin's email and password. Details and real
+  email set-up in [docs/BACKEND.md](docs/BACKEND.md).
+- **Docker**: `Dockerfile` builds one container for any host.
+- **GitHub Pages (browser-only preview)**: https://molukoya.github.io/keyholder.com/ is published by
+  `.github/workflows/pages.yml` on every push to `main` and the working branch.
 
 ## Layout
 
 ```
+server/       the backend: app.ts (API routes), services.ts, merge.ts, email.ts, mails.ts, jobs.ts,
+              support.ts (live support dashboard), db.ts + migrations.ts, config.ts (+ tests)
 src/
-  data/       types.ts (data model), phases.ts (feature → phase map), seed.ts, store.tsx (actions = future API)
-  lib/        finance.ts, matching.ts, templates.ts, tray.ts, jurisdiction.ts (+ tests)
-  components/ design system pieces (stamps, door plates, letters, drawers) and forms
-  screens/    Onboarding, Today, Rent, PropertyDetail, TenantDetail, Money, Paperwork, Tray, Settings
-docs/PLAN.md  phases, stages, backend plan
+  data/       types.ts, seed.ts, store.tsx (actions), api.ts (server or browser-only), sync.ts (saving to the account)
+  lib/        finance.ts, matching.ts, templates.ts, tray.ts, jurisdiction.ts (+ tests), shared with the server
+  components/ design system pieces and forms
+  screens/    website, signup, sign in, app screens, support dashboard
+  support/    support dashboard screens and data
+scripts/      e2e-server.cjs, ux-flow-test.cjs, build-server.mjs, build-artifact.mjs, capture-screens.cjs
+docs/         PLAN.md (product), BACKEND.md (backend), CREDITS.md
 ```

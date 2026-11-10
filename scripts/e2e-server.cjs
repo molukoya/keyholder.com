@@ -128,6 +128,14 @@ function watch(pg, errors, label) {
         await pg.evaluate(() => window.dispatchEvent(new Event('focus')));
         await until(async () => (await pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')))).profile.emailUpdates === true, 8000, 'device A updated');
       });
+      await step(tag, 'E10b Signed out on the server mid-use: the change is kept and saved after signing in again', async () => {
+        await go(pg, 'settings');
+        await pg.evaluate(() => fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Keyholder': '1' } }));
+        await pg.locator('#account label.check input').uncheck();
+        await pg.waitForSelector('text=You were signed out', { timeout: 8000 });
+        await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');
+        await until(async () => (await api(pg, '/api/state')).body?.data?.profile?.emailUpdates === false, 8000, 'change saved after signing in');
+      });
       await step(tag, 'E11 Help → Write to us reaches the support inbox', async () => {
         await go(pg, 'today'); await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.top-tools.desk .help-btn').click();
         await pg.locator('text=Write to us').click(); await pg.fill('#ct-subject', `Question from ${tag}`); await pg.fill('#ct-message', 'How do I add a second property?');

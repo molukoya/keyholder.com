@@ -86,6 +86,12 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export async function applyChange(db: Db, cfg: Config, me: User, next: SupportBase & { sla?: Record<Priority, number> }, log: { action: string; detail: string } | undefined, ip: string | null): Promise<string[]> {
   const done: string[] = [];
   const cur = await snapshot(db, me);
+  // Support staff answer requests and help landlords; deleting accounts, the team and settings are for owners.
+  const owner = me.role === 'admin';
+  if (!owner) {
+    next = { ...next, team: cur.team, sla: cur.sla, rules: cur.rules, requests: cur.requests,
+      customers: (next.customers ?? []).map((c) => ({ ...c, deleted: cur.customers.find((x) => x.id === c.id)?.deleted })) };
+  }
   await db.tx(async (q) => {
     // Customers: plan, trial, credit, notes; deleted = delete the account for real.
     for (const c of next.customers ?? []) {
