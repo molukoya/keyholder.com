@@ -349,6 +349,8 @@ html body .lp-week-card.free .lp-week-txt strong { font: 400 24px/1.05 var(--fon
 }
 @media (max-width: 600px) {
   .lp-hero { padding-bottom: 24px; }
+  .lp-lines { width: 600%; animation-duration: 270s; }
+  .lp-lines.b { animation-duration: 420s; }
   .lp-hero-visual { --cw: 168px; padding-bottom: 56px; }
   .lp-photo.hero { border-radius: 20px; }
   .lp-week-card { height: 118px; padding: 12px; }
