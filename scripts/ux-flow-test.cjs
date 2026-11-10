@@ -273,7 +273,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.goto(BASE);
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
-    await step(tag, 'D2 Live demo: Send receipt → receipt appears', async () => { await pg.locator('.lp-demo li >> nth=0 >> button').click(); await pg.waitForSelector('.lp-receipt'); });
+    await step(tag, 'D2 Hero laptop plays the app: the screen changes on its own', async () => { await pg.waitForSelector('.lp-laptop img.on'); const a = await pg.locator('.lp-laptop-steps .on').textContent(); await pg.waitForTimeout(3600); const b2 = await pg.locator('.lp-laptop-steps .on').textContent(); if (a === b2) throw new Error('stuck on ' + a); return a + ' → ' + b2; });
     // The phone menu must really fill the screen (it once collapsed to a 40px strip that a test could still click into).
     const menuOpen = async () => { await pg.locator('.lp-burger').click(); const box = await pg.locator('.lp-menu').boundingBox(); if (!box || box.height < vp.height * 0.6) throw new Error(`menu only ${box ? Math.round(box.height) : 0}px tall`); };
     const menuGo = async (label) => { if (tag === 'phone') { await menuOpen(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };

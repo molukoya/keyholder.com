@@ -283,7 +283,7 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
           <div className="lp-hero-visual">
             <Photo src={heroPhoto} alt="A brick house with a blue roof on a quiet tree-lined street" className="hero" />
             <div className="lp-chip-float" aria-hidden><Avatar name="Maya Chen" size={36} /><span><strong>Maya paid $1,650</strong><span>Receipt sent for you</span></span></div>
-            <div className="lp-hero-demo"><LiveDemo /></div>
+            <div className="lp-hero-demo"><LaptopLoop /></div>
           </div>
         </div>
       </section>
@@ -535,27 +535,37 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
-// ================================================================ The live mini demo
-function LiveDemo() {
-  const [sent, setSent] = useState<Record<string, boolean>>({});
-  const rows = [
-    { id: 'maya', who: 'Maya Chen', where: 'Unit A · $1,650', status: 'Paid', tone: 'paid', btn: 'Send receipt', done: 'Receipt sent' },
-    { id: 'jordan', who: 'Jordan Patel', where: 'Unit B · $1,450', status: 'Late · 7 days', tone: 'late', btn: 'Send reminder', done: 'Reminder sent' },
-    { id: 'unitc', who: 'Unit C', where: 'Empty for 38 days', status: '2 applications', tone: 'due', btn: 'Review', done: 'Daniel chosen' },
-  ];
+// ================================================================ A small laptop playing the app
+// A calm loop of four real screens: rent, a receipt, a reminder, the tax summary. A cursor glides to the
+// key button and taps it. Pauses on hover; a still picture for people who turn motion off.
+const LOOP: { id: keyof typeof SPOTS; img: string; label: string }[] = [
+  { id: 'rent', img: shotRent, label: 'Rent' },
+  { id: 'receipt', img: shotReceipt, label: 'Receipt' },
+  { id: 'reminder', img: shotReminder, label: 'Reminder' },
+  { id: 'taxes', img: shotTaxes, label: 'Taxes' },
+];
+function LaptopLoop() {
+  const [i, setI] = useState(0);
+  const [tap, setTap] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [still] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    if (still || paused) return;
+    const t1 = setTimeout(() => setTap(true), 1500);
+    const t2 = setTimeout(() => { setTap(false); setI((x) => (x + 1) % LOOP.length); }, 3200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [i, paused, still]);
+  const sp = SPOTS[LOOP[i].id] as { x: number; y: number; w: number; h: number };
   return (
-    <div className="lp-demo" aria-label="A live sample rent list you can tap">
-      <div className="lp-demo-head"><span>Rent · November</span><span className="lp-demo-live"><i aria-hidden />Live</span></div>
-      <ul>{rows.map((r) => (
-        <li key={r.id} className={sent[r.id] ? 'done' : ''}>
-          {r.id === 'unitc' ? <span className="lp-demo-ic"><Icon name="door" size={18} /></span> : <Avatar name={r.who} size={36} />}
-          <div><strong>{r.who}</strong><span>{r.where}</span></div>
-          <span className={`status ${sent[r.id] ? 'paid' : r.tone}`}>{sent[r.id] ? r.done : r.status}</span>
-          {sent[r.id] ? <span className="stamp sent press">Done</span> : <button className="btn primary small" onClick={() => setSent((s) => ({ ...s, [r.id]: true }))}>{r.btn}</button>}
-        </li>
-      ))}</ul>
-      {sent.maya && <div className="lp-receipt" aria-live="polite"><strong>Rent receipt #1042</strong><span>Maya Chen · $1,650.00 · Nov 1</span><span className="stamp paid">Paid</span></div>}
-      <div className="lp-demo-foot"><Icon name="bank" size={16} /> Checking RBC and TD every 4 hours</div>
+    <div className="lp-laptop" role="img" aria-label="Keyholder on a laptop: rent, a receipt, a reminder and the tax summary" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <div className="lp-laptop-screen">
+        {LOOP.map((s2, k) => <img key={s2.id} src={s2.img} alt="" className={k === i ? 'on' : ''} loading={k ? 'lazy' : 'eager'} />)}
+        {!still && <span className={`lp-cursor${tap ? ' tap' : ''}`} style={{ left: `${sp.x + sp.w / 2}%`, top: `${sp.y + sp.h / 2}%` }} aria-hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6.5 1.6L9.8 19z" fill="#101828" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" /></svg>
+        </span>}
+      </div>
+      <div className="lp-laptop-base" aria-hidden />
+      <div className="lp-laptop-steps" aria-hidden>{LOOP.map((s2, k) => <span key={s2.id} className={k === i ? 'on' : ''}>{s2.label}</span>)}</div>
     </div>
   );
 }
