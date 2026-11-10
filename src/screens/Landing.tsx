@@ -6,7 +6,6 @@ import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
 import { AnnouncementBar } from '../support/Announcement';
-import { Avatar } from '../components/Art';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 import keysPhoto from '../assets/photos/keys.webp';
@@ -279,7 +278,7 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
           </div>
         </div>
         <div className="lp-wrap lp-hero-stage">
-          <AppWindow />
+          <WeekCard />
         </div>
       </section>
 
@@ -530,16 +529,47 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
-// ================================================================ The big app window in the hero
-// One still screen of the app (Home: this month's rent), large enough to read. No animation.
-function AppWindow() {
+// ================================================================ "Your week" card in the hero
+// Monday to Friday, one thing Keyholder did for you each day (matching the four pills). The weekend is empty: yours.
+const WEEK: [string, string, string, string, string][] = [
+  ['Mon', 'receipt', 'mint', 'Maya paid $1,650', 'Receipt sent'],
+  ['Tue', 'bell', 'peach', 'Reminder sent', 'To Jordan & Priya'],
+  ['Wed', 'trend', 'lilac', 'Home value updated', '$812,000 · up 1.2%'],
+  ['Thu', 'print', 'sun', '3 bills sorted', 'Ready for taxes'],
+  ['Fri', 'chart', 'sky', 'Month summary', 'You kept $726'],
+];
+const Sun = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+    <circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+  </svg>
+);
+function WeekCard() {
   return (
-    <div className="lp-app">
-      <div className="lp-chip-float" aria-hidden><Avatar name="Maya Chen" size={36} /><span><strong>Maya paid $1,650</strong><span>Receipt sent for you</span></span></div>
-      <div className="lp-app-win">
-        <div className="lp-app-bar" aria-hidden><span className="lp-app-dots"><i /><i /><i /></span><span className="lp-app-url"><Icon name="lock" size={12} />keyholder.ca</span><span /></div>
-        <div className="lp-app-screen"><img src={shotRent} alt="Keyholder's Home screen: this month's rent, who paid, and the next step" /></div>
-      </div>
-    </div>
+    <figure className="lp-week" aria-label="A week with Keyholder: Monday to Friday done for you, the weekend free">
+      <figcaption className="lp-week-head"><span>Your week with Keyholder</span><span className="lp-week-tag"><Icon name="check" size={14} />5 jobs done</span></figcaption>
+      <ol className="lp-week-grid">
+        {WEEK.map(([day, ic, tone, t, d]) => (
+          <li key={day} className="lp-week-day">
+            <span className="lp-week-dn">{day}</span>
+            <span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={18} /></span>
+            <span className="lp-week-txt"><strong>{t}</strong><span>{d}</span></span>
+            <span className="lp-week-ok" aria-label="Done"><Icon name="check" size={12} /></span>
+          </li>
+        ))}
+        {['Sat', 'Sun'].map((day) => (
+          <li key={day} className="lp-week-day off">
+            <span className="lp-week-dn">{day}</span>
+            <span className="lp-week-sun"><Sun /></span>
+            <span className="lp-week-txt"><strong><em>Yours</em></strong><span>Nothing to do</span></span>
+          </li>
+        ))}
+        <li className="lp-week-day off both">
+          <span className="lp-week-dn">Sat – Sun</span>
+          <span className="lp-week-sun"><Sun /></span>
+          <span className="lp-week-txt"><strong><em>Yours</em></strong><span>Nothing to do</span></span>
+        </li>
+      </ol>
+      <p className="lp-week-foot">Done for you. You only had to approve.</p>
+    </figure>
   );
 }
