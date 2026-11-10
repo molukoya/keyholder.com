@@ -6,7 +6,7 @@ import { useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
 import { AnnouncementBar } from '../support/Announcement';
-import { Avatar, Bust, LOOKS } from '../components/Art';
+import { Avatar } from '../components/Art';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
 import heroPhoto from '../assets/photos/home-hero.webp';
@@ -28,9 +28,8 @@ import SPOTS from '../assets/screens/hotspots.json';
 const PAGES = [
   { id: '', label: 'Overview', icon: 'home' },
   { id: 'features', label: 'Features', icon: 'sparkle' },
-  { id: 'provinces', label: 'Provinces', icon: 'map' },
+  { id: 'about', label: 'About', icon: 'map' },
   { id: 'pricing', label: 'Pricing', icon: 'cash' },
-  { id: 'questions', label: 'Questions', icon: 'message' },
 ] as const;
 type PageId = (typeof PAGES)[number]['id'];
 const href = (id: string) => (id ? `/welcome/${id}` : '/welcome');
@@ -98,7 +97,9 @@ export function Landing() {
   const [solid, setSolid] = useState(false);
   const seg = loc.pathname.split('/').filter(Boolean);
   const raw = seg[0] === 'welcome' ? seg[1] ?? '' : seg[0] ?? '';
-  const page: PageId = (PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
+  // The old Provinces and Questions pages are now sections of About.
+  const section = raw === 'provinces' ? 'rules' : raw === 'questions' ? 'faq' : '';
+  const page: PageId = (section ? 'about' : PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
   const idx = PAGES.findIndex((p) => p.id === page);
   // Only a signed-in account (admin included) gets "Open my dashboard", and only in the menu bar.
   // Everyone else, including an old demo left in this browser, sees Sign in and Start free.
@@ -151,9 +152,8 @@ export function Landing() {
 
       <main>
         {overview && <Overview start={start} signIn={signIn} returning={returning} />}
-        {page === 'provinces' && <Provinces />}
+        {page === 'about' && <About section={section} />}
         {page === 'pricing' && <Pricing start={start} />}
-        {page === 'questions' && <Questions />}
 
         <section className="lp-sec lp-cta-sec">
           <div className="lp-wrap">
@@ -426,41 +426,66 @@ function homeProvince(own?: Province): { p: Province; guessed: boolean } {
   return { p: 'ON', guessed: false };
 }
 
-function Provinces() {
+/** About: who Keyholder is for, the rules for each province, and the questions people ask. */
+function About({ section }: { section: string }) {
+  useEffect(() => { if (section) requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ block: 'start' })); }, [section]);
+  return (
+    <>
+      <PageHead kicker="About" icon="map" title={<>Made for Canadian landlords, <em>province by province.</em></>} aside={<Photo src={aptPhoto} alt="A bright rental apartment with a sofa and big windows" className="aside" />}>Rent, receipts and taxes kept in order, with the right forms for where your rental is.</PageHead>
+      <section className="lp-sec lp-sec-top0">
+        <div className="lp-wrap">
+          <ul className="lp-for reveal">
+            {([['home', '1 to 10 units', 'Houses, condos, duplexes and suites'], ['user', 'You manage it yourself', 'No property manager needed'], ['map', 'Every province and territory', 'Forms and rules built in']] as [string, string, string][]).map(([ic, t, d], i) => (
+              <li key={t}><span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={ic} size={18} /></span><span><strong>{t}</strong><span>{d}</span></span></li>
+            ))}
+          </ul>
+        </div>
+      </section>
+      <ProvinceRules />
+      <section className="lp-sec lp-faq-sec" id="faq">
+        <div className="lp-wrap lp-narrow">
+          <SecHead kicker="Questions" title="Straight answers." />
+          <div className="lp-faqs reveal">
+            {FAQ.map(([ic, q, a], i) => <details key={q} className="lp-faq"><summary><span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={ic} size={18} /></span>{q}</summary><p>{a}</p></details>)}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ProvinceRules() {
   const { state } = useStore();
   const [start] = useState(() => homeProvince(state.profile.onboarded ? state.profile.province : undefined));
   const [sel, setSel] = useState<Province>(start.p);
   const info = province(sel);
   const late = formsFor(sel, 'late-rent'), inc = formsFor(sel, 'rent-increase'), lease = formsFor(sel, 'lease');
   return (
-    <>
-      <PageHead kicker="Provinces" icon="map" title={<>Built for every province <em>and territory.</em></>} aside={<Photo src={aptPhoto} alt="A bright rental apartment with a sofa and big windows" className="aside" />}>Each province has its own rules for leases, rent increases and late rent. Keyholder uses the right forms for where your rental is.</PageHead>
-      <section className="lp-sec lp-sec-top0">
-        <div className="lp-wrap">
-          <SecHead kicker="Forms by province" title="Tap your province to see its forms." />
-          <div className="lp-map reveal">
-            <div className="lp-map-card">
-              <div className="lp-tiles" role="radiogroup" aria-label="Province">
-                {TILES.map(([p, c, r]) => <button key={p} role="radio" aria-checked={sel === p} aria-label={province(p).name} className={`lp-tile${sel === p ? ' on' : ''}`} style={{ gridColumn: c, gridRow: r }} onClick={() => setSel(p)}>{p}</button>)}
-              </div>
-              <p className="lp-map-hint"><Icon name="pin" size={16} />{start.guessed && sel === start.p ? <>Showing <strong>{info.name}</strong>, from your device's time zone. Tap another to switch.</> : <>Selected: <strong>{info.name}</strong></>}</p>
+    <section className="lp-sec" id="rules">
+      <div className="lp-wrap">
+        <SecHead kicker="Your province" title="Tap your province to see its forms." />
+        <div className="lp-map reveal">
+          <div className="lp-map-card">
+            <div className="lp-tiles" role="radiogroup" aria-label="Province">
+              {TILES.map(([p, c, r]) => <button key={p} role="radio" aria-checked={sel === p} aria-label={province(p).name} className={`lp-tile${sel === p ? ' on' : ''}`} style={{ gridColumn: c, gridRow: r }} onClick={() => setSel(p)}>{p}</button>)}
             </div>
-            <div className="lp-map-info" aria-live="polite">
-              <div key={sel} className="lp-swap">
-                <p className="lp-kicker">Rules set by: {info.tribunal}</p>
-                <h3>{info.name}</h3>
-                <dl>
-                  <dt>When rent is late</dt><dd>{late.length ? <ol>{late.map((f) => <li key={f.id}>{f.title} <code>{f.code}</code></li>)}</ol> : '—'}</dd>
-                  <dt>Raising the rent</dt><dd>{inc.length ? inc.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}{info.rentIncreaseGuidelinePct ? <span className="lp-dd-note">Most rents can go up {info.rentIncreaseGuidelinePct}% this year</span> : null}</dd>
-                  <dt>Lease</dt><dd>{lease.length ? lease.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}</dd>
-                </dl>
-                <a className="lp-arrow" href={AUTHORITY_URL[sel]} target="_blank" rel="noopener noreferrer">Official site</a>
-              </div>
+            <p className="lp-map-hint"><Icon name="pin" size={16} />{start.guessed && sel === start.p ? <>Showing <strong>{info.name}</strong>, from your time zone</> : <>Selected: <strong>{info.name}</strong></>}</p>
+          </div>
+          <div className="lp-map-info" aria-live="polite">
+            <div key={sel} className="lp-swap">
+              <p className="lp-kicker">Rules set by: {info.tribunal}</p>
+              <h3>{info.name}</h3>
+              <dl>
+                <dt>When rent is late</dt><dd>{late.length ? <ol>{late.map((f) => <li key={f.id}>{f.title} <code>{f.code}</code></li>)}</ol> : '—'}</dd>
+                <dt>Raising the rent</dt><dd>{inc.length ? inc.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}{info.rentIncreaseGuidelinePct ? <span className="lp-dd-note">Most rents can go up {info.rentIncreaseGuidelinePct}% this year</span> : null}</dd>
+                <dt>Lease</dt><dd>{lease.length ? lease.map((f) => <span key={f.id}>{f.title} <code>{f.code}</code></span>) : '—'}</dd>
+              </dl>
+              <a className="lp-arrow" href={AUTHORITY_URL[sel]} target="_blank" rel="noopener noreferrer">Official site</a>
             </div>
           </div>
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }
 
@@ -510,19 +535,6 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
-function Questions() {
-  return (
-    <>
-      <PageHead kicker="Questions" icon="message" title={<>Questions people <em>ask us.</em></>} aside={<div className="lp-faces" aria-hidden><Bust look={LOOKS.priya} size={88} bg="#FFE4E8" /><Bust look={LOOKS.marcus} size={88} bg="#D3F8DF" /><Bust look={LOOKS.helene} size={88} bg="#E0F2FE" /><span className="lp-faces-bubble"><Icon name="message" size={22} /></span></div>}>Straight answers in plain words.</PageHead>
-      <section className="lp-sec lp-sec-top0">
-        <div className="lp-wrap lp-narrow lp-faqs reveal">
-          {FAQ.map(([ic, q, a], i) => <details key={q} className="lp-faq"><summary><span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={ic} size={18} /></span>{q}</summary><p>{a}</p></details>)}
-        </div>
-      </section>
-    </>
-  );
-}
-
 // ================================================================ The live mini demo
 function LiveDemo() {
   const [sent, setSent] = useState<Record<string, boolean>>({});

@@ -265,7 +265,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
     await step(tag, 'D1 First visit: website with Start free and Sign in, no demo buttons, no "Open my dashboard"', async () => {
       await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Start free'); await pg.waitForSelector('.lp-hero >> text=Sign in');
-      for (const p of ['', 'provinces', 'pricing', 'questions']) {
+      for (const p of ['', 'about', 'pricing']) {
         await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(150);
         if (await pg.locator('text=/Try a demo|sample properties first/i').count()) throw new Error(`demo link on ${p || 'overview'}`);
         if (await pg.locator('text=Open my dashboard').count()) throw new Error(`"Open my dashboard" shown to a visitor on ${p || 'overview'}`);
@@ -277,10 +277,10 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     // The phone menu must really fill the screen (it once collapsed to a 40px strip that a test could still click into).
     const menuOpen = async () => { await pg.locator('.lp-burger').click(); const box = await pg.locator('.lp-menu').boundingBox(); if (!box || box.height < vp.height * 0.6) throw new Error(`menu only ${box ? Math.round(box.height) : 0}px tall`); };
     const menuGo = async (label) => { if (tag === 'phone') { await menuOpen(); await pg.locator(`.lp-menu >> text=${label}`).click(); } else await pg.locator(`.lp-links >> text=${label}`).click(); await pg.waitForTimeout(250); };
-    await step(tag, 'D3 Menu → Provinces page → tap BC → BC forms', async () => { await menuGo('Provinces'); await pg.waitForSelector('h1:has-text("Built for every province")'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
+    await step(tag, 'D3 Menu → About → tap BC → BC forms; questions on the same page', async () => { await menuGo('About'); await pg.waitForSelector('h1:has-text("Made for Canadian landlords")'); await pg.waitForSelector('#faq .lp-faq'); await pg.locator('.lp-tile:has-text("BC")').click(); await pg.waitForSelector('.lp-map-info >> text=British Columbia'); await pg.waitForSelector('.lp-map-info >> text=RTB'); });
     const tourInView = () => pg.waitForFunction(() => { const r = document.getElementById('tour')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.top < window.innerHeight / 2; }, null, { timeout: 5000 });
     await step(tag, 'D4 Every menu page opens, Features jumps to the tour, browser back works', async () => {
-      for (const [l, h] of [['Pricing', 'Simple pricing'], ['Questions', 'Questions people'], ['Overview', 'Rental automation']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
+      for (const [l, h] of [['Pricing', 'Simple pricing'], ['About', 'Made for Canadian landlords'], ['Overview', 'Rental automation']]) { await menuGo(l); await pg.waitForSelector(`h1:has-text("${h}")`); }
       await menuGo('Features'); await pg.waitForSelector('h1:has-text("Rental automation")'); await tourInView();
       await pg.evaluate(() => window.scrollTo(0, 0)); await menuGo('Features'); await tourInView();
       await menuGo('Pricing'); await pg.waitForSelector('h1:has-text("Simple pricing")');
@@ -367,7 +367,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsF.push(`F ${e.message}`));
     await step(tag, 'F1 Website photos and pictures load', async () => {
-      for (const p of ['', 'provinces', 'pricing']) {
+      for (const p of ['', 'about', 'pricing']) {
         await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(400);
         await pg.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 400) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 40)); } });
         await pg.waitForFunction(() => [...document.querySelectorAll('.lp img')].every((i) => i.complete), null, { timeout: 8000 });
