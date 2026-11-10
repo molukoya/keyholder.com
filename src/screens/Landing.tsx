@@ -531,40 +531,14 @@ const FAQ: [string, string, string][] = [
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
 // ================================================================ The big app window in the hero
-// A calm loop of four real screens: rent, a receipt, a reminder, the tax summary. A cursor glides to the
-// key button and taps it. Pauses on hover; tap a step to jump to it; a still picture with motion turned off.
-const LOOP: { id: keyof typeof SPOTS; img: string; label: string; icon: string }[] = [
-  { id: 'rent', img: shotRent, label: 'Rent', icon: 'cash' },
-  { id: 'receipt', img: shotReceipt, label: 'Receipt', icon: 'receipt' },
-  { id: 'reminder', img: shotReminder, label: 'Reminder', icon: 'bell' },
-  { id: 'taxes', img: shotTaxes, label: 'Taxes', icon: 'print' },
-];
+// One still screen of the app (Home: this month's rent), large enough to read. No animation.
 function AppWindow() {
-  const [i, setI] = useState(0);
-  const [tap, setTap] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [still] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
-  useEffect(() => {
-    if (still || paused) return;
-    const t1 = setTimeout(() => setTap(true), 1500);
-    const t2 = setTimeout(() => { setTap(false); setI((x) => (x + 1) % LOOP.length); }, 3400);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [i, paused, still]);
-  const sp = SPOTS[LOOP[i].id] as { x: number; y: number; w: number; h: number };
   return (
-    <div className="lp-app" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <div className="lp-app">
       <div className="lp-chip-float" aria-hidden><Avatar name="Maya Chen" size={36} /><span><strong>Maya paid $1,650</strong><span>Receipt sent for you</span></span></div>
-      <div className="lp-app-win" role="img" aria-label="Keyholder at work: rent, a receipt, a reminder and the tax summary">
+      <div className="lp-app-win">
         <div className="lp-app-bar" aria-hidden><span className="lp-app-dots"><i /><i /><i /></span><span className="lp-app-url"><Icon name="lock" size={12} />keyholder.ca</span><span /></div>
-        <div className="lp-app-screen">
-          {LOOP.map((s2, k) => <img key={s2.id} src={s2.img} alt="" className={k === i ? 'on' : ''} loading={k ? 'lazy' : 'eager'} />)}
-          {!still && <span className={`lp-cursor${tap ? ' tap' : ''}`} style={{ left: `${sp.x + sp.w / 2}%`, top: `${sp.y + sp.h / 2}%` }} aria-hidden>
-            <svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 3l14 8-6.5 1.6L9.8 19z" fill="#101828" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-          </span>}
-        </div>
-      </div>
-      <div className="lp-app-steps" role="tablist" aria-label="What the window shows">
-        {LOOP.map((s2, k) => <button type="button" role="tab" aria-selected={k === i} key={s2.id} className={k === i ? 'on' : ''} onClick={() => { setTap(false); setI(k); }}><Icon name={s2.icon} size={14} />{s2.label}</button>)}
+        <div className="lp-app-screen"><img src={shotRent} alt="Keyholder's Home screen: this month's rent, who paid, and the next step" /></div>
       </div>
     </div>
   );
