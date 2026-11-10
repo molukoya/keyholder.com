@@ -94,13 +94,13 @@ function statusFor(state: ReturnType<typeof useStore>['state'], lease: Lease | u
   }
   if (c?.stage === 'lease' || c?.stage === 'moved-in') return { label: 'Moving in', tone: 'due' };
   if (c?.stage === 'moving-out') return { label: 'Moving out', tone: 'due' };
-  if (c?.step.kind === 'confirm-payment') return { label: 'Payment found', tone: 'due' };
+  if (c?.step.kind === 'confirm-payment') return { label: 'Rent to confirm', tone: 'due' };
   const line = currentLine(state, lease, today)!;
-  if (line.state === 'paid') return { label: 'Paid', tone: 'paid' };
-  if (line.state === 'late') return { label: `Late · ${line.daysLate} day${line.daysLate === 1 ? '' : 's'}`, tone: 'late' };
-  if (line.state === 'partial') return { label: `${fmt(line.charge - line.paid)} owed`, tone: line.daysLate > 0 ? 'late' : 'partial' };
-  if (line.state === 'due') return { label: 'Due today', tone: 'due' };
-  return { label: `Due ${fmtDay(line.due)}`, tone: 'due' };
+  if (line.state === 'paid') return { label: 'Rent paid', tone: 'paid' };
+  if (line.state === 'late') return { label: `Rent late · ${line.daysLate} day${line.daysLate === 1 ? '' : 's'}`, tone: 'late' };
+  if (line.state === 'partial') return { label: `${fmt(line.charge - line.paid)} rent owed`, tone: line.daysLate > 0 ? 'late' : 'partial' };
+  if (line.state === 'due') return { label: 'Rent due today', tone: 'due' };
+  return { label: `Rent due ${fmtDay(line.due)}`, tone: 'due' };
 }
 
 /**
@@ -172,7 +172,7 @@ export function RentRows() {
   const [showTucked, setShowTucked] = useState(false);
   return (
     <section className="section" data-tour="rent">
-      <h2 className="section-title">Rent for {fmtPeriod(periodOf(today))}</h2>
+      <h2 className="section-title">Rent · {fmtPeriod(periodOf(today))}</h2>
       <div className="sheet tight">
         <ul className="rent-list">{units.map((u) => <UnitLine key={u.id} unit={u} />)}</ul>
         {props.filter((c) => !isHidden(state, prefKey(c), today)).map((c) => (

@@ -90,7 +90,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'rent/tenant/' + (await state(pg)).tenants[0].id); await pg.click('.page-head >> text=Confirm rent'); await pg.locator('.drawer-foot >> text=Mark paid').click(); await pg.waitForTimeout(250);
       await go(pg, 'today'); const t = await row('Rita').locator('.row-act .btn').first().textContent(); if (t !== 'Send receipt') throw new Error('button: ' + t);
       await row('Rita').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
-      const st = await row('Rita').locator('.status').textContent(); if (!/Paid/.test(st)) throw new Error('status: ' + st); return st;
+      const st = await row('Rita').locator('.status').textContent(); if (!/paid/i.test(st)) throw new Error('status: ' + st); return st;
     });
     await step(tag, 'A9 Paperwork → Rental income shows the payment and receipt', async () => { await go(pg, 'paperwork/income'); await pg.waitForSelector('td:has-text("Rita Gomez")'); });
     await step(tag, 'A10 Add a receipt (expense) from the main button', async () => {
@@ -142,7 +142,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       return JSON.stringify(got);
     });
     await step(tag, 'B2 Sam: Confirm → same row says "Send receipt" → send → Paid', async () => {
-      await row('Sam').locator('text=Confirm').click(); await pg.waitForTimeout(250);
+      await row('Sam').locator('.row-act >> text=Confirm').click(); await pg.waitForTimeout(250);
       if ((await btn('Sam')) !== 'Send receipt') throw new Error('button: ' + (await btn('Sam')));
       await row('Sam').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
       return (await row('Sam').locator('.status').textContent()) + ' · ' + ((await row('Sam').locator('.row-act').textContent()) || '').replace('⋯', '').trim();

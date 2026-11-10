@@ -200,17 +200,33 @@ function SavePlan({ a, first, onBack, onExit, onAccount }: { a: Partial<Profile>
   const [picker, setPicker] = useState(false);
   const [emails, setEmails] = useState(true);
   const d = a.dreads ?? [];
-  const plan: string[] = [];
-  if (d.includes('who-paid') || a.goal === 'no-chasing') plan.push('Rent spotted and marked paid for you');
-  if (d.includes('receipts')) plan.push('Rent receipts written for you');
-  if (d.includes('chasing') || d.includes('awkward')) plan.push('Friendly reminders, written for you');
-  if (d.includes('which-notice')) plan.push(`Step-by-step help when rent is late in ${province(a.province ?? 'ON').name}`);
-  if ((a.taxWorries ?? []).some((x) => x !== 'none') || a.goal === 'tax-ready') plan.push('Every receipt and cost saved for tax time');
-  if (a.goal === 'makes-money') plan.push('A monthly value estimate, and a plain answer: are you making money?');
-  if (a.goal === 'fill-unit') plan.push('Rental applications in one place');
-  if (a.setup === 'part-home') plan.push('Shared costs, like heat, split for you');
-  const shown = [...new Set(plan)].slice(0, 4);
-  if (!shown.length) shown.push('Rent, receipts and costs kept in one place');
+  const prov = province(a.province ?? 'ON');
+  const bank = a.rentMethod === 'etransfer' || a.rentMethod === 'mix';
+  const taxes = (a.taxWorries ?? []).some((x) => x !== 'none') || a.goal === 'tax-ready';
+  // The plan, grouped by when it helps. Each line says what happens, then how.
+  type Item = [icon: string, title: string, how: string];
+  const groups: [string, Item[]][] = [
+    ['Every month', [
+      bank ? ['bank', 'Rent spotted in your bank', `We check every ${4} hours and mark rent paid for you.`] : ['check', 'Rent marked paid in one tap', 'Tap "Mark paid" when cash or a cheque comes in.'],
+      ['receipt', 'Receipts sent for you', 'A numbered receipt goes out the moment rent is in.'],
+      ['bell', 'Friendly reminders', 'Written for you the day after rent is due. Cancelled if rent arrives.'],
+      ...(a.setup === 'part-home' ? [['home', 'Shared costs split for you', 'Heat and hydro split between your home and the suite.'] as Item] : []),
+    ]],
+    ['When rent is late', d.includes('which-notice') || d.includes('chasing') || a.goal === 'no-chasing'
+      ? [['paper', `${prov.name}'s official notice, filled in`, 'The right form with the right dates, checked for you. You sign off.']] : []],
+    ['At tax time', taxes ? [
+      ['camera', 'Every receipt and cost saved', 'Snap a photo, or let your bank find bills. Each is filed to the right property.'],
+      ['print', 'Your T776 numbers ready', 'Rental income and costs, totalled for your accountant.'],
+    ] : []],
+    ['Your money', a.goal === 'makes-money' ? [
+      ['trend', 'What your rental is worth', 'A value estimate each month, next to a GIC.'],
+      ['cash', 'Are you making money?', 'Rent in, costs out, and what you keep.'],
+    ] : []],
+    ['Finding tenants', a.goal === 'fill-unit' ? [['users', 'Applications in one place', 'Share one link, then compare applicants side by side.']] : []],
+  ];
+  const SETUP: Record<string, string> = { 'part-home': 'Part of your home', single: 'One house or condo', few: '2 to 5 units', many: '6 or more units' };
+  const PAY: Record<string, string> = { etransfer: 'paid by e-Transfer', cheque: 'paid by cheque', cash: 'paid in cash', mix: 'paid a mix of ways' };
+  const summary = [`${prov.name}${a.city ? `, ${a.city}` : ''}`, a.setup && SETUP[a.setup], a.rentMethod && PAY[a.rentMethod]].filter(Boolean).join(' · ');
 
   return (
     <div className="q-wrap">
@@ -219,8 +235,12 @@ function SavePlan({ a, first, onBack, onExit, onAccount }: { a: Partial<Profile>
         <div>
           <p className="q-count">Your plan is ready</p>
           <h1 className="q-question">{first ? `${first}, here's` : "Here's"} what Keyholder will automate for you</h1>
-          <ul className="plan-list">{shown.map((l) => <li key={l}><Icon name="check" size={18} />{l}</li>)}</ul>
-          <p className="small soft">Set up for {province(a.province ?? 'ON').name}{a.city ? `, ${a.city}` : ''}.</p>
+          <p className="plan-summary">{summary}</p>
+          <div className="plan-groups">{groups.filter(([, items]) => items.length).map(([g, items]) => (
+            <section key={g} className="plan-group"><h2>{g}</h2>
+              <ul>{items.map(([ic, t, how]) => <li key={t}><span className="plan-ic" aria-hidden><Icon name={ic} size={18} /></span><span><strong>{t}</strong><span>{how}</span></span></li>)}</ul>
+            </section>
+          ))}</div>
         </div>
         <div className="plan-art" aria-hidden><SceneWelcome /></div>
       </div>

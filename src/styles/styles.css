@@ -411,3 +411,20 @@ html body .btn.primary[disabled] { filter: saturate(.6); box-shadow: none; trans
 /* Drawers sit above pop-ups (a form opened from the setup list) */
 .drawer-scrim { z-index: 125; }
 html body .drawer { z-index: 126; }
+
+/* Signup plan: grouped by when it helps, each line with a short "how" */
+.plan-summary { margin: 12px 0 0; display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-tint); color: var(--primary); font-size: 14px; font-weight: 600; }
+.plan-groups { display: grid; gap: 20px; margin-top: 24px; }
+.plan-group h2 { margin: 0 0 10px; font-family: var(--font-ui); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.plan-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.plan-group li { display: flex; gap: 12px; align-items: flex-start; }
+.plan-group li > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plan-group strong { font-size: 16px; }
+.plan-group li > span:last-child > span { font-size: 15px; color: var(--ink-soft); line-height: 1.45; }
+.plan-ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--accent-tint); color: var(--primary); }
+.q-wrap .plan-top { align-items: start; }
+/* Setup circle, 1.5x */
+.setup-circle { width: 60px; height: 60px; }
+.setup-circle .score-ring { width: 48px; height: 48px; }
+.setup-circle .score-ring > span { width: 37px; height: 37px; font-size: 15px; font-weight: 600; }
+.setup-dot { top: 6px; right: 6px; width: 12px; height: 12px; }
