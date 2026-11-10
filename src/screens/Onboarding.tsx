@@ -5,7 +5,8 @@ import { useStore } from '../data/store';
 import { PROVINCES, province } from '../lib/jurisdiction';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
-import { EmailLink, GoogleButton, GooglePicker, type Who } from './Account';
+import { EmailLink, GoogleButton, GooglePicker, googleOn, PENDING_SIGNUP, startGoogle, type Who } from './Account';
+import { serverMode } from '../data/api';
 import { QGoal, QHard, QPay, QTax, QWhat, QWhere, SceneWelcome } from '../components/Art';
 
 // Signup: your first name, six short questions in plain words (one per screen, using your name along the way),
@@ -133,7 +134,8 @@ export function Onboarding() {
 
   if (step === 0) return <NameStep name={a.name ?? ''} onName={(name) => set({ name })} onNext={() => setStep(1)} onBack={exit} onExit={exit} total={steps.length} />;
   if (step > steps.length) return <SavePlan a={a} first={first} onBack={() => setStep(steps.length)} onExit={exit}
-    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, { ...w, name: nameFor(w) })} />;
+    onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, { ...w, name: nameFor(w) })}
+    onGoogle={(emails) => { try { sessionStorage.setItem(PENDING_SIGNUP, JSON.stringify({ profile: { ...answers(), emailUpdates: emails }, name: (a.name ?? '').trim() })); } catch { /* blocked */ } startGoogle('signup'); }} />;
   const q = step - 1;
   const s = steps[q];
   // A few words of encouragement, by name, along the way.
@@ -196,7 +198,7 @@ function NameStep({ name, onName, onNext, onBack, onExit, total }: { name: strin
   );
 }
 
-function SavePlan({ a, first, onBack, onExit, onAccount }: { a: Partial<Profile>; first: string; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void }) {
+function SavePlan({ a, first, onBack, onExit, onAccount, onGoogle }: { a: Partial<Profile>; first: string; onBack: () => void; onExit: () => void; onAccount: (w: Who, emails: boolean) => void; onGoogle: (emails: boolean) => void }) {
   const [picker, setPicker] = useState(false);
   const [emails, setEmails] = useState(true);
   const d = a.dreads ?? [];
@@ -248,8 +250,10 @@ function SavePlan({ a, first, onBack, onExit, onAccount }: { a: Partial<Profile>
       <div className="sheet acct-save">
         <h2>Turn on your automation</h2>
         <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
-        <GoogleButton onClick={() => setPicker(true)} />
-        <div className="acct-or"><span>or</span></div>
+        {googleOn() && <>
+          <GoogleButton onClick={() => (serverMode() ? onGoogle(emails) : setPicker(true))} />
+          <div className="acct-or"><span>or</span></div>
+        </>}
         <EmailLink askName defaultName={a.name ?? ''} onDone={(w) => onAccount(w, emails)} />
         <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me on rent day and once a month with a summary</label>
       </div>

@@ -5,7 +5,7 @@ import { PageHead, Tile, weekly } from '../screens/Support';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { province } from '../lib/jurisdiction';
 import { C, HBars, LineChart, Status } from './charts';
-import { customerOf, fmtMoney, live, mrr, sup, useSupport, within } from './store';
+import { customerOf, fmtMoney, isLive, live, mrr, sup, useSupport, within } from './store';
 
 const monthLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleString('en-CA', { month: 'short', year: '2-digit' });
 
@@ -26,6 +26,7 @@ export function Revenue() {
   return (
     <>
       <PageHead eyebrow="Business" title="Revenue" sub="Paid: $8 per unit a month · Free: 1 unit" />
+      {isLive() && <p className="callout sp-callout">Card payments are not connected yet. Amounts show what each plan would bill.</p>}
       <div className="sp-tiles">
         <Tile label="Monthly revenue" value={fmtMoney(total)} spark={months.map((m) => m.value)} />
         <Tile label="Paying accounts" value={String(paying.length)} note={`${free} on trial`} />

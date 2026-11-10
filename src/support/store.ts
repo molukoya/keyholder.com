@@ -2,9 +2,12 @@ import { useSyncExternalStore } from 'react';
 import type { ISODate } from '../data/types';
 import { daysBetween } from '../lib/dates';
 import { generateSupport, SLA_HOURS, type Announcement, type Customer, type Health, type Priority, type SupportBase, type Ticket } from './data';
+import { api, getConn, isStaff, serverMode } from '../data/api';
 
-// The support dashboard's own little store (Stage 1: this browser only). Every admin action is written to
-// the audit log. In Stage 2 these become API calls, with the audit log kept on the server.
+// The support dashboard's own little store. Every admin action is written to the audit log.
+// Two modes: sample data in this browser (admin / admin, or no server), and live data for a real team
+// member signed in to the Keyholder server: the server sends the same shape (server/support.ts), every
+// change is sent back to it, and the audit log is kept there.
 
 export type SupportState = SupportBase & { sla: Record<Priority, number> };
 const KEY = 'keyholder:support:v1';
@@ -21,7 +24,18 @@ function load(): SupportState {
   try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw) as SupportState; } catch { /* fall through */ }
   return { ...generateSupport(), sla: { ...SLA_HOURS } };
 }
+/** Live: a real team member is signed in to the Keyholder server. */
+let liveMode = false;
+export const isLive = () => liveMode;
+/** Loads the live dashboard data when a team member is signed in. Returns false for the sample. */
+export async function loadLive(): Promise<boolean> {
+  if (!serverMode() || !isStaff(getConn().user)) { liveMode = false; return false; }
+  loaded = await api<SupportState>('GET', '/api/admin/support');
+  liveMode = true; emit();
+  return true;
+}
 function save() {
+  if (liveMode) return;
   try { localStorage.setItem(KEY, JSON.stringify(get())); localStorage.setItem(ANNOUNCE_KEY, JSON.stringify(get().announcements)); } catch { /* storage full: keep in memory */ }
 }
 const emit = () => subs.forEach((f) => f());
@@ -36,9 +50,23 @@ function readAnnouncements(): Announcement[] {
   if (raw !== annCache.raw) { try { annCache = { raw, list: raw ? JSON.parse(raw) : [] }; } catch { annCache = { raw, list: [] }; } }
   return annCache.list;
 }
+// With the server, announcements come from it (checked every 5 minutes) so every visitor sees them.
+let serverAnns: Announcement[] = [];
+let annTimer: ReturnType<typeof setInterval> | undefined;
+async function refreshAnnouncements() {
+  if (!serverMode()) return;
+  try { serverAnns = await api<Announcement[]>('GET', '/api/announcements'); emit(); } catch { /* keep the last ones */ }
+}
+const readServerAnns = () => serverAnns;
 /** Live announcements for the website or the app, without loading the support data. */
 export function useAnnouncements(): Announcement[] {
-  return useSyncExternalStore((f) => { subs.add(f); window.addEventListener('storage', f); return () => { subs.delete(f); window.removeEventListener('storage', f); }; }, readAnnouncements, readAnnouncements);
+  const srv = serverMode();
+  return useSyncExternalStore((f) => {
+    subs.add(f);
+    if (srv && !annTimer) { void refreshAnnouncements(); annTimer = setInterval(() => void refreshAnnouncements(), 5 * 60_000); }
+    if (!srv) window.addEventListener('storage', f);
+    return () => { subs.delete(f); window.removeEventListener('storage', f); };
+  }, srv ? readServerAnns : readAnnouncements, srv ? readServerAnns : readAnnouncements);
 }
 export function useSupportToasts() {
   return useSyncExternalStore((f) => { toastSubs.add(f); return () => toastSubs.delete(f); }, () => toasts, () => toasts);
@@ -54,9 +82,16 @@ export function sup(fn: (d: SupportState) => void, log?: { action: string; detai
   fn(d);
   if (log) d.audit.unshift({ id: `a${Date.now()}${++n}`, at: new Date().toISOString(), who: 'You', ...log });
   loaded = d; save(); emit();
-  if (message) toast(message);
+  if (!liveMode) { if (message) toast(message); return; }
+  // Live: the server applies the change, writes the audit log, sends any email, and returns fresh data.
+  api<{ snapshot: SupportState }>('PUT', '/api/admin/support', { next: d, log })
+    .then((r) => { loaded = r.snapshot; emit(); if (message) toast(message); void refreshAnnouncements(); })
+    .catch((e) => { toast(`Not saved: ${(e as Error).message}`); void loadLive().catch(() => {}); });
 }
-export function resetSupport() { loaded = { ...generateSupport(), sla: { ...SLA_HOURS } }; save(); emit(); toast('Sample support data reset.'); }
+export function resetSupport() {
+  if (liveMode) { void loadLive().then(() => toast('Up to date.')).catch((e) => toast((e as Error).message)); return; }
+  loaded = { ...generateSupport(), sla: { ...SLA_HOURS } }; save(); emit(); toast('Sample support data reset.');
+}
 
 // ---------------- Derived numbers ----------------
 export const live = (s: SupportState) => s.customers.filter((c) => !c.deleted);

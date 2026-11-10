@@ -11,6 +11,8 @@ import { fmtDate } from '../lib/dates';
 import { TONES } from '../lib/templates';
 import { Field, Seg, SlideToConfirm } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { ServerAccount, ServerData } from '../components/ServerAccount';
+import { useConn } from '../data/api';
 
 export function Settings() {
   const { state, act } = useStore();
@@ -18,6 +20,9 @@ export function Settings() {
   const admin = isPreviewUser(state);
   const loc = useLocation();
   const nav = useNavigate();
+  const conn = useConn();
+  // With the Keyholder server, a landlord's real account (not the demo or admin preview).
+  const live = conn.mode === 'server' && !!conn.user && conn.user.role === 'owner' && !admin && !!p.account;
   useEffect(() => { if (loc.hash) document.getElementById(loc.hash.slice(1))?.scrollIntoView(); }, [loc.hash]);
 
   return (
@@ -32,7 +37,7 @@ export function Settings() {
               <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">Sample properties only. Nothing here is real.</div></div>
               <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
             </div>
-          ) : p.account ? (
+          ) : live ? <ServerAccount /> : p.account ? (
             <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
               <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
               <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
@@ -42,7 +47,7 @@ export function Settings() {
               <div><strong>No account yet</strong><div className="small soft">Saved in this browser only.</div></div>
             </div>
           )}
-          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />Email me on rent day, plus a monthly summary <span className="soft small">(preview: no emails are sent yet)</span></label>
+          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />{live ? 'Email me when something needs me (one short email a day at most)' : 'Email me on rent day, plus a monthly summary'} {!live ? <span className="soft small">(preview: no emails are sent yet)</span> : !conn.config?.emailDelivery && <span className="soft small">(email sending is not switched on yet)</span>}</label>
         </div>
       </section>
 
@@ -102,7 +107,7 @@ export function Settings() {
       <section className="section">
         <h2 className="section-title">Data</h2>
         <div className="sheet stack">
-          <p className="small soft">Everything is saved in this browser. Clearing browser data clears Keyholder.</p>
+          {live ? <ServerData /> : <p className="small soft">Everything is saved in this browser. Clearing browser data clears Keyholder.</p>}
           <div className="btn-row">
             {admin && <button className="btn" onClick={act.resetDemo}>Restore sample data</button>}
             {admin && <button className="btn" onClick={() => { act.signOut(); nav('/start'); }}>Replay the signup questions</button>}

@@ -1,3 +1,4 @@
+import { api, useConn } from '../data/api';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -161,7 +162,32 @@ const HELP: [string, string][] = [
   ['What do Bronze, Silver and Gold mean?', 'Your property card gets more useful as you add details, like what you paid. It is always free.'],
   ['Can Keyholder move my money?', 'No. It can only look at deposits and bills. It never sees your bank password.'],
 ];
+/** Help → Write to us (with the Keyholder server): goes to the team's support inbox; replies come by email. */
+function ContactForm() {
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [err, setErr] = useState('');
+  if (state === 'sent') return <div className="callout" role="status" style={{ marginTop: 16 }}><strong>Sent.</strong> A person on our team will reply by email, usually within one business day.</div>;
+  if (!open) return <div className="btn-row" style={{ marginTop: 16 }}><button className="btn primary" onClick={() => setOpen(true)}><Icon name="mail" size={16} />Write to us</button></div>;
+  return (
+    <form className="stack contact-form" style={{ marginTop: 16 }} onSubmit={async (e) => {
+      e.preventDefault(); if (subject.trim().length < 2 || message.trim().length < 2) return;
+      setState('sending'); setErr('');
+      try { await api('POST', '/api/support/tickets', { subject: subject.trim(), message: message.trim() }); setState('sent'); }
+      catch (x) { setErr((x as Error).message); setState('idle'); }
+    }}>
+      <div className="field"><label htmlFor="ct-subject">What is it about?</label><input id="ct-subject" className="input" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={140} autoFocus /></div>
+      <div className="field"><label htmlFor="ct-message">Your message</label><textarea id="ct-message" className="input" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={5000} /></div>
+      {err && <p className="small acct-error" role="alert">{err}</p>}
+      <div className="btn-row"><button className="btn primary" disabled={state === 'sending' || subject.trim().length < 2 || message.trim().length < 2}>{state === 'sending' ? 'Sending…' : 'Send'}</button><button type="button" className="btn ghost" onClick={() => setOpen(false)}>Cancel</button></div>
+    </form>
+  );
+}
+
 export function HelpButton({ compact }: { compact?: boolean }) {
+  const conn = useConn();
   const [open, setOpen] = useState(false);
   const { act } = useStore();
   const nav = useNavigate();
@@ -176,6 +202,7 @@ export function HelpButton({ compact }: { compact?: boolean }) {
             <div className="acct-modal-head"><Icon name="info" size={18} /><span>Help</span><button className="btn ghost small" onClick={() => setOpen(false)} aria-label="Close help"><Icon name="close" size={18} /></button></div>
             <h2 id="help-title">How can we help?</h2>
             <div className="help-list">{HELP.map(([q, a]) => <details key={q}><summary>{q}</summary><p>{a}</p></details>)}</div>
+            {conn.mode === 'server' && conn.user?.role === 'owner' && <ContactForm />}
             <div className="btn-row" style={{ marginTop: 16 }}>
               <button className="btn" onClick={() => { setOpen(false); act.setProfile({ tourDone: false }); nav('/today'); }}>Show me around again</button>
             </div>

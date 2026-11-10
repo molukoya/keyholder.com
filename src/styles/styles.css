@@ -428,3 +428,13 @@ html body .drawer { z-index: 126; }
 .setup-circle .score-ring { width: 48px; height: 48px; }
 .setup-circle .score-ring > span { width: 37px; height: 37px; font-size: 15px; font-weight: 600; }
 .setup-dot { top: 6px; right: 6px; width: 12px; height: 12px; }
+
+/* Stage 2: accounts on the Keyholder server */
+.acct-pass { display: flex; gap: 8px; align-items: center; }
+.acct-pass .input { flex: 1; min-width: 0; }
+.acct-forgot { align-self: center; margin-top: 4px; }
+.save-status { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--ink-2, #475467); }
+.save-status.offline, .save-status.error, .save-status.signed-out { color: var(--warn-ink, #92400E); }
+.contact-form textarea { resize: vertical; min-height: 96px; font: inherit; }
+.acct-email .acct-pass { flex: 1 1 100%; }
+.acct-email .acct-error { flex: 1 1 100%; margin: 0; }

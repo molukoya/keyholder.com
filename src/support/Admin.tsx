@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { PageHead } from '../screens/Support';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { Status } from './charts';
-import { customerOf, resetSupport, sup, useSupport } from './store';
+import { customerOf, isLive, resetSupport, sup, useSupport } from './store';
 import type { Member, Priority } from './data';
 
 export function Privacy() {
@@ -89,7 +89,7 @@ export function Team() {
       </section>
       <section className="sp-card sp-sec"><h2 className="sp-h3">Security</h2>
         <p className="sp-small">Preview login (admin / admin) is in the site's code: a lock, not real security. With the backend, each person gets their own login and a second sign-in step.</p>
-        <button className="btn ghost danger" onClick={resetSupport}>Reset sample data</button>
+        {isLive() ? <button className="btn" onClick={resetSupport}>Refresh</button> : <button className="btn ghost danger" onClick={resetSupport}>Reset sample data</button>}
       </section>
     </>
   );

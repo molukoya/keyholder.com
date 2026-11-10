@@ -6,7 +6,7 @@ import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { PROVINCES } from '../lib/jurisdiction';
 import { Status } from './charts';
 import { PriorityChip } from './Inbox';
-import { customerOf, fmtMoney, health, HEALTH_LABEL, live, mrr, sup, useSupport, type SupportState } from './store';
+import { customerOf, fmtMoney, health, HEALTH_LABEL, isLive, live, mrr, sup, useSupport, type SupportState } from './store';
 import type { Customer, Health } from './data';
 
 const tone = (h: Health) => (h === 'good' ? 'good' : h === 'watch' ? 'warn' : 'bad') as 'good' | 'warn' | 'bad';
@@ -115,7 +115,7 @@ export function CustomerPage() {
             <div className="field"><label className="label" htmlFor="cr">Credit</label>
               <div className="sp-addrow"><input id="cr" className="input" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value.replace(/[^\d.]/g, ''))} placeholder="$ amount" /><button className="btn" disabled={!Number(credit)} onClick={() => { const v = Math.round(Number(credit) * 100); change((x) => { x.credit += v; }, 'Credit given', `${fmtMoney(v, 2)} credit added`, `${fmtMoney(v, 2)} to ${c.name}`); setCredit(''); }}>Add</button></div></div>
             <button className="btn" onClick={() => change(() => undefined, 'Data export prepared', `${first}'s data is ready`)}><Icon name="download" size={16} />Export data</button>
-            <button className="btn" onClick={() => nav('/today')} title="Opens the sample app for now. With the backend, their own account (read-only)"><Icon name="home" size={16} />View as landlord</button>
+            {!isLive() && <button className="btn" onClick={() => nav('/today')} title="Opens the sample app (live accounts are not opened from here)"><Icon name="home" size={16} />View as landlord</button>}
             {!confirmDelete ? <button className="btn ghost danger" onClick={() => setConfirmDelete(true)}><Icon name="trash" size={16} />Delete account</button> : (
               <div className="callout warn sp-callout"><p><strong>Delete {c.name}?</strong> All their records go. This can't be undone.</p>
                 <div className="btn-row"><button className="btn danger" onClick={() => { change((x) => { x.deleted = true; }, 'Account deleted', 'Account deleted'); setConfirmDelete(false); }}>Yes, delete</button><button className="btn ghost" onClick={() => setConfirmDelete(false)}>Cancel</button></div></div>

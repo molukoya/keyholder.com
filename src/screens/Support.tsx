@@ -5,15 +5,17 @@ import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { BarChart, Spark, Status } from '../support/charts';
-import { customerOf, fmtMoney, live, mrr, timeLeft, useSupport, useSupportToasts, within, type SupportState } from '../support/store';
+import { customerOf, fmtMoney, isLive, live, loadLive, mrr, timeLeft, useSupport, useSupportToasts, within, type SupportState } from '../support/store';
+import { isStaff, useConn } from '../data/api';
 import { Inbox, TicketPage } from '../support/Inbox';
 import { CustomerPage, Customers } from '../support/Customers';
 import { Growth, Revenue } from '../support/Business';
 import { Announcements, Health, Rules } from '../support/Platform';
 import { Privacy, Team } from '../support/Admin';
 
-// The support dashboard (admin / admin). Grouped by how often it is used: Today, Support, Business,
-// Platform, Admin. Stage 1 runs on sample support data; Stage 2 connects the same screens to the backend.
+// The support dashboard. Grouped by how often it is used: Today, Support, Business, Platform, Admin.
+// admin / admin shows sample support data; a real team member signed in to the Keyholder server sees
+// live data (the same screens, filled by the server).
 
 const NAV: { group: string; items: { to: string; label: string; icon: string; badge?: (s: SupportState) => number }[] }[] = [
   { group: 'Today', items: [{ to: '/support', label: 'Overview', icon: 'home' }] },
@@ -37,6 +39,19 @@ const NAV: { group: string; items: { to: string; label: string; icon: string; ba
 ];
 
 export function Support() {
+  const { user } = useConn();
+  const staff = isStaff(user);
+  const [ready, setReady] = useState(!staff);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    if (!staff) return;
+    loadLive().then(() => setReady(true)).catch((e) => setErr((e as Error).message));
+  }, [staff]);
+  if (!ready) return <div className="sp-loading" role="status">{err ? <><p>{err}</p><button className="btn" onClick={() => window.location.reload()}>Try again</button></> : <p>Loading the support dashboard…</p>}</div>;
+  return <SupportShell />;
+}
+
+function SupportShell() {
   const s = useSupport();
   const { act } = useStore();
   const nav = useNavigate();
@@ -60,14 +75,14 @@ export function Support() {
           ))}
         </nav>
         <div className="sp-rail-foot">
-          <button className="btn small" onClick={() => nav('/today')}>Sample landlord app</button>
+          {!isLive() && <button className="btn small" onClick={() => nav('/today')}>Sample landlord app</button>}
           <button className="btn small ghost" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
         </div>
       </aside>
       <div className="sp-main">
         <header className="sp-top">
           <Search />
-          <span className="sp-sample" title="Preview: real accounts connect with the backend">Sample data</span>
+          {isLive() ? <span className="sp-sample live" title="Real accounts on this Keyholder server">Live data</span> : <span className="sp-sample" title="Preview: sign in with a real team account to see live data">Sample data</span>}
         </header>
         <main className="sp-page">
           <Routes>

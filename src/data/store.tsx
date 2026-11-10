@@ -13,6 +13,8 @@ import { levelInfo, propertyLevel, type Level } from '../lib/levels';
 import { formById } from '../lib/forms';
 import { vendorKey } from '../lib/bankrules';
 import { CATEGORIES } from '../lib/jurisdiction';
+import { api, getConn, serverMode, setUser } from './api';
+import * as sync from './sync';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -450,7 +452,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const mut: Mut = useCallback((fn) => setState((s) => { const d = structuredClone(s); fn(d); return d; }), []);
   const latest = useRef(state);
   latest.current = state;
-  const act = useMemo(() => makeActions(mut, toast, () => latest.current), [mut, toast]);
+  const act = useMemo(() => {
+    const base = makeActions(mut, toast, () => latest.current);
+    // Stage 2: signing out also ends the session on the server, after saving anything not yet saved.
+    // A landlord's own data then leaves this browser (it is safe in their account).
+    const signOut = () => {
+      const u = getConn().user;
+      if (!serverMode() || !u) return base.signOut();
+      const account = latest.current.profile.account;
+      const wasOwner = sync.owned(latest.current);
+      void (async () => {
+        await sync.flush();
+        await api('POST', '/api/auth/logout').catch(() => {});
+        setUser(null);
+        base.signOut();
+        if (wasOwner && account) sync.forget(account);
+      })();
+    };
+    return { ...base, signOut };
+  }, [mut, toast]);
+  // Stage 2: keep the signed-in landlord's data saved on the server.
+  useEffect(() => { sync.attach(() => latest.current, (x) => { latest.current = x; setState(x); }, toast); }, [toast]);
+  useEffect(() => { sync.onState(state); }, [state]);
+  useEffect(() => {
+    if (!serverMode()) return;
+    const u = getConn().user;
+    const a = latest.current.profile.account;
+    if (u?.role === 'owner') void sync.hydrate().catch(() => {});
+    // The browser thinks it is signed in but the server session has ended: back to Sign in.
+    else if (!u && a?.signedIn && (a.provider === 'email' || a.provider === 'google')) mut((d) => { if (d.profile.account) d.profile.account.signedIn = false; });
+    sync.startPulling();
+  }, [mut]);
   // The every-4-hours bank check. Stage 1 runs it while the app is open; Stage 2 runs it on the server.
   const lastSync = (state.banks ?? []).filter((b) => b.status === 'connected').map((b) => b.lastSync).sort()[0];
   useEffect(() => {
