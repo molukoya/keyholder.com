@@ -193,13 +193,11 @@ function Overview() {
       </section>
       <section className="sp-sec" aria-labelledby="nums">
         <h2 id="nums" className="sp-h2">Last 30 days</h2>
-        <div className="sp-tiles six">
+        <div className="sp-tiles four">
           <Tile label="New signups" value={String(new30)} delta={pct(new30, prev30)} spark={weeks.map((w) => w.value)} />
-          <Tile label="Active landlords" value={String(active)} note={`${Math.round((active / cs.length) * 100)}% of all`} />
-          <Tile label="Paying accounts" value={String(paying.length)} note={`${cs.length - paying.length} free`} />
-          <Tile label="Monthly revenue" value={fmtMoney(revenue)} delta={pct(revenue, prevRevenue)} />
-          <Tile label="Units managed" value={units.toLocaleString('en-CA')} note={`${cs.reduce((a, c) => a + c.tenants, 0).toLocaleString('en-CA')} tenants`} />
-          <Tile label="Open support requests" value={String(open.length)} note={overdue.length ? `${overdue.length} overdue` : 'None overdue'} good={false} />
+          <Tile label="Active landlords" value={String(active)} note={`of ${cs.length} · ${units.toLocaleString('en-CA')} units`} />
+          <Tile label="Monthly revenue" value={fmtMoney(revenue)} delta={pct(revenue, prevRevenue)} note={`${paying.length} paying`} />
+          <Tile label="Open requests" value={String(open.length)} note={overdue.length ? `${overdue.length} overdue` : 'None overdue'} good={false} />
         </div>
       </section>
       <div className="sp-two">
@@ -209,7 +207,7 @@ function Overview() {
         </section>
         <section className="sp-card" aria-labelledby="recent">
           <h2 id="recent" className="sp-h3">Newest landlords</h2>
-          <ul className="sp-list">{cs.slice(0, 6).map((c) => (
+          <ul className="sp-list">{cs.slice(0, 5).map((c) => (
             <li key={c.id}><Link to={`/support/customers/${c.id}`}><strong>{c.name}</strong><span>{c.city}, {c.province} · {c.units} unit{c.units > 1 ? 's' : ''} · {c.plan === 'landlord' ? 'Paid' : 'Free'}</span></Link><span className="sp-when">{daysBetween(c.signedUp, t) === 0 ? 'Today' : `${daysBetween(c.signedUp, t)}d ago`}</span></li>
           ))}</ul>
           <Link className="sp-more" to="/support/customers">All customers</Link>

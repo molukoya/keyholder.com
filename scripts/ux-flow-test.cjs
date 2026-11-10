@@ -581,7 +581,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     await step(tag, 'J1 admin / admin opens the support dashboard: what needs you, and the numbers', async () => {
       await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head h1:has-text("Overview")');
       if ((await pg.locator('.sp-needs li').count()) < 3) throw new Error('needs-you list short');
-      if ((await pg.locator('.sp-tiles.six .sp-tile').count()) !== 6) throw new Error('number tiles');
+      if ((await pg.locator('.sp-tiles.four .sp-tile').count()) !== 4) throw new Error('number tiles');
     });
     await step(tag, 'J2 Every support page opens, with no sideways scroll', async () => {
       for (const [p, h] of [['inbox', 'Inbox'], ['customers', 'Customers'], ['revenue', 'Revenue'], ['growth', 'Growth'], ['health', 'System health'], ['rules', 'Province rules'], ['announcements', 'Announcements'], ['privacy', 'Privacy & audit'], ['team', 'Team & settings']]) {

@@ -71,10 +71,9 @@ export function Team() {
           <button className="btn primary" disabled={!m.name.trim() || !/\S+@\S+\.\S+/.test(m.email)}>Invite</button>
         </form>
       </section>
-      <section className="sp-card sp-sec"><h2 className="sp-h3">Reply targets</h2>
-        <p className="sp-muted sp-small">Past these, a request is overdue.</p>
+      <section className="sp-card sp-sec"><h2 className="sp-h3" title="Past these, a request is overdue">Reply targets (hours)</h2>
         <div className="sp-sla">{(['urgent', 'high', 'normal', 'low'] as Priority[]).map((p) => (
-          <label key={p} className="field"><span className="label">{p[0].toUpperCase() + p.slice(1)} (hours)</span><input className="input" type="number" min={1} max={168} value={sla[p]} onChange={(e) => setSla({ ...sla, [p]: Math.max(1, Number(e.target.value) || 1) })} /></label>
+          <label key={p} className="field"><span className="label">{p[0].toUpperCase() + p.slice(1)}</span><input className="input" type="number" min={1} max={168} value={sla[p]} onChange={(e) => setSla({ ...sla, [p]: Math.max(1, Number(e.target.value) || 1) })} /></label>
         ))}</div>
         <button className="btn" onClick={() => sup((d) => { d.sla = sla; }, { action: 'Reply-time targets changed', detail: Object.entries(sla).map(([k, v]) => `${k} ${v}h`).join(', ') }, 'Saved')}>Save</button>
       </section>

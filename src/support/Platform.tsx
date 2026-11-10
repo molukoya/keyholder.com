@@ -82,13 +82,12 @@ export function Rules() {
                 <td className="num">{byProv[p.code] ?? 0}</td>
                 <td>{forms('late-rent')}</td><td>{forms('rent-increase')}</td><td>{forms('lease')}</td>
                 <td><Status tone={r.status === 'verified' ? 'good' : 'warn'}>{r.status === 'verified' ? 'Verified' : 'Checking'}</Status><span className="sp-muted sp-block">Checked {fmtDate(r.lastChecked)}</span></td>
-                <td><button className="btn small" onClick={() => sup((d) => { const x = d.rules.find((y) => y.code === p.code)!; x.status = 'verified'; x.lastChecked = d.today; }, { action: 'Province rules checked', detail: p.name }, `${p.name} checked`)}>Checked today</button></td>
+                <td><button className="btn small" title="After comparing with the official source. Landlords see the date." onClick={() => sup((d) => { const x = d.rules.find((y) => y.code === p.code)!; x.status = 'verified'; x.lastChecked = d.today; }, { action: 'Province rules checked', detail: p.name }, `${p.name} checked`)}>Checked today</button></td>
               </tr>
             );
           })}</tbody>
         </table>
       </div>
-      <p className="sp-muted sp-small">Mark checked after comparing with the official source. Landlords see the date.</p>
     </>
   );
 }

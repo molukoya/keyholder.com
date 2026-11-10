@@ -41,7 +41,6 @@ export function Revenue() {
             { label: 'Paid, on trial', value: free },
             { label: 'Free (1 unit)', value: cs.length - paying.length },
           ]} />
-          <p className="sp-muted sp-small">Paid accounts average {Math.round(paying.reduce((a, c) => a + c.units, 0) / Math.max(1, paying.length))} units.</p>
         </section>
       </div>
       {failed.length > 0 && (
@@ -115,8 +114,7 @@ export function Growth() {
         <LineChart points={days} fmt={(v) => String(v)} label="New signups per day over the last 90 days" head={['Day', 'Signups']} /></section>
       <div className="sp-two">
         <section className="sp-card"><h2 className="sp-h3">Visit to setup · 30 days</h2><HBars rows={funnel} /></section>
-        <section className="sp-card"><h2 className="sp-h3">Signup drop-off by question</h2><HBars rows={drop} color={C.second} />
-          <p className="sp-muted sp-small">Fix the biggest drop first.</p></section>
+        <section className="sp-card"><h2 className="sp-h3">Signup drop-off by question</h2><HBars rows={drop} color={C.second} /></section>
       </div>
       <div className="sp-two">
         <section className="sp-card"><h2 className="sp-h3">How they found us</h2><HBars rows={sources} /></section>
