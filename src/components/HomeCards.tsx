@@ -59,12 +59,6 @@ export function RentCard({ headline }: { headline: React.ReactNode }) {
           <div className="rent-meter-nums"><strong>{fmt0(m.collected)}</strong><span>of {fmt0(m.expected)} collected</span></div>
           <div className="rent-bar"><i style={{ width: `${pctIn}%` }} /></div>
         </div>
-        <div className="rent-chips">
-          <span className="rchip paid"><Icon name="check" size={14} />{m.paid} paid</span>
-          {m.late > 0 && <span className="rchip late"><Icon name="alert" size={14} />{m.late} late</span>}
-          {m.confirm > 0 && <span className="rchip due"><Icon name="search" size={14} />{m.confirm} to confirm</span>}
-          {m.due > 0 && <span className="rchip due"><Icon name="clock" size={14} />{m.due} not due yet</span>}
-        </div>
       </div>
       {allIn && <div className="rent-card-art" aria-hidden><SceneCelebrate /></div>}
     </section>
@@ -78,7 +72,7 @@ export function NextStep() {
   if (!card) return (
     <section className="next-card done">
       <span className="tile-ic mint big"><Icon name="check" size={24} /></span>
-      <div><p className="next-k">You're all caught up</p><h3>Nothing needs you right now.</h3><p className="next-text">All caught up. New steps will show here.</p></div>
+      <div><p className="next-k">All caught up</p><h3>Nothing needs you right now.</h3></div>
     </section>
   );
   return (
@@ -86,8 +80,8 @@ export function NextStep() {
       <span className={`tile-ic big ${card.urgent ? 'rose' : 'lilac'}`}><Icon name={card.urgent ? 'bell' : 'sparkle'} size={24} /></span>
       <div className="next-body">
         <p className="next-k">Your next step</p>
-        <h3>{card.title}</h3>
-        <p className="next-text">{card.subtitle ? `${card.subtitle} · ` : ''}{card.text}</p>
+        <h3>{card.title.split(' & ').map((n) => n.split(' ')[0]).join(' & ')}</h3>
+        <p className="next-text">{card.text}</p>
       </div>
       <div className="next-act"><StepButton c={card} /></div>
     </section>

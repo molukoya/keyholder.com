@@ -315,14 +315,14 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
 // ================================================================ Take a closer look (the features tour)
 type Stop = { id: keyof typeof SPOTS; t: string; icon: string; mode: 'auto' | 'approve'; d: string; spot: string; img: string; alt: string };
 const TOUR: Stop[] = [
-  { id: 'rent', t: 'Rent tracking', icon: 'bank', mode: 'auto', d: 'See who has paid at a glance. Rent from your bank is matched for you.', spot: 'Send receipt', img: shotRent, alt: 'Keyholder home screen: rent collected this month, with each tenant marked Paid or Late' },
-  { id: 'receipt', t: 'Rent receipts', icon: 'receipt', mode: 'auto', d: 'A numbered receipt for every payment, ready to send.', spot: 'Paid in full', img: shotReceipt, alt: 'A rent receipt for Maya Chen, marked Paid' },
-  { id: 'reminder', t: 'Friendly reminders', icon: 'bell', mode: 'auto', d: 'Written for you in a friendly tone. Cancelled if rent arrives first.', spot: 'Send now', img: shotReminder, alt: 'A friendly rent reminder written for Jordan and Priya, ready to send' },
-  { id: 'bills', t: 'Bills and mortgage', icon: 'cash', mode: 'auto', d: 'Bills from your banks, sorted to the right property.', spot: 'Add expense', img: shotBills, alt: 'Bills found in the bank, such as property tax and gas, ready to file' },
-  { id: 'value', t: 'Property valuation', icon: 'trend', mode: 'auto', d: "What it's worth, and your return next to a GIC.", spot: 'Your return', img: shotValue, alt: 'Portfolio: net worth in property and the yearly return compared with savings, a GIC and stocks' },
-  { id: 'taxes', t: 'Tax summary', icon: 'print', mode: 'auto', d: 'Your rental tax numbers, ready for your accountant.', spot: 'Print for accountant', img: shotTaxes, alt: 'Taxes page: the year’s rental income and costs, with a list of anything to fix' },
-  { id: 'notice', t: 'Late-rent notices', icon: 'paper', mode: 'approve', d: 'The official notice, filled in and checked. You sign off.', spot: 'You approve', img: shotNotice, alt: 'An N4 notice for unpaid rent, filled in and checked, waiting for the landlord to approve' },
-  { id: 'tenants', t: 'Finding tenants', icon: 'users', mode: 'approve', d: 'Compare applicants side by side, then choose.', spot: 'Side by side', img: shotTenants, alt: 'Two rental applications compared side by side' },
+  { id: 'rent', t: 'Rent tracking', icon: 'bank', mode: 'auto', d: 'Who has paid, at a glance. Bank deposits matched for you.', spot: 'Send receipt', img: shotRent, alt: 'Keyholder home screen: rent collected this month, with each tenant marked Paid or Late' },
+  { id: 'receipt', t: 'Rent receipts', icon: 'receipt', mode: 'auto', d: 'A numbered receipt for every payment.', spot: 'Paid in full', img: shotReceipt, alt: 'A rent receipt for Maya Chen, marked Paid' },
+  { id: 'reminder', t: 'Friendly reminders', icon: 'bell', mode: 'auto', d: 'Written for you. Cancelled if rent arrives.', spot: 'Send now', img: shotReminder, alt: 'A friendly rent reminder written for Jordan and Priya, ready to send' },
+  { id: 'bills', t: 'Bills and mortgage', icon: 'cash', mode: 'auto', d: 'Bank bills, filed to the right property.', spot: 'Add expense', img: shotBills, alt: 'Bills found in the bank, such as property tax and gas, ready to file' },
+  { id: 'value', t: 'Property valuation', icon: 'trend', mode: 'auto', d: "What it's worth, next to a GIC.", spot: 'Your return', img: shotValue, alt: 'Portfolio: net worth in property and the yearly return compared with savings, a GIC and stocks' },
+  { id: 'taxes', t: 'Tax summary', icon: 'print', mode: 'auto', d: 'Tax numbers, ready for your accountant.', spot: 'Print for accountant', img: shotTaxes, alt: 'Taxes page: the year’s rental income and costs, with a list of anything to fix' },
+  { id: 'notice', t: 'Late-rent notices', icon: 'paper', mode: 'approve', d: 'The official notice, filled in. You sign off.', spot: 'You approve', img: shotNotice, alt: 'An N4 notice for unpaid rent, filled in and checked, waiting for the landlord to approve' },
+  { id: 'tenants', t: 'Finding tenants', icon: 'users', mode: 'approve', d: 'Compare applicants side by side.', spot: 'Side by side', img: shotTenants, alt: 'Two rental applications compared side by side' },
 ];
 
 function Tour() {
@@ -532,8 +532,8 @@ function LiveDemo() {
     { id: 'unitc', who: 'Unit C', where: 'Empty for 38 days', status: '2 applications', tone: 'due', btn: 'Review', done: 'Daniel chosen' },
   ];
   return (
-    <div className="lp-demo" aria-label="Try it: a sample rent list">
-      <div className="lp-demo-head"><span>Rent · November</span><span className="lp-demo-try">Try it</span></div>
+    <div className="lp-demo" aria-label="A live sample rent list you can tap">
+      <div className="lp-demo-head"><span>Rent · November</span><span className="lp-demo-live"><i aria-hidden />Live</span></div>
       <ul>{rows.map((r) => (
         <li key={r.id} className={sent[r.id] ? 'done' : ''}>
           {r.id === 'unitc' ? <span className="lp-demo-ic"><Icon name="door" size={18} /></span> : <Avatar name={r.who} size={36} />}

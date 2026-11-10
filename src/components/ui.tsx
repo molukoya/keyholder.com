@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { fmt, parseMoney, toInput } from '../lib/money';
@@ -36,9 +37,10 @@ export function Drawer({ title, onClose, children, footer, wide }: { title: Reac
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; prev?.focus?.(); };
   }, [onClose]);
-  return (
+  // Rendered at page level, so a drawer opened from inside a pop-up or animated card is never trapped in it.
+  return createPortal(
     <>
-      <div className="scrim" onClick={onClose} />
+      <div className="scrim drawer-scrim" onClick={onClose} />
       <div className={`drawer${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} ref={ref}>
         <div className="drawer-head">
           <h2>{title}</h2>
@@ -47,7 +49,8 @@ export function Drawer({ title, onClose, children, footer, wide }: { title: Reac
         <div className="drawer-body">{children}</div>
         {footer && <div className="drawer-foot">{footer}</div>}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

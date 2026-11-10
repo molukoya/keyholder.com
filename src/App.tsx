@@ -20,6 +20,7 @@ import { SignIn } from './screens/Account';
 import { Support } from './screens/Support';
 import { AnnouncementBar } from './support/Announcement';
 import { SampleBanner, Tour, PageSub, HelpButton } from './components/Guide';
+import { SetupCircle } from './components/Setup';
 
 export function App() {
   return (
@@ -99,7 +100,6 @@ function Shell() {
         <div style={{ height: 16 }} />
         <button className="btn primary" data-tour="receipt" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
-          <HelpButton />
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
         </div>
       </aside>
@@ -107,8 +107,9 @@ function Shell() {
       <div className="main">
         <div className="mobile-top">
           <Link to="/welcome" className="brand" style={{ margin: 0 }}><Brand size={24} /></Link>
-          <HelpButton compact />
+          <span className="top-tools"><SetupCircle /><HelpButton compact /></span>
         </div>
+        <div className="top-tools desk"><SetupCircle /><HelpButton compact /></div>
         <main>
           <AnnouncementBar where="app" />
           <SampleBanner />

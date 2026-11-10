@@ -101,9 +101,10 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'paperwork/expenses'); await pg.waitForSelector('text=Home Depot');
     });
     await step(tag, 'A11 Score "Do it" opens the right form (what you paid → Silver)', async () => {
-      await go(pg, 'today'); const next = await pg.locator('#score .row .title').first().textContent();
+      await go(pg, 'today'); await pg.locator(tag === 'phone' ? '.mobile-top .setup-circle' : '.top-tools.desk .setup-circle').click(); await pg.waitForSelector('.setup-card #score');
+      const next = await pg.locator('#score .row .title').first().textContent();
       await pg.locator('#score .row', { hasText: 'what you paid' }).locator('text=Do it').click(); await pg.waitForTimeout(250);
-      if (await pg.locator('#sv-price').count()) { await pg.fill('#sv-price', '650000'); await pg.fill('#sv-date', '2020-05-01'); await pg.fill('#sv-owed', '400000'); await pg.locator('.drawer-foot >> text=Save').click(); await pg.waitForTimeout(300); return 'Silver form · ' + next.trim(); }
+      if (await pg.locator('#sv-price').count()) { await pg.fill('#sv-price', '650000'); await pg.fill('#sv-date', '2020-05-01'); await pg.fill('#sv-owed', '400000'); await pg.locator('.drawer-foot >> text=Save').click(); await pg.waitForTimeout(300); await pg.keyboard.press('Escape'); return 'Silver form · ' + next.trim(); }
       return 'Opened: ' + (await pg.evaluate(() => location.hash)) + ' · ' + next.trim();
     });
     await step(tag, 'A12 Value tab shows Silver insights', async () => {
@@ -133,7 +134,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     await adminIn(pg);
     const btn = async (who) => (await row(who).locator('.row-act .btn').first().textContent())?.trim();
     await step(tag, 'B1 Each row shows status + one button', async () => {
-      const got = { Maya: await btn('Maya'), Jordan: await btn('Jordan'), 'Unit C': await btn('Unit C'), Sam: await btn('Sam'), 'rooms rented': await btn('2 of 3 rooms rented') };
+      const got = { Maya: await btn('Maya'), Jordan: await btn('Jordan'), 'Unit C': await btn('Unit C'), Sam: await btn('Sam'), 'rooms rented': await btn('Basement · 1 free') };
       const want = { Maya: 'Send receipt', Jordan: 'Send reminder', 'Unit C': 'Review', Sam: 'Confirm', 'rooms rented': 'Review' };
       for (const k in want) if (got[k] !== want[k]) throw new Error(JSON.stringify(got));
       if (!(await pg.locator('.prop-line:has-text("mortgage renews")').count())) throw new Error('no mortgage line');
@@ -177,7 +178,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.drawer-foot >> text=Accept').click(); await pg.locator('.drawer-foot >> text=Make them the tenant').click(); await pg.waitForTimeout(300);
     });
     await step(tag, 'B7 New tenant row on Home says "Prepare lease"', async () => {
-      await go(pg, 'today'); const s2 = await state(pg); const l = s2.leases.find((x) => x.unitId === 'u-c'); const name = s2.tenants.find((t) => t.id === l.tenantId).names[0];
+      await go(pg, 'today'); const s2 = await state(pg); const l = s2.leases.find((x) => x.unitId === 'u-c'); const name = s2.tenants.find((t) => t.id === l.tenantId).names[0].split(' ')[0];
       const t = await btn(name); if (t !== 'Prepare lease') throw new Error(name + ': ' + t); return name + ': ' + t;
     });
     await step(tag, 'B8 Mortgage line → "See mortgage" opens the Mortgage tab', async () => {
@@ -189,14 +190,20 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const hidden = !(await line.count()); await pg.locator('text=hidden or ignored').locator('button').click(); await pg.locator('text=Bring back').first().click(); await pg.waitForTimeout(200);
       const back = await pg.locator('.prop-line:has-text("mortgage renews")').count(); if (!hidden || !back) throw new Error(`hidden=${hidden} back=${back}`); return 'mortgage line hidden, then back';
     });
-    await step(tag, 'B10 Score list: pick any item; ⋯ Ignore raises the score', async () => {
+    const circle = () => pg.locator(tag === 'phone' ? '.mobile-top .setup-circle' : '.top-tools.desk .setup-circle');
+    await step(tag, 'B10 Setup circle opens the setup list; ⋯ Ignore raises the score', async () => {
+      await circle().click(); await pg.waitForSelector('.setup-card #score');
       const n = await pg.locator('#score .row').count(); await pg.locator('#score >> text=Show all').click(); const n2 = await pg.locator('#score .row').count();
       const before = Number((await pg.locator('#score .score-ring > span').textContent()).trim());
       await pg.locator('#score .row').nth(1).locator('.dots').click(); await pg.locator('#score [role=menuitem]', { hasText: /^Ignore$/ }).click(); await pg.waitForTimeout(250);
       const after = Number((await pg.locator('#score .score-ring > span').textContent()).trim()); if (!(after > before)) throw new Error(before + ' → ' + after);
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(150);
       return n + ' shown, ' + n2 + ' after Show all · score ' + before + ' → ' + after;
     });
-    await step(tag, 'B11 Score chip scrolls to the score', async () => { await pg.locator('.score-chip').click(); await pg.waitForTimeout(500); if (!(await pg.locator('#score').isVisible())) throw new Error('not visible'); });
+    await step(tag, 'B11 Setup % sits by Help at the top right, with a red dot while steps are left', async () => {
+      const label = await circle().getAttribute('aria-label'); if (!/Setup \d+% done/.test(label)) throw new Error(label);
+      if (!(await circle().locator('.setup-dot').count())) throw new Error('no red dot'); return label;
+    });
     await step(tag, 'B12 Forms library: prepare N1 for Maya', async () => {
       await go(pg, 'paperwork/forms'); await pg.locator('.form-row', { has: pg.locator('.form-code', { hasText: /^N1$/ }) }).locator('button:has-text("Prepare")').click(); await pg.waitForTimeout(200);
       if (await pg.locator('.drawer .choice').count()) await pg.locator('.drawer .choice:has-text("Maya")').click();
@@ -314,10 +321,13 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (tag === 'phone') for (const p of ['taxes', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
     });
     await step(tag, 'D16 Help button opens plain answers', async () => {
-      await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.rail .help-btn').click(); await pg.waitForSelector('#help-title');
+      await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.top-tools.desk .help-btn').click(); await pg.waitForSelector('#help-title');
       await pg.locator('.help-list summary').first().click(); await pg.locator('[aria-label="Close help"]').click();
     });
-    await step(tag, 'D17 Home shows "Since your last visit"', async () => { await go(pg, 'today'); await pg.waitForSelector('.since >> text=Since your last visit'); });
+    await step(tag, 'D17 Home is lean: no "Since your last visit", Coming up, Milestones or rent chips', async () => {
+      await go(pg, 'today'); await pg.waitForSelector('.rent-card');
+      for (const sel of ['.since', '.timeline', '.badges', '.rent-chips', '#score']) if (await pg.locator(sel).count()) throw new Error(`${sel} still on Home`);
+    });
     ok(tag, 'D errors', errsD.length === 0, errsD.slice(0, 3).join(' | '));
 
     // ---------------- E. Accounts: Google signup, sign out, sign in ----------------
@@ -372,12 +382,13 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const box = await pg.locator('.lp-sticky').boundingBox();
       if (!box || Math.abs(box.y + box.height - vp.height) > 2) throw new Error('bar not at the bottom: ' + JSON.stringify(box));
     });
-    await step(tag, 'F3 Home: rent card, next step, coming up and milestones', async () => {
+    await step(tag, 'F3 Home: rent card, bank line right under it, next step, rows titled first name · unit', async () => {
       await adminIn(pg);
       await pg.waitForSelector('.rent-card >> text=collected'); await pg.waitForSelector('.next-card');
-      if ((await pg.locator('.timeline li').count()) < 3) throw new Error('coming up too short');
-      if ((await pg.locator('.badges li').count()) !== 4) throw new Error('milestones missing');
-      const chips = await pg.locator('.rent-chips').textContent(); if (!/to confirm/.test(chips)) throw new Error('chips: ' + chips);
+      const order = await pg.evaluate(() => [...document.querySelector('.home-main').children].map((e) => e.className.split(' ')[0]));
+      if (order[0] !== 'rent-card' || order[1] !== 'track-top') throw new Error('order: ' + order.join(', '));
+      const t = (await pg.locator('.rent-row .who').first().textContent()).trim(); if (t !== 'Maya · Unit A') throw new Error('title: ' + t);
+      if (await pg.locator('.rent-row .where').count()) throw new Error('unit details still shown');
     });
     await step(tag, 'F4 Quick actions open the right forms', async () => {
       await pg.locator('.quick:has-text("Add a receipt")').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
@@ -499,7 +510,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
     await step(tag, 'H5 By the room: a row per rented room, and "2 of 3 rooms rented" with the free room', async () => {
       await go(pg, 'today');
-      for (const [who, room] of [['Sam Okafor', 'Room 1'], ['Grace Liu', 'Room 2']]) if (!(await pg.locator('.rent-row', { hasText: who }).locator(`text=${room}`).count())) throw new Error(`${who} not shown in ${room}`);
+      for (const t of ['Sam · Room 1', 'Grace · Room 2']) if (!(await pg.locator('.rent-row .who', { hasText: t }).count())) throw new Error(`${t} not shown`);
       await go(pg, 'rentals'); await pg.waitForSelector('.unit-row >> text=Room 3 is free');
       await go(pg, 'rent/property/p-birch/find'); await pg.waitForSelector('text=2 of 3 rooms rented');
     });

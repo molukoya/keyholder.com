@@ -164,7 +164,7 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .help-btn { width: 100%; }
 .nav-link.help-btn { border: 0; background: transparent; font: inherit; color: var(--ink-soft); cursor: pointer; text-align: left; box-shadow: none; }
 .nav-link.help-btn:hover { background: var(--paper-sunk); color: var(--ink); }
-.mobile-top .help-btn { width: auto; }
+.mobile-top .help-btn, .top-tools .help-btn { width: auto; }
 .help-card { width: min(520px, 100%); max-height: 86vh; overflow-y: auto; }
 .help-list details { border-bottom: 1px solid var(--rule); }
 .help-list summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style: none; }
@@ -355,3 +355,59 @@ html body :is(h1, h2, .section-title, .greet-hi, .side-title, .rent-meter-nums s
 html body :is(.lp-hero-h, .lp-h1, .lp-h2, .q-question, .acct-card h1, .page h1, .sp-head h1, .greet-hi, .pulse, .lp-amt, .lp-map-info h3) { font-weight: 400; letter-spacing: -0.025em; }
 html body .lp-hero-h { line-height: 1.04; }
 html body :is(.lp-hero-h, .lp-h1, .lp-h2, .pulse) em { font-style: italic; padding-right: .04em; }
+
+/* Home rent rows: first name and unit as the title; on phones the status and button share one line. */
+.rent-row .who { font-size: var(--t-16); }
+@media (max-width: 860px) {
+  .rent-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; padding: 12px 16px; min-height: 0; }
+  .rent-row .who-link { grid-column: 1 / -1; }
+  .rent-row .avatar, .rent-row .unit-ic { width: 32px !important; height: 32px !important; }
+  html body .rent-row .row-act { grid-column: auto; width: auto; justify-self: end; }
+  html body .rent-row .row-act > .btn { flex: none; min-height: 40px; padding: 0 14px; font-size: var(--t-14); }
+}
+/* Setup circle and Help, top right */
+.top-tools { display: inline-flex; align-items: center; gap: 6px; }
+.top-tools.desk { display: flex; justify-content: flex-end; padding: 12px 24px 0; }
+@media (max-width: 860px) { .top-tools.desk { display: none; } }
+.setup-circle { all: unset; position: relative; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; }
+.setup-circle:hover { background: var(--paper-sunk); }
+.setup-circle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.setup-dot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: #F04438; box-shadow: 0 0 0 2px var(--paper); }
+.setup-card { width: min(560px, 100%); max-height: 86vh; overflow: auto; }
+.setup-card .section { margin: 8px 0 0; }
+
+/* Phones: one compact row per tenant: name and unit, the status under it, the button on the right. */
+@media (max-width: 860px) {
+  .rent-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who act" "status act"; row-gap: 4px; column-gap: 12px; padding: 10px 14px; }
+  .rent-row .who-link { grid-area: who; grid-column: auto; }
+  .rent-row > .status, .rent-row > .pill-wrap { grid-area: status; justify-self: start; margin-left: 44px; }
+  .rent-row .pill-btn, .rent-row > .status { font-size: 12px; padding: 2px 8px; min-height: 0; }
+  html body .rent-row .row-act { grid-area: act; align-self: center; }
+}
+
+/* ================================================================ The main button: a modern blue
+   A soft top-to-bottom indigo gradient, a light top edge and a gentle coloured glow. Same everywhere. */
+html body .btn.primary {
+  background: linear-gradient(180deg, #6366F1 0%, #4F46E5 55%, #4338CA 100%);
+  border: 1px solid #4338CA; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 1px 2px rgba(16,24,40,.14), 0 8px 18px -8px rgba(79,70,229,.65);
+  transition: transform 150ms var(--ease), box-shadow 150ms var(--ease), filter 150ms;
+}
+html body .btn.primary:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 2px 4px rgba(16,24,40,.12), 0 12px 24px -10px rgba(79,70,229,.7); }
+html body .btn.primary:active { transform: translateY(0); filter: brightness(.97); box-shadow: inset 0 1px 2px rgba(16,24,40,.25); }
+html body .btn.primary:focus-visible { outline: 3px solid #A5B4FC; outline-offset: 2px; }
+html body .btn.primary[disabled] { filter: saturate(.6); box-shadow: none; transform: none; }
+@media (max-width: 860px) {
+  .rent-row .who { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .rent-row .who-text { min-width: 0; }
+  html body .rent-row .row-act > .btn { font-size: 14px; padding: 0 12px; min-height: 38px; }
+}
+/* The setup list inside its pop-up: no box within the box */
+.setup-card .section-title { font-size: 20px; margin: 12px 0 8px; }
+.setup-card .sheet { border: 0; box-shadow: none; padding: 0; background: transparent; }
+.setup-card .score-hero { margin-bottom: 8px; }
+.setup-card .row { grid-template-columns: 40px minmax(0, 1fr) auto !important; }
+
+/* Drawers sit above pop-ups (a form opened from the setup list) */
+.drawer-scrim { z-index: 125; }
+html body .drawer { z-index: 126; }

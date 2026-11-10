@@ -539,10 +539,9 @@ function RaiseRentSuggestion({ lease, unit, onRaise }: { lease: Lease; unit: Uni
   if (!sg) return null;
   return (
     <div className="suggest">
-      <div>
-        <strong>Rent is about {fmt0(sg.mk.gap)} below similar {sg.beds}-bedrooms nearby ({fmt0(sg.mk.market)}).</strong>
-        <span> You can raise it from {fmtDate(sg.effective)}{sg.capped ? `, up to ${fmt(sg.capped)} with the ${sg.guide}% guideline` : ''}. Give notice by {fmtDate(sg.noticeBy)}.</span>
-        <span className="tiny soft"> Area rents are estimates.</span>
+      <div title={`Similar ${sg.beds}-bedrooms nearby: about ${fmt0(sg.mk.market)} (estimate). Give notice by ${fmtDate(sg.noticeBy)}.`}>
+        <strong>{fmt0(sg.mk.gap)} below market</strong>
+        <span> · raise from {fmtDate(sg.effective)}{sg.capped ? ` · up to ${fmt(sg.capped)}` : ''}</span>
       </div>
       <button className="btn" onClick={onRaise}>Raise rent</button>
     </div>

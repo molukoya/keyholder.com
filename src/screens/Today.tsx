@@ -1,16 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { addDays, fmtDay, periodOf } from '../lib/dates';
+import { fmtDay, periodOf } from '../lib/dates';
 import { activeLeases, hasSpace, leaseLedger } from '../lib/finance';
-import { ScoreChip } from '../components/levels';
-import { RentRows, ScoreList } from '../components/Journey';
-import { needsYouCount, trayItems } from '../lib/tray';
+import { RentRows } from '../components/Journey';
+import { trayItems } from '../lib/tray';
 import { ExpenseForm, PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
-import { SinceLastVisit } from '../components/Guide';
 import { SceneEmptyHome } from '../components/Art';
-import { ComingUp, Greeting, Milestones, MonthReview, NextStep, QuickActions, RentCard } from '../components/HomeCards';
+import { Greeting, MonthReview, NextStep, QuickActions, RentCard } from '../components/HomeCards';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 
@@ -83,21 +81,17 @@ export function Today() {
   return (
     <div className="page home">
       <h1 className="sr-only">Home</h1>
-      <div className="home-top"><Greeting /><ScoreChip /></div>
+      <div className="home-top"><Greeting /></div>
       <div className="home-grid">
         <div className="home-main">
           <RentCard headline={headline} />
-          <SinceLastVisit since={state.profile.prevVisit ?? addDays(today, -7)} needs={needsYouCount(state, today)} />
-          <NextStep />
           <div className="track-top"><BankStatus /></div>
+          <NextStep />
           <RentRows />
-          <ScoreList />
         </div>
         <aside className="home-side" aria-label="More for this month">
           <QuickActions onPay={() => setPay(true)} onReceipt={() => setReceipt(true)} />
-          <ComingUp />
           <MonthReview />
-          <Milestones />
         </aside>
       </div>
 
