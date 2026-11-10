@@ -85,15 +85,15 @@
 
 /* ---------------------------------------------------------------- Hero */
 /* ---------------------------------------------------------------- Hero: the text lines up with the top of the photo */
-.lp-hero { position: relative; isolation: isolate; overflow: hidden; padding: var(--sp-top) 0 40px; background: #FBFBFF; border-bottom: 1px solid #ECEEF6; }
-/* Soft moving colour behind the banner only; the banner ends in a straight line before the next section. */
-.lp-hero-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.lp-hero-bg i { position: absolute; width: 46vmax; aspect-ratio: 1; border-radius: 50%; filter: blur(70px); opacity: .55; animation: lp-drift 22s ease-in-out infinite alternate; }
-.lp-hero-bg i:nth-child(1) { left: -12%; top: -30%; background: #DCD7FE; }
-.lp-hero-bg i:nth-child(2) { right: -10%; top: -20%; background: #CDEBFE; animation-duration: 26s; animation-direction: alternate-reverse; }
-.lp-hero-bg i:nth-child(3) { left: 30%; bottom: -45%; background: #FFE2C7; animation-duration: 30s; }
-.lp-hero-bg i:nth-child(4) { right: 20%; bottom: -40%; background: #CFF5DE; animation-duration: 24s; animation-direction: alternate-reverse; opacity: .45; }
-@keyframes lp-drift { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(8%, 10%) scale(1.12); } 100% { transform: translate(-6%, 4%) scale(.94); } }
+.lp-hero { position: relative; isolation: isolate; overflow: hidden; padding: var(--sp-top) 0 72px; background: linear-gradient(180deg, #FAFAFF 0%, #FCFCFF 55%, #fff 100%); }
+/* Thin lines drifting slowly behind the banner only; the bottom fades into the next section (no hard edge). */
+.lp-hero-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%); mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%); }
+.lp-lines { position: absolute; left: 0; top: 4%; width: 200%; height: 92%; fill: none; stroke-width: 1.1; vector-effect: non-scaling-stroke; animation: lp-flow 90s linear infinite; }
+.lp-lines path { vector-effect: non-scaling-stroke; }
+.lp-lines.a { stroke: rgba(99,102,241,.11); }
+.lp-lines.b { stroke: rgba(14,165,233,.08); animation-duration: 140s; animation-direction: reverse; top: 10%; }
+@keyframes lp-flow { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .lp-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
 .lp-hero-copy { container: hero / inline-size; }
 html body .lp-hero-h { text-wrap: balance; max-width: 14ch; }
@@ -325,7 +325,8 @@ html body .lp-hero-h { text-wrap: balance; max-width: 14ch; }
 .lp-week-card { position: absolute; left: 50%; top: 10px; width: var(--cw); height: 128px; box-sizing: border-box; padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #ECEEF2; box-shadow: 0 10px 24px -16px rgba(16,24,40,.35);
   display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto 1fr; column-gap: 10px; row-gap: 10px; align-items: center;
   transform: translateX(calc(-50% + var(--off) * (var(--cw) + 14px))) scale(.88); opacity: 0;
-  transition: transform 700ms cubic-bezier(.4,0,.2,1), opacity 700ms cubic-bezier(.4,0,.2,1), box-shadow 700ms; }
+  transition: transform 700ms cubic-bezier(.4,0,.2,1), opacity 700ms cubic-bezier(.4,0,.2,1), box-shadow 700ms, visibility 700ms; }
+.lp-week-card:not([data-off="-1"]):not([data-off="0"]):not([data-off="1"]) { visibility: hidden; pointer-events: none; }
 .lp-week-card[data-off="-1"], .lp-week-card[data-off="1"] { opacity: 1; background: rgba(255,255,255,.72); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-color: rgba(255,255,255,.6); box-shadow: 0 8px 20px -14px rgba(16,24,40,.3); }
 .lp-week-card.free[data-off="-1"], .lp-week-card.free[data-off="1"] { background: rgba(255,246,222,.75); }
 .lp-week-card:not(.on) > * { opacity: .45; transition: opacity 700ms; }
@@ -347,10 +348,11 @@ html body .lp-week-card.free .lp-week-txt strong { font: 400 24px/1.05 var(--fon
   .lp-week { left: -8px; right: -8px; }
 }
 @media (max-width: 600px) {
+  .lp-hero { padding-bottom: 24px; }
   .lp-hero-visual { --cw: 168px; padding-bottom: 56px; }
   .lp-photo.hero { border-radius: 20px; }
   .lp-week-card { height: 118px; padding: 12px; }
   .lp-week-track { height: 138px; }
 }
-@media (prefers-reduced-motion: reduce) { .lp-hero-bg i { animation: none; } .lp-week-card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lp-lines { animation: none; } .lp-week-card { transition: none; } }
 

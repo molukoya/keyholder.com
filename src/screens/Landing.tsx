@@ -267,7 +267,7 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
   return (
     <>
       <section className="lp-hero">
-        <div className="lp-hero-bg" aria-hidden><i /><i /><i /><i /></div>
+        <HeroLines />
         <div className="lp-wrap lp-hero-grid">
           <div className="lp-hero-copy">
             <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
@@ -534,6 +534,23 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
+// ================================================================ Slow flowing lines behind the hero
+// Thin wavy lines, twice the hero's width, drift sideways very slowly and loop without a seam (the waves repeat
+// every 360 units and the drift is 1440, a whole number of waves). Two layers move at different speeds.
+function wave(y: number, amp: number) {
+  let d = `M0 ${y} q90 ${-amp} 180 0`;
+  for (let x = 180; x < 2880; x += 180) d += ` t180 0`;
+  return d;
+}
+const LINES_A = [[120, 26], [180, 34], [240, 22], [300, 30], [360, 18]].map(([y, a]) => wave(y, a));
+const LINES_B = [[150, 40], [270, 36], [420, 28], [480, 44]].map(([y, a]) => wave(y, a));
+const HeroLines = () => (
+  <div className="lp-hero-bg" aria-hidden>
+    <svg className="lp-lines a" viewBox="0 0 2880 600" preserveAspectRatio="none">{LINES_A.map((d, k) => <path key={k} d={d} />)}</svg>
+    <svg className="lp-lines b" viewBox="0 0 2880 600" preserveAspectRatio="none">{LINES_B.map((d, k) => <path key={k} d={d} />)}</svg>
+  </div>
+);
+
 // ================================================================ "Your week" strip over the hero photo
 // Three cards show at a time: the middle one is in focus, the two beside it fade out. It steps from Monday to
 // Sunday and starts again. Pauses on hover; stays still for people who turn motion off.
