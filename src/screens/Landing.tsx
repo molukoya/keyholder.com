@@ -9,7 +9,6 @@ import { AnnouncementBar } from '../support/Announcement';
 import { Avatar } from '../components/Art';
 import { province } from '../lib/jurisdiction';
 import { AUTHORITY_URL, formsFor } from '../lib/forms';
-import heroPhoto from '../assets/photos/home-hero.webp';
 import keysPhoto from '../assets/photos/keys.webp';
 import aptPhoto from '../assets/photos/apartment.webp';
 import shotRent from '../assets/screens/rent.webp';
@@ -268,23 +267,19 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
   return (
     <>
       <section className="lp-hero">
-        <div className="lp-wrap lp-hero-grid">
-          <div className="lp-hero-copy">
-            <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
-            <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
-            <p className="lp-lede lp-hero-lede">Keyholder automates the busywork of renting. You approve, it does the rest.</p>
-            <ul className="lp-auto" aria-label="What Keyholder automates">
-              {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
-            </ul>
-            <div className="btn-row" data-cta>
-              <CtaPair start={start} signIn={signIn} returning={returning} big />
-            </div>
+        <div className="lp-wrap lp-hero-copy">
+          <p className="lp-pill"><Icon name="home" size={16} />For Canadian landlords with 1 to 10 units</p>
+          <h1 className="lp-hero-h">Rental automation that gives you your <em>weekends back.</em></h1>
+          <p className="lp-lede lp-hero-lede">Keyholder automates the busywork of renting. You approve, it does the rest.</p>
+          <ul className="lp-auto" aria-label="What Keyholder automates">
+            {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
+          </ul>
+          <div className="btn-row" data-cta>
+            <CtaPair start={start} signIn={signIn} returning={returning} big />
           </div>
-          <div className="lp-hero-visual">
-            <Photo src={heroPhoto} alt="A brick house with a blue roof on a quiet tree-lined street" className="hero" />
-            <div className="lp-chip-float" aria-hidden><Avatar name="Maya Chen" size={36} /><span><strong>Maya paid $1,650</strong><span>Receipt sent for you</span></span></div>
-            <div className="lp-hero-demo"><LaptopLoop /></div>
-          </div>
+        </div>
+        <div className="lp-wrap lp-hero-stage">
+          <AppWindow />
         </div>
       </section>
 
@@ -535,16 +530,16 @@ const FAQ: [string, string, string][] = [
   ['info', 'Is this legal or tax advice?', 'No. Keyholder fills in forms and numbers for you, and you make the decisions. The first time you send a legal notice, it is a good idea to check with a paralegal. At tax time, an accountant can review your numbers.'],
   ['users', 'Can I try it first?', 'Yes. Keyholder is free for one rental unit, and no card is needed. Add your place and see it work before you pay anything.'],
 ];
-// ================================================================ A small laptop playing the app
+// ================================================================ The big app window in the hero
 // A calm loop of four real screens: rent, a receipt, a reminder, the tax summary. A cursor glides to the
-// key button and taps it. Pauses on hover; a still picture for people who turn motion off.
-const LOOP: { id: keyof typeof SPOTS; img: string; label: string }[] = [
-  { id: 'rent', img: shotRent, label: 'Rent' },
-  { id: 'receipt', img: shotReceipt, label: 'Receipt' },
-  { id: 'reminder', img: shotReminder, label: 'Reminder' },
-  { id: 'taxes', img: shotTaxes, label: 'Taxes' },
+// key button and taps it. Pauses on hover; tap a step to jump to it; a still picture with motion turned off.
+const LOOP: { id: keyof typeof SPOTS; img: string; label: string; icon: string }[] = [
+  { id: 'rent', img: shotRent, label: 'Rent', icon: 'cash' },
+  { id: 'receipt', img: shotReceipt, label: 'Receipt', icon: 'receipt' },
+  { id: 'reminder', img: shotReminder, label: 'Reminder', icon: 'bell' },
+  { id: 'taxes', img: shotTaxes, label: 'Taxes', icon: 'print' },
 ];
-function LaptopLoop() {
+function AppWindow() {
   const [i, setI] = useState(0);
   const [tap, setTap] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -552,20 +547,25 @@ function LaptopLoop() {
   useEffect(() => {
     if (still || paused) return;
     const t1 = setTimeout(() => setTap(true), 1500);
-    const t2 = setTimeout(() => { setTap(false); setI((x) => (x + 1) % LOOP.length); }, 3200);
+    const t2 = setTimeout(() => { setTap(false); setI((x) => (x + 1) % LOOP.length); }, 3400);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [i, paused, still]);
   const sp = SPOTS[LOOP[i].id] as { x: number; y: number; w: number; h: number };
   return (
-    <div className="lp-laptop" role="img" aria-label="Keyholder on a laptop: rent, a receipt, a reminder and the tax summary" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-      <div className="lp-laptop-screen">
-        {LOOP.map((s2, k) => <img key={s2.id} src={s2.img} alt="" className={k === i ? 'on' : ''} loading={k ? 'lazy' : 'eager'} />)}
-        {!still && <span className={`lp-cursor${tap ? ' tap' : ''}`} style={{ left: `${sp.x + sp.w / 2}%`, top: `${sp.y + sp.h / 2}%` }} aria-hidden>
-          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6.5 1.6L9.8 19z" fill="#101828" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-        </span>}
+    <div className="lp-app" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <div className="lp-chip-float" aria-hidden><Avatar name="Maya Chen" size={36} /><span><strong>Maya paid $1,650</strong><span>Receipt sent for you</span></span></div>
+      <div className="lp-app-win" role="img" aria-label="Keyholder at work: rent, a receipt, a reminder and the tax summary">
+        <div className="lp-app-bar" aria-hidden><span className="lp-app-dots"><i /><i /><i /></span><span className="lp-app-url"><Icon name="lock" size={12} />keyholder.ca</span><span /></div>
+        <div className="lp-app-screen">
+          {LOOP.map((s2, k) => <img key={s2.id} src={s2.img} alt="" className={k === i ? 'on' : ''} loading={k ? 'lazy' : 'eager'} />)}
+          {!still && <span className={`lp-cursor${tap ? ' tap' : ''}`} style={{ left: `${sp.x + sp.w / 2}%`, top: `${sp.y + sp.h / 2}%` }} aria-hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 3l14 8-6.5 1.6L9.8 19z" fill="#101828" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" /></svg>
+          </span>}
+        </div>
       </div>
-      <div className="lp-laptop-base" aria-hidden />
-      <div className="lp-laptop-steps" aria-hidden>{LOOP.map((s2, k) => <span key={s2.id} className={k === i ? 'on' : ''}>{s2.label}</span>)}</div>
+      <div className="lp-app-steps" role="tablist" aria-label="What the window shows">
+        {LOOP.map((s2, k) => <button type="button" role="tab" aria-selected={k === i} key={s2.id} className={k === i ? 'on' : ''} onClick={() => { setTap(false); setI(k); }}><Icon name={s2.icon} size={14} />{s2.label}</button>)}
+      </div>
     </div>
   );
 }
