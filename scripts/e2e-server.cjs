@@ -135,8 +135,9 @@ function watch(pg, errors, label) {
       await step(tag, 'E6b Top right: the Settings icon opens Settings', async () => {
         await go(pg, 'today'); await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
       });
-      await step(tag, 'E7 Sign out (icon at the top right): back to the website, and the data leaves this browser', async () => {
-        await go(pg, 'today'); await pg.locator(`${top} [aria-label="Sign out"]`).click(); await pg.waitForSelector('.lp-hero-h');
+      await step(tag, 'E7 Settings → Sign out (top of the page): back to the website, and the data leaves this browser', async () => {
+        if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out icon on every page');
+        await go(pg, 'settings'); await pg.locator('.page-head #signout').click(); await pg.waitForSelector('.lp-hero-h');
         const local = await until(async () => { const s = await pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1'))); return s && s.properties.length === 0 && s; }, 5000, 'local data cleared');
         if ((await api(pg, '/api/session')).body.user) throw new Error('still signed in on the server');
         return `local properties: ${local.properties.length}`;
@@ -207,7 +208,7 @@ function watch(pg, errors, label) {
         await until(async () => (await outbox(email)).find((m) => m.kind === 'ticket-ack'), 4000, 'acknowledgement email');
       });
       await step(tag, 'E12 Forgot password: the email link sets a new password and signs in', async () => {
-        await pgB.locator('#account >> text=Sign out').click().catch(async () => { await go(pgB, 'settings'); await pgB.locator('#account >> text=Sign out').click(); });
+        await pgB.locator('#signout').click().catch(async () => { await go(pgB, 'settings'); await pgB.locator('#signout').click(); });
         await pgB.waitForSelector('.lp-hero-h');
         await go(pgB, 'signin'); await pgB.locator('text=Forgot your password?').click(); await pgB.fill('#forgot-email', email); await pgB.click('text=Send the link');
         await pgB.waitForSelector('text=Check your email');

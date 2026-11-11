@@ -26,7 +26,9 @@ export function Settings() {
 
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Your profile, rent tracking, reminders, display</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Your profile, rent tracking, reminders, display</PageSub></div>
+        {(admin || live || !!p.account) && <button id="signout" className="btn signout-btn" onClick={() => { act.signOut(); nav('/welcome'); }}><Icon name="logout" size={18} />Sign out</button>}
+      </div>
 
       <section className="section" id="profile">
         <h2 className="section-title">Your profile</h2>
@@ -45,12 +47,10 @@ export function Settings() {
             {admin ? (
               <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
                 <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">Sample properties only. Nothing here is real.</div></div>
-                <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
               </div>
             ) : live ? <ServerAccount /> : p.account ? (
               <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
                 <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
-                <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
               </div>
             ) : (
               <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>

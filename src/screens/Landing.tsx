@@ -71,8 +71,14 @@ function useTourInView(on: boolean) {
 }
 
 /** The one main button on the website's pages: Get started (Sign in and Sign up stay at the top right). */
-function GetStarted({ start, big, className = '' }: { start: () => void; big?: boolean; className?: string }) {
-  return <button className={`btn primary${big ? ' lp-big' : ''} ${className}`.trim()} onClick={start}>Get started</button>;
+function GetStarted({ start, big, note }: { start: () => void; big?: boolean; note?: boolean }) {
+  const button = (
+    <button className={`btn primary lp-go${big ? ' lp-big' : ''}`} onClick={start}>
+      Get started<span className="lp-go-arrow" aria-hidden><Icon name="next" size={big ? 20 : 18} /></span>
+    </button>
+  );
+  if (!note) return button;
+  return <div className="lp-go-wrap">{button}<p className="lp-go-note"><Icon name="check" size={16} />Free for 1 rental unit · No card needed</p></div>;
 }
 
 function useReveal(key: string) {
@@ -271,7 +277,7 @@ function Overview({ start }: { start: () => void }) {
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
             <div className="btn-row" data-cta>
-              <GetStarted start={start} big />
+              <GetStarted start={start} big note />
             </div>
           </div>
           <div className="lp-hero-visual">

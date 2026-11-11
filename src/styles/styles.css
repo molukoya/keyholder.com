@@ -70,7 +70,11 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .btn.primary:hover { filter: none; background: #4338CA; border-color: #4338CA; }
 .btn.ghost, .btn.ghost:hover { box-shadow: none; transform: none; }
-.bottombar .capture span.disc { background: var(--primary); color: var(--on-primary); box-shadow: 0 6px 14px -8px rgba(79,70,229,.55); }
+.bottombar .hub span.disc { background: var(--primary); color: var(--on-primary); box-shadow: 0 6px 14px -8px rgba(79,70,229,.55); transition: transform 150ms ease, box-shadow 150ms ease; }
+/* The middle button keeps its white icon; while on Rentals it gets a soft ring. */
+.bottombar .hub span.disc svg, .bottombar a.hub.active svg { color: inherit; }
+.bottombar a.hub.active span.disc { box-shadow: 0 0 0 4px var(--accent-tint), 0 6px 14px -8px rgba(79,70,229,.55); }
+.bottombar a.hub:active span.disc { transform: scale(.95); }
 
 .rail { background: var(--paper-raised); border-right: 1px solid var(--rule); }
 .nav-link { border-radius: 10px; transition: background 150ms, color 150ms; }
@@ -520,3 +524,7 @@ html body .drawer { z-index: 126; }
 /* Help in the side menu (where Settings was) and in More on phones */
 .rail-foot .help-btn { width: 100%; }
 .more-list button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+/* Settings: Sign out sits at the top right of the page, easy to find. */
+.page-head .signout-btn { align-self: center; }
+.btn.signout-btn { gap: 8px; min-height: 44px; padding: 0 18px; background: var(--paper-raised); color: var(--ink); border: 1.5px solid var(--rule-strong); }
+.btn.signout-btn:hover { border-color: var(--primary); color: var(--primary); }

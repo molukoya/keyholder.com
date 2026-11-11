@@ -217,7 +217,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.keyboard.press('Escape'); await pg.waitForTimeout(150);
       return n + ' shown, ' + n2 + ' after Show all · score ' + before + ' → ' + after;
     });
-    await step(tag, 'B11 Setup % sits at the top right next to Settings and Sign out, with a red dot while steps are left', async () => {
+    await step(tag, 'B11 Setup % sits at the top right next to Settings, with a red dot while steps are left', async () => {
       const label = await circle().getAttribute('aria-label'); if (!/Setup \d+% done/.test(label)) throw new Error(label);
       if (!(await circle().locator('.setup-dot').count())) throw new Error('no red dot'); return label;
     });
@@ -268,15 +268,18 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     }
     if (want('C')) ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
     // Navigation bars
-    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Help at the bottom; Settings and Sign out at the top right (phones: Home, Rentals, Income, Expenses, More)', async () => {
-      const labels = tag === 'phone' ? ['Home', 'Rentals', 'Income', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork'];
+    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Help at the bottom; Settings at the top right, Sign out at the top of Settings (phones: Home, Income, Rentals raised in the middle, Expenses, More)', async () => {
+      const labels = tag === 'phone' ? ['Home', 'Income', 'Rentals', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork'];
       const order = (await pg.locator(tag === 'phone' ? '.bottombar a' : '.rail .nav-link').allTextContents()).join(' ').replace(/\d+/g, '');
-      if (!(tag === 'phone' ? /Home.*Rentals.*Income.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork/).test(order)) throw new Error('order: ' + order);
+      if (!(tag === 'phone' ? /Home.*Income.*Rentals.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork/).test(order)) throw new Error('order: ' + order);
       if (tag !== 'phone' && /Settings/.test(order)) throw new Error('Settings still in the side menu');
       if (tag !== 'phone' && !(await pg.locator('.rail-foot .help-btn').count())) throw new Error('no Help at the bottom of the side menu');
       const top = tag === 'phone' ? '.mobile-top' : '.top-tools.desk';
       await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
-      if (!(await pg.locator(`${top} [aria-label="Sign out"]`).count())) throw new Error('no Sign out icon at the top right');
+      if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out still on every page at the top right');
+      if (!(await pg.locator('.page-head #signout').isVisible())) throw new Error('no Sign out at the top of Settings');
+      if ((await pg.locator('text=/^Sign out$/').count()) - (await pg.locator('.sample-banner >> text=Sign out').count()) !== 1) throw new Error('Sign out shown more than once in Settings');
+      if (tag === 'phone') { const hub = pg.locator('.bottombar a').nth(2); if (!(await hub.evaluate((a) => a.classList.contains('hub') && a.textContent.includes('Rentals')))) throw new Error('Rentals is not the raised middle button'); }
       if (await pg.locator('.bottombar .capture, .rail >> text=Add a receipt').count()) throw new Error('receipt still in the menu');
       for (const l of labels) { await pg.locator(tag === 'phone' ? `.bottombar >> text=${l}` : `.rail >> text=${l}`).first().click(); await pg.waitForSelector(`h1:has-text("${l === 'Home' ? 'Home' : l === 'Settings' ? 'Your Keyholder' : l}")`, { state: 'attached' }); }
       if (tag === 'phone') for (const l of ['Portfolio', 'Paperwork', 'Settings']) { await go(pg, 'more'); await pg.locator(`.more-item:has-text("${l}")`).click(); await pg.waitForSelector(`h1:has-text("${l === 'Settings' ? 'Your Keyholder' : l}")`); }
@@ -376,13 +379,13 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
       await pg.waitForSelector('.tour-card >> text=Step 1 of 5'); await pg.waitForSelector('.tour-card >> text=Start here');
       for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
-      await pg.waitForSelector('.tour-card >> text=Settings and sign out'); await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200);
+      await pg.waitForSelector('.tour-card >> text=Sign out is in Settings'); await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200);
       if (await pg.locator('.tour').count()) throw new Error('tour still open');
       const st = await state(pg); if (st.profile.account?.provider !== 'google' || !st.profile.account.signedIn) throw new Error('no google account');
     });
     await step(tag, 'E3 Settings shows the account → Sign out → website', async () => {
       await go(pg, 'settings'); await pg.waitForSelector('#account >> text=alex.morgan@gmail.com');
-      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
     });
     await step(tag, 'E4 Sign in → Google → back to Home', async () => {
       if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator('.lp-menu >> text=Sign in').click(); } else await pg.locator('.lp-nav-cta >> text=Sign in').click();
@@ -390,7 +393,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.acct-google').click(); await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
     });
     await step(tag, 'E5 Sign in with an unknown email offers to create an account', async () => {
-      await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await go(pg, 'settings'); await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
       await login(pg, 'someone@else.ca', 'anything');
       await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
     });
@@ -567,14 +570,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.tour-card >> text=Skip tour').click();
       await pg.goto(BASE + '#/support'); await pg.waitForTimeout(300); if (await pg.locator('.sp').count()) throw new Error('the demo reached the support dashboard');
       await go(pg, 'settings'); for (const t of ['Restore sample data', 'Replay the signup questions']) if (!(await pg.locator(`text=${t}`).count())) throw new Error(`admin has no "${t}"`);
-      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
     });
     await step(tag, 'H2 Signing in as admin sets your own account aside; signing out brings it back', async () => {
       await onboard(pg); await pg.waitForSelector('text=Start here');
       await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); s.properties.push({ id: 'p-oak', nickname: 'Oak house', address: '9 Oak St', city: 'Toronto', province: 'ON', type: 'house', rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100, claimCCA: false }); localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
       await pg.reload(); await go(pg, 'settings');
       for (const t of ['Restore sample data', 'Replay the signup questions']) if (await pg.locator(`text=${t}`).count()) throw new Error(`a real account sees "${t}"`);
-      await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
       await adminIn(pg); await go(pg, 'rentals'); await pg.waitForSelector('text=Maple triplex');
       if (await pg.locator('text=Oak house').count()) throw new Error('own data mixed into the sample');
       await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
@@ -661,7 +664,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
     await step(tag, 'I5 After signing out: Sign in and Sign up at the top right, one Get started on the banner', async () => {
       await onboard(pg); await pg.waitForSelector('text=Start here');
-      await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await go(pg, 'settings'); await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
       const hero = (await pg.locator('.lp-hero [data-cta] .btn').allTextContents()).join('|');
       if (hero !== 'Get started') throw new Error('banner buttons: ' + hero);
       if (tag !== 'phone') { const top = (await pg.locator('.lp-nav-cta .btn').allTextContents()).join('|'); if (top !== 'Sign in|Sign up') throw new Error('top right: ' + top); }
