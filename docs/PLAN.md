@@ -122,6 +122,21 @@ Larger type (17px body, 48px buttons), one main action per row, plain labels ("M
 - **Banks:** connect several banks at once. Withdrawals are read too: bills become expenses (learned per payee), mortgage payments are ticked off against the mortgage, or offer to set one up. Review lives at the top of Paperwork → Expense receipts.
 - **Portfolio:** "Your money compared" always shows your return next to savings, a GIC and a stock index fund, using the properties that have a purchase price and listing the ones that don't yet.
 
+## Menu
+Home · Portfolio · Rentals · Income · Expenses · Paperwork · Settings (side menu on desktop, in that order).
+On phones the bottom bar is Home · Rentals · Income · Expenses · More (More: Portfolio, Paperwork, Settings).
+- **Income**: every rent payment with its receipt, and Mark rent paid.
+- **Expenses**: bills from the bank to sort, every cost, and **Add an expense**: take a photo of the receipt and
+  Keyholder reads it on the device (Tesseract, open source, files served from the site's own `/ocr/` folder, about
+  9 MB, fetched the first time only) and fills in the amount, date, store and type, marked for checking. Only what
+  the receipt says is filled: the total from a total line (or what was paid by card or cash), never a guess; dates
+  in the future or over three years old are ignored. Not available in the single-file Claude preview (there the
+  photo is attached and the details typed). `src/lib/receiptRead.ts` (with tests), `src/lib/ocr.ts`.
+- **Paperwork**: Leases, Notices and letters, Forms, Taxes. Old addresses (/taxes, /paperwork/expenses,
+  /paperwork/income) still work.
+- **Settings** starts with **Your profile** (name, email, phone, province, city, how you sign in).
+- No receipt button in the menu any more; the E key still opens Add an expense on desktop.
+
 ## Taxes: starting mid-year and cash costs
 - **Starting part way through the year.** The spreadsheet starts on the first day with records for that property
   (rent or a cost), shown as "From" next to the Spreadsheet button and changeable. When that is more than a month

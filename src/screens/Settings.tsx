@@ -11,6 +11,7 @@ import { fmtDate } from '../lib/dates';
 import { TONES } from '../lib/templates';
 import { Field, Seg, SlideToConfirm } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { Avatar } from '../components/Art';
 import { ServerAccount, ServerData } from '../components/ServerAccount';
 import { useConn } from '../data/api';
 
@@ -27,54 +28,39 @@ export function Settings() {
 
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Account, rent tracking, reminders, display</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Your profile, rent tracking, reminders, display</PageSub></div></div>
 
-      <section className="section" id="account">
-        <h2 className="section-title">Your account</h2>
+      <section className="section" id="profile">
+        <h2 className="section-title">Your profile</h2>
         <div className="sheet">
-          {admin ? (
-            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">Sample properties only. Nothing here is real.</div></div>
-              <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
-            </div>
-          ) : live ? <ServerAccount /> : p.account ? (
-            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
-              <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
-            </div>
-          ) : (
-            <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
-              <div><strong>No account yet</strong><div className="small soft">Saved in this browser only.</div></div>
-            </div>
-          )}
-          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />{live ? 'Email me when something needs me (one short email a day at most)' : 'Email me on rent day, plus a monthly summary'} {!live ? <span className="soft small">(preview: no emails are sent yet)</span> : !conn.config?.emailDelivery && <span className="soft small">(email sending is not switched on yet)</span>}</label>
-        </div>
-      </section>
-
-      <section className="section" id="levels">
-        <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
-        <div className="sheet">
-          <p className="soft" style={{ marginTop: 0 }}>Cards change colour as you add details. Only Bronze is needed.</p>
-          <ul className="rows">{LEVELS.map((l) => (
-            <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
-              <LevelBadge level={l.id} />
-              <span><span className="title">{l.gives}</span><span className="sub" style={{ display: 'block' }}>Add: {l.needs.toLowerCase()}</span></span>
-            </li>
-          ))}</ul>
-        </div>
-      </section>
-
-      <section className="section">
-        <h2 className="section-title">You</h2>
-        <div className="sheet">
+          <div className="profile-head"><Avatar name={p.name || p.account?.name || 'You'} size={56} /><div><strong>{p.name || p.account?.name || 'Your name'}</strong><div className="small soft">{p.email || p.account?.email || 'Add your email'}</div></div></div>
           <div className="grid2">
             <Field label="Name on receipts" htmlFor="st-n" hint={p.name.trim() && !/\s/.test(p.name.trim()) ? 'Add your last name: receipts and letters show your full name' : 'First and last name'}><input id="st-n" className="input" value={p.name} onChange={(e) => act.setProfile({ name: e.target.value })} /></Field>
             <Field label="Email" htmlFor="st-e" hint="Tenant replies go here"><input id="st-e" type="email" className="input" value={p.email} onChange={(e) => act.setProfile({ email: e.target.value })} /></Field>
+            <Field label="Phone" htmlFor="st-ph" hint="Optional: shown on receipts and letters"><input id="st-ph" type="tel" className="input" value={p.phone ?? ''} onChange={(e) => act.setProfile({ phone: e.target.value || undefined })} autoComplete="tel" /></Field>
             <Field label="Province" htmlFor="st-p" hint={`Rules pack ${PACK_VERSION}, last verified ${fmtDate(PACK_VERIFIED)}`}>
               <select id="st-p" className="input" value={p.province} onChange={(e) => act.setProfile({ province: e.target.value as typeof p.province, city: province(e.target.value as typeof p.province).cities[0] })}>{PROVINCES.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select>
             </Field>
             <Field label="City" htmlFor="st-c"><select id="st-c" className="input" value={p.city} onChange={(e) => act.setProfile({ city: e.target.value })}>{province(p.province).cities.map((c) => <option key={c}>{c}</option>)}</select></Field>
           </div>
+          <div id="account" className="profile-account">
+            {admin ? (
+              <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+                <div><strong>{p.account?.provider === 'admin' ? 'Admin' : 'Demo'} (test login)</strong><div className="small soft">Sample properties only. Nothing here is real.</div></div>
+                <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
+              </div>
+            ) : live ? <ServerAccount /> : p.account ? (
+              <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+                <div><strong>{p.account.name || p.name}</strong><div className="small soft">{p.account.email} · signed in with {p.account.provider === 'google' ? 'Google' : 'an email link'}</div></div>
+                <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
+              </div>
+            ) : (
+              <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+                <div><strong>No account yet</strong><div className="small soft">Saved in this browser only.</div></div>
+              </div>
+            )}
+          </div>
+          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={!!p.emailUpdates} onChange={(e) => act.setProfile({ emailUpdates: e.target.checked })} />{live ? 'Email me when something needs me (one short email a day at most)' : 'Email me on rent day, plus a monthly summary'} {!live ? <span className="soft small">(preview: no emails are sent yet)</span> : !conn.config?.emailDelivery && <span className="soft small">(email sending is not switched on yet)</span>}</label>
         </div>
       </section>
 
@@ -93,6 +79,19 @@ export function Settings() {
           <label className="check"><input type="checkbox" checked={p.autoSend} onChange={(e) => act.setAutoSend(e.target.checked)} />
             <span>Send receipts and reminders automatically<span className="tiny soft" style={{ display: 'block' }}>Off: every message waits for you. Legal notices always do.</span></span>
           </label>
+        </div>
+      </section>
+
+      <section className="section" id="levels">
+        <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
+        <div className="sheet">
+          <p className="soft" style={{ marginTop: 0 }}>Cards change colour as you add details. Only Bronze is needed.</p>
+          <ul className="rows">{LEVELS.map((l) => (
+            <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
+              <LevelBadge level={l.id} />
+              <span><span className="title">{l.gives}</span><span className="sub" style={{ display: 'block' }}>Add: {l.needs.toLowerCase()}</span></span>
+            </li>
+          ))}</ul>
         </div>
       </section>
 

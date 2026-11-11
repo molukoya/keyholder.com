@@ -185,7 +185,7 @@ export function RentRows() {
         {bankToSort(state).length > 0 && (
           <div className="prop-line">
             <span><Icon name="bank" size={18} /> {bankToSort(state).length} bank transaction{bankToSort(state).length > 1 ? 's' : ''} to sort (bills, mortgage)</span>
-            <span className="row-act"><Link className="btn primary" to="/paperwork/expenses">Review</Link></span>
+            <span className="row-act"><Link className="btn primary" to="/expenses">Review</Link></span>
           </div>
         )}
       </div>

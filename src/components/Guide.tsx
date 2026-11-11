@@ -57,9 +57,10 @@ export function StatusPill({ tone, children }: { tone: string; children: React.R
 const STEPS: { sel: string; title: string; body: string; path?: string }[] = [
   { sel: '[data-tour="rent"]', title: 'Your rent, at a glance', body: 'Who has paid, and the one next step for each unit.', path: '/today' },
   { sel: '[data-tour="score"]', title: 'Your setup progress', body: 'Goes up as you add details. Pick any item, or hide the ones you don\'t need.', path: '/today' },
-  { sel: '[data-tour="portfolio"]', title: 'Is it worth it?', body: 'What your properties are worth and earn, next to a GIC and the stock market.' },
+  { sel: '[data-tour="portfolio"], [data-tour="more"]', title: 'Is it worth it?', body: 'What your properties are worth and earn, next to a GIC and the stock market. On phones it is under More, with Paperwork and Settings.' },
   { sel: '[data-tour="rentals"]', title: 'Your rentals', body: 'Properties, units, tenants, applications and notices.' },
-  { sel: '[data-tour="receipt"]', title: 'Snap a receipt', body: 'Add a receipt any time. Bank bills are filed for you to confirm.' },
+  { sel: '[data-tour="income"]', title: 'Income', body: 'Every rent payment, with its receipt.' },
+  { sel: '[data-tour="expenses"]', title: 'Expenses', body: 'Add an expense with your camera: Keyholder reads the receipt. Bank bills are filed for you to confirm.' },
 ];
 
 export function Tour() {

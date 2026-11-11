@@ -131,7 +131,7 @@ export function Letterhead({ state }: { state: AppState }) {
     <div className="lh">
       <div>
         <div className="serif">{state.profile.name || 'Your name'}</div>
-        <div className="tiny" style={{ color: '#55605B' }}>{state.profile.email || 'you@example.com'}</div>
+        <div className="tiny" style={{ color: '#55605B' }}>{state.profile.email || 'you@example.com'}{state.profile.phone ? ` · ${state.profile.phone}` : ''}</div>
       </div>
       <div className="tiny" style={{ textAlign: 'right', color: '#55605B' }}>Prepared with Keyholder</div>
     </div>

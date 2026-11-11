@@ -43,7 +43,8 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        // 'wasm-unsafe-eval' lets the on-device receipt reader (WebAssembly) start; it does not allow eval of text.
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc: ["'self'", 'data:', 'blob:'],

@@ -11,9 +11,9 @@ import { Today } from './screens/Today';
 import { Portfolio } from './screens/Portfolio';
 import { PropertyDetail } from './screens/PropertyDetail';
 import { TenantDetail } from './screens/TenantDetail';
-import { Taxes } from './screens/Money';
+import { ExpensesPage } from './screens/Money';
 import { Rentals } from './screens/Rentals';
-import { Paperwork } from './screens/Paperwork';
+import { IncomePage, Paperwork } from './screens/Paperwork';
 import { Settings } from './screens/Settings';
 import { Landing } from './screens/Landing';
 import { SignIn } from './screens/Account';
@@ -87,11 +87,13 @@ function Shell() {
     return () => document.removeEventListener('keydown', onKey);
   }, [navigate]);
 
+  // The menu, in order. Settings sits at the foot of the side menu.
   const nav = [
     { to: '/today', label: 'Home', icon: 'home', badge: true },
     { to: '/portfolio', label: 'Portfolio', icon: 'chart' },
     { to: '/rentals', label: 'Rentals', icon: 'rent' },
-    { to: '/taxes', label: 'Taxes', icon: 'print' },
+    { to: '/income', label: 'Income', icon: 'cash' },
+    { to: '/expenses', label: 'Expenses', icon: 'receipt' },
     { to: '/paperwork', label: 'Paperwork', icon: 'paper' },
   ];
 
@@ -100,8 +102,6 @@ function Shell() {
       <aside className="rail" aria-label="Main">
         <Link to="/welcome" className="brand" title="About Keyholder"><Brand size={28} /></Link>
         {nav.map((n) => <NavLink key={n.to} to={n.to} data-tour={n.to.slice(1)} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
-        <div style={{ height: 16 }} />
-        <button className="btn primary" data-tour="receipt" onClick={() => setCapture(true)}><Icon name="camera" size={18} />Add a receipt</button>
         <div className="rail-foot">
           <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
         </div>
@@ -123,16 +123,21 @@ function Shell() {
             <Route path="/portfolio/:tab" element={<Portfolio />} />
             <Route path="/rentals" element={<Rentals />} />
             <Route path="/rent" element={<Navigate to="/rentals" replace />} />
-            <Route path="/taxes" element={<Taxes />} />
-            <Route path="/money/tax" element={<Navigate to="/taxes" replace />} />
+            <Route path="/income" element={<IncomePage />} />
+            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/taxes" element={<Navigate to="/paperwork/taxes" replace />} />
+            <Route path="/money/tax" element={<Navigate to="/paperwork/taxes" replace />} />
             <Route path="/money/worth-it" element={<Navigate to="/portfolio" replace />} />
             <Route path="/money/bank" element={<Navigate to="/settings#rent-tracking" replace />} />
             <Route path="/more" element={<More />} />
             <Route path="/rent/property/:id" element={<Keyed><PropertyDetail /></Keyed>} />
             <Route path="/rent/property/:id/:tab" element={<Keyed><PropertyDetail /></Keyed>} />
             <Route path="/rent/tenant/:id" element={<Keyed><TenantDetail /></Keyed>} />
-            <Route path="/money" element={<Navigate to="/paperwork/expenses" replace />} />
-            <Route path="/money/expenses" element={<Navigate to="/paperwork/expenses" replace />} />
+            <Route path="/money" element={<Navigate to="/expenses" replace />} />
+            <Route path="/money/expenses" element={<Navigate to="/expenses" replace />} />
+            <Route path="/paperwork/expenses" element={<Navigate to="/expenses" replace />} />
+            <Route path="/paperwork/income" element={<Navigate to="/income" replace />} />
+            <Route path="/paperwork/receipts" element={<Navigate to="/income" replace />} />
             <Route path="/money/cash-flow" element={<Navigate to="/portfolio/cash-flow" replace />} />
             <Route path="/money/summary" element={<Navigate to="/portfolio/cash-flow" replace />} />
             <Route path="/paperwork" element={<Paperwork />} />
@@ -147,10 +152,10 @@ function Shell() {
 
       <nav className="bottombar" aria-label="Main">
         <NavLink to="/today"><Icon name="home" />Home{count > 0 && <span className="badge">{count}</span>}</NavLink>
-        <NavLink to="/portfolio" data-tour="portfolio"><Icon name="chart" />Portfolio</NavLink>
-        <a href="#receipt" data-tour="receipt" className="capture" onClick={(e) => { e.preventDefault(); setCapture(true); }} aria-label="Add a receipt"><span className="disc"><Icon name="camera" size={24} /></span>Receipt</a>
         <NavLink to="/rentals" data-tour="rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
-        <NavLink to="/more" className={['/taxes', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
+        <NavLink to="/income" data-tour="income"><Icon name="cash" />Income</NavLink>
+        <NavLink to="/expenses" data-tour="expenses"><Icon name="receipt" />Expenses</NavLink>
+        <NavLink to="/more" data-tour="more" className={['/portfolio', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
 
       {capture && <ExpenseForm onClose={() => setCapture(false)} />}
@@ -161,16 +166,16 @@ function Shell() {
   );
 }
 
-/** Phone "More" menu: big, plain buttons for the less frequent tabs. */
+/** Phone "More" menu: big, plain buttons for the pages not in the bottom bar. */
 function More() {
   const items = [
-    { to: '/taxes', icon: 'print', label: 'Taxes', sub: 'Your tax summary for the year' },
-    { to: '/paperwork', icon: 'paper', label: 'Paperwork', sub: 'Expense receipts, rental income, leases, notices' },
-    { to: '/settings', icon: 'settings', label: 'Settings', sub: 'You, rent tracking, reminders' },
+    { to: '/portfolio', icon: 'chart', label: 'Portfolio', sub: 'What your properties are worth and earn' },
+    { to: '/paperwork', icon: 'paper', label: 'Paperwork', sub: 'Leases, notices, forms and taxes' },
+    { to: '/settings', icon: 'settings', label: 'Settings', sub: 'Your profile, rent tracking, reminders' },
   ];
   return (
     <div className="page">
-      <div className="page-head"><div><h1>More</h1><PageSub>Taxes, paperwork and your settings.</PageSub></div></div>
+      <div className="page-head"><div><h1>More</h1><PageSub>Portfolio, paperwork and your settings.</PageSub></div></div>
       <div className="more-list">{items.map((i) => (
         <Link key={i.to} to={i.to} className="more-item"><Icon name={i.icon} size={26} /><span><strong>{i.label}</strong><span>{i.sub}</span></span><Icon name="next" /></Link>
       ))}</div>

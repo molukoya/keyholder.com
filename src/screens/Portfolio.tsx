@@ -1,4 +1,4 @@
-import { PageSub } from '../components/Guide';
+import { BackToMore, PageSub } from '../components/Guide';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
@@ -19,7 +19,7 @@ export function Portfolio() {
   const { tab = 'overview' } = useParams();
   return (
     <div className="page">
-      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic lilac" aria-hidden><Icon name="chart" size={22} /></span>Portfolio</h1><PageSub>Value, earnings, and how they compare with a GIC</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic lilac" aria-hidden><Icon name="chart" size={22} /></span>Portfolio</h1><PageSub>Value, earnings, and how they compare with a GIC</PageSub></div></div>
       <nav className="tabs" aria-label="Portfolio sections">
         <NavLink end to="/portfolio" className={tab === 'overview' ? 'active' : ''}>Overview</NavLink>
         <NavLink to="/portfolio/cash-flow">Cash flow</NavLink>

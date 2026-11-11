@@ -6,3 +6,4 @@ dist
 .data
 server-dist
 .env
+public/ocr

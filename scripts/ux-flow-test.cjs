@@ -39,6 +39,20 @@ async function answerQuestions(pg) {
 const state = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')));
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(250); };
 const approve = async (pg) => { await pg.locator('.slide-confirm .knob').focus(); await pg.keyboard.press('Enter'); await pg.waitForTimeout(350); };
+// A receipt photo for the reader test: a till slip on a counter, dated 2 days ago.
+const RECEIPT_DATE = (() => { const d = new Date(); d.setDate(d.getDate() - 2); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+let receiptPath = null;
+async function receiptImage(browser, dir) {
+  if (receiptPath) return receiptPath;
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 760 }, deviceScaleFactor: 2 }); const r = await ctx.newPage();
+  const sp = (n) => '&nbsp;'.repeat(n);
+  await r.setContent(`<body style="margin:0;background:#e9e4da;display:grid;place-items:center;height:100vh"><div style="background:#fff;width:300px;padding:24px 20px;font:15px/1.5 'Courier New',monospace;color:#111;transform:rotate(-1.5deg)">
+    <div style="text-align:center;font-weight:bold;font-size:20px">THE HOME DEPOT</div><div style="text-align:center">#7011 HAMILTON ON</div><br><div>${RECEIPT_DATE} 14:32</div><br>
+    <div>PAINT 1GAL${sp(8)}54.99</div><div>ROLLER KIT${sp(8)}21.51</div><br><div>SUBTOTAL${sp(10)}76.50</div><div>HST 13%${sp(11)}9.95</div><div style="font-weight:bold">TOTAL${sp(13)}86.45</div><div>VISA${sp(14)}86.45</div><br><div style="text-align:center">THANK YOU</div></div></body>`);
+  receiptPath = require('path').join(dir, 'receipt-test.jpg');
+  await r.screenshot({ path: receiptPath, type: 'jpeg', quality: 85 }); await ctx.close();
+  return receiptPath;
+}
 const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) { ok(tag, name, false, process.env.DEBUG ? String(e.message).split('\n').slice(0, 14).join(' / ') : String(e.message).split('\n')[0].slice(0, 160)); } };
 
 (async () => {
@@ -93,13 +107,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await row('Rita').locator('.status').count()) throw new Error('pill still shown when caught up: ' + (await row('Rita').locator('.status').textContent()));
       return 'caught up, no pill · ' + (await row('Rita').locator('.paid-on').textContent());
     });
-    await step(tag, 'A9 Paperwork → Rental income shows the payment and receipt', async () => { await go(pg, 'paperwork/income'); await pg.waitForSelector('td:has-text("Rita Gomez")'); });
-    await step(tag, 'A10 Add a receipt (expense) from the main button', async () => {
-      await go(pg, 'today');
-      if (tag === 'phone') await pg.locator('.bottombar .capture').click(); else await pg.locator('.rail >> text=Add a receipt').click();
+    await step(tag, 'A9 Income shows the payment and receipt', async () => { await go(pg, 'income'); await pg.waitForSelector('td:has-text("Rita Gomez")'); });
+    await step(tag, 'A10 Expenses → Add an expense (typed, no photo)', async () => {
+      await go(pg, 'expenses'); await pg.locator('.page-head >> text=Add an expense').click();
       await pg.locator('text=No photo, just type it').click(); await pg.fill('#ex-amt', '120'); await pg.fill('#ex-vendor', 'Home Depot');
       await pg.locator('.drawer-foot >> text=Save').click(); await pg.waitForTimeout(250);
-      await go(pg, 'paperwork/expenses'); await pg.waitForSelector('text=Home Depot');
+      await go(pg, 'expenses'); await pg.waitForSelector('text=Home Depot');
     });
     await step(tag, 'A11 Score "Do it" opens the right form (what you paid → Silver)', async () => {
       await go(pg, 'today'); await pg.locator(tag === 'phone' ? '.mobile-top .setup-circle' : '.top-tools.desk .setup-circle').click(); await pg.waitForSelector('.setup-card #score');
@@ -120,7 +133,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.waitForSelector('text=Still owed'); const st = await state(pg); return `stage: ${st.properties[0].closingCosts !== undefined && st.mortgages.length ? 'Gold' : 'not gold'}`;
     });
     await step(tag, 'A14 Portfolio shows net worth and the property card', async () => { await go(pg, 'portfolio'); await pg.waitForSelector('text=Your net worth in property'); await pg.waitForSelector('.pcard:has-text("Oak house")'); });
-    await step(tag, 'A15 Taxes shows the property', async () => { await go(pg, 'taxes'); await pg.waitForSelector('text=rental income · Oak house'); });
+    await step(tag, 'A15 Paperwork → Taxes shows the property', async () => { await go(pg, 'paperwork/taxes'); await pg.waitForSelector('text=rental income · Oak house'); });
     await step(tag, 'A16 Settings → connect a bank → "Check now"', async () => {
       await go(pg, 'settings'); await pg.locator('text=Check my banks for me').click(); await pg.locator('.drawer .choice:has-text("TD")').click(); await pg.locator('text=Connect TD').click(); await pg.waitForTimeout(1400);
       await pg.locator('text=/Check (all )?now/').first().click(); await pg.waitForTimeout(300);
@@ -217,7 +230,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
 
     await step(tag, 'B14 Bank review: Enbridge → Add expense (filed to a property)', async () => {
-      await go(pg, 'paperwork/expenses'); await pg.waitForSelector('#bank');
+      await go(pg, 'expenses'); await pg.waitForSelector('#bank');
       const r0 = pg.locator('.bank-row:has-text("ENBRIDGE")'); await r0.locator('text=Add expense').click(); await pg.waitForTimeout(250);
       const st = await state(pg); if (!st.expenses.some((e) => Math.abs(e.amount) === 21240)) throw new Error('no expense created');
     });
@@ -237,7 +250,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
 
     // ---------------- C. Every link on every page ----------------
-    const pages = ['today', 'rentals', 'rent/property/p-maple', 'rent/property/p-maple/find', 'rent/property/p-maple/notices', 'rent/property/p-maple/value', 'rent/property/p-maple/mortgage', 'rent/property/p-birch/value', 'rent/tenant/t-maya', 'portfolio', 'portfolio/cash-flow', 'taxes', 'paperwork/expenses', 'paperwork/income', 'paperwork/leases', 'paperwork/notices', 'paperwork/forms', 'settings', 'more'];
+    const pages = ['today', 'rentals', 'rent/property/p-maple', 'rent/property/p-maple/find', 'rent/property/p-maple/notices', 'rent/property/p-maple/value', 'rent/property/p-maple/mortgage', 'rent/property/p-birch/value', 'rent/tenant/t-maya', 'portfolio', 'portfolio/cash-flow', 'income', 'expenses', 'paperwork/leases', 'paperwork/notices', 'paperwork/forms', 'paperwork/taxes', 'settings', 'more'];
     const bad = [];
     if (want('C')) for (const p of pages) {
       await go(pg, p);
@@ -254,11 +267,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     }
     if (want('C')) ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
     // Navigation bars
-    await step(tag, 'C2 Main navigation reaches every tab', async () => {
-      const labels = tag === 'phone' ? ['Home', 'Portfolio', 'Rentals', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Taxes', 'Paperwork', 'Settings'];
-      const order = await pg.locator(tag === 'phone' ? '.bottombar a' : '.rail .nav-link').allTextContents(); if (!/Home.*Portfolio.*Rentals/.test(order.join(' '))) throw new Error('order: ' + order.join(', '));
-      for (const l of labels) { await pg.locator(tag === 'phone' ? `.bottombar >> text=${l}` : `.rail >> text=${l}`).first().click(); await pg.waitForTimeout(150); }
-      if (tag === 'phone') for (const l of ['Taxes', 'Paperwork', 'Settings']) { await go(pg, 'more'); await pg.locator(`.more-item:has-text("${l}")`).click(); await pg.waitForSelector(`h1:has-text("${l === 'Settings' ? 'Your Keyholder' : l}")`); }
+    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Settings (phones: Home, Rentals, Income, Expenses, More); no receipt button', async () => {
+      const labels = tag === 'phone' ? ['Home', 'Rentals', 'Income', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork', 'Settings'];
+      const order = (await pg.locator(tag === 'phone' ? '.bottombar a' : '.rail .nav-link').allTextContents()).join(' ').replace(/\d+/g, '');
+      if (!(tag === 'phone' ? /Home.*Rentals.*Income.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork.*Settings/).test(order)) throw new Error('order: ' + order);
+      if (await pg.locator('.bottombar .capture, .rail >> text=Add a receipt').count()) throw new Error('receipt still in the menu');
+      for (const l of labels) { await pg.locator(tag === 'phone' ? `.bottombar >> text=${l}` : `.rail >> text=${l}`).first().click(); await pg.waitForSelector(`h1:has-text("${l === 'Home' ? 'Home' : l === 'Settings' ? 'Your Keyholder' : l}")`, { state: 'attached' }); }
+      if (tag === 'phone') for (const l of ['Portfolio', 'Paperwork', 'Settings']) { await go(pg, 'more'); await pg.locator(`.more-item:has-text("${l}")`).click(); await pg.waitForSelector(`h1:has-text("${l === 'Settings' ? 'Your Keyholder' : l}")`); }
+      for (const [from, to] of [['taxes', '#/paperwork/taxes'], ['paperwork/expenses', '#/expenses'], ['paperwork/income', '#/income']]) { await go(pg, from); const h = await pg.evaluate(() => location.hash); if (h !== to) throw new Error(`${from} → ${h}`); }
     });
     ok(tag, 'B/C errors', errsB.length === 0, errsB.slice(0, 3).join(' | '));
 
@@ -292,14 +308,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
     await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question'); });
-    await step(tag, 'D6 test / test → sample Home, demo banner and tour (5 steps)', async () => {
-      await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Demo:'); await pg.waitForSelector('.tour-card >> text=Step 1 of 5');
-      for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
+    await step(tag, 'D6 test / test → sample Home, demo banner and tour (6 steps)', async () => {
+      await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Demo:'); await pg.waitForSelector('.tour-card >> text=Step 1 of 6');
+      for (let i = 2; i <= 6; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 6`); }
       await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200); if (await pg.locator('.tour').count()) throw new Error('tour still open');
     });
     await step(tag, 'D7 Tap a status pill → plain explanation', async () => { await pg.locator('.rent-row .pill-btn').first().click(); await pg.waitForSelector('.pill-tip'); });
     await step(tag, 'D8 Every main page has a one-line subtitle', async () => {
-      for (const p of ['portfolio', 'rentals', 'taxes', 'paperwork', 'settings']) { await go(pg, p); if (!(await pg.locator('.page-sub').count())) throw new Error(p); }
+      for (const p of ['portfolio', 'rentals', 'income', 'expenses', 'paperwork', 'paperwork/taxes', 'settings']) { await go(pg, p); if (!(await pg.locator('.page-sub').count())) throw new Error(p); }
     });
     await step(tag, 'D9 Settings → "What is Keyholder?" → landing → back to dashboard', async () => {
       await go(pg, 'settings'); await pg.locator('text=What is Keyholder?').click(); await pg.waitForSelector('.lp-hero-h');
@@ -321,7 +337,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
       await adminIn(pg);
       await go(pg, 'rent/tenant/t-maya'); await pg.locator('.crumb:has-text("Back to")').click(); await pg.waitForSelector('h1, .pcard');
-      if (tag === 'phone') for (const p of ['taxes', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
+      if (tag === 'phone') for (const p of ['portfolio', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
     });
     await step(tag, 'D16 Help button opens plain answers', async () => {
       await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.top-tools.desk .help-btn').click(); await pg.waitForSelector('#help-title');
@@ -403,7 +419,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (/255, 255, 255/.test(bg)) throw new Error('rent card white in dark mode: ' + bg);
     });
     await step(tag, 'F4b Taxes: add a regular cost paid in cash (no receipt); a later "From" date explains the part year', async () => {
-      await go(pg, 'taxes'); await pg.waitForSelector('.regular-costs');
+      await go(pg, 'paperwork/taxes'); await pg.waitForSelector('.regular-costs');
       await pg.locator('.rc-item', { hasText: 'Snow removal' }).click(); await pg.waitForSelector('.cash-note');
       if (!(await pg.locator('#ex-cash').isChecked())) throw new Error('cash box not ticked');
       await pg.fill('#ex-amt', '60'); await pg.locator('.drawer-foot >> text=Save').click(); await pg.waitForTimeout(300);
@@ -411,6 +427,17 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.locator('.tax-start').count()) throw new Error('part-year note shown for records starting in January');
       const y = new Date().getFullYear(); await pg.fill('#tax-from', `${y}-06-01`); await pg.waitForSelector('.tax-start >> text=Started part way through the year');
       await pg.waitForSelector('text=paid in cash with no receipt');
+    });
+    await step(tag, 'F4c Expenses → Add an expense → photo of a receipt: amount, date, store and type filled in', async () => {
+      const img = await receiptImage(b, out);
+      await go(pg, 'expenses'); await pg.locator('.page-head >> text=Add an expense').click();
+      await pg.locator('.capture-frame input[type=file]').setInputFiles(img);
+      await pg.waitForSelector('#ex-amt', { timeout: 90000 });
+      const got = { amount: await pg.inputValue('#ex-amt'), date: await pg.inputValue('#ex-date'), vendor: await pg.inputValue('#ex-vendor'), type: await pg.inputValue('#ex-cat') };
+      if (got.amount !== '86.45' || got.date !== RECEIPT_DATE || got.vendor !== 'Home Depot' || got.type !== 'repairs') throw new Error(JSON.stringify(got));
+      await pg.waitForSelector('.read-note >> text=Please check before you save');
+      await pg.locator('.drawer-foot >> text=Cancel').click();
+      return `${got.vendor} ${got.amount} ${got.date}`;
     });
     await step(tag, 'F5 Tenant rows show avatars; empty states have pictures', async () => {
       await go(pg, 'today'); if (!(await pg.locator('.rent-row .avatar').count())) throw new Error('no avatars');

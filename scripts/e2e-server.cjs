@@ -34,6 +34,20 @@ async function answerQuestions(pg, first) {
   await pg.click('text=Getting paid on time'); await pg.click('.q-foot >> text=See my plan');
   await pg.waitForSelector('text=Turn on your automation');
 }
+let receiptPath = null;
+async function receiptImage(browser) {
+  if (receiptPath) return receiptPath;
+  const d = new Date(); d.setDate(d.getDate() - 2);
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 760 }, deviceScaleFactor: 2 }); const r = await ctx.newPage();
+  const sp = (n) => '&nbsp;'.repeat(n);
+  await r.setContent(`<body style="margin:0;background:#e9e4da;display:grid;place-items:center;height:100vh"><div style="background:#fff;width:300px;padding:24px 20px;font:15px/1.5 'Courier New',monospace;color:#111;transform:rotate(-1.5deg)">
+    <div style="text-align:center;font-weight:bold;font-size:20px">THE HOME DEPOT</div><div style="text-align:center">#7011 HAMILTON ON</div><br><div>${day} 14:32</div><br>
+    <div>PAINT 1GAL${sp(8)}54.99</div><div>ROLLER KIT${sp(8)}21.51</div><br><div>SUBTOTAL${sp(10)}76.50</div><div>HST 13%${sp(11)}9.95</div><div style="font-weight:bold">TOTAL${sp(13)}86.45</div><div>VISA${sp(14)}86.45</div></div></body>`);
+  receiptPath = require('node:path').join(require('node:os').tmpdir(), `kh-receipt-${Date.now()}.jpg`);
+  await r.screenshot({ path: receiptPath, type: 'jpeg', quality: 85 }); await ctx.close();
+  return receiptPath;
+}
 async function signIn(pg, email, password) {
   await go(pg, 'signin'); await pg.fill('#login-user', email); await pg.fill('#login-pass', password); await pg.click('.acct-login >> text=Sign in');
 }
@@ -91,6 +105,15 @@ function watch(pg, errors, label) {
         const st = await until(async () => { const r = (await api(pg, '/api/state')).body; return r?.data?.tenants?.some((t) => t.names[0] === 'Rita Gomez') && r; }, 6000, 'tenant saved');
         return `${st.data.properties.length} property, ${st.data.tenants.length} tenant · revision ${st.revision}`;
       });
+      await step(tag, 'E4b Expenses → photo of a receipt is read on the device (server security rules allow it) and saved to the account', async () => {
+        const img = await receiptImage(b);
+        await go(pg, 'expenses'); await pg.locator('.page-head >> text=Add an expense').click();
+        await pg.locator('.capture-frame input[type=file]').setInputFiles(img);
+        await pg.waitForSelector('#ex-amt', { timeout: 90000 });
+        if ((await pg.inputValue('#ex-amt')) !== '86.45' || (await pg.inputValue('#ex-vendor')) !== 'Home Depot') throw new Error(`read: ${await pg.inputValue('#ex-amt')} ${await pg.inputValue('#ex-vendor')}`);
+        await pg.locator('.drawer-foot >> text=Save').click();
+        await until(async () => (await api(pg, '/api/state')).body?.data?.expenses?.some((e) => e.vendor === 'Home Depot' && e.amount === 8645 && e.receiptImage), 6000, 'expense saved with its photo');
+      });
       await step(tag, 'E5 Mark rent paid and send the receipt: the tenant gets it by email', async () => {
         const st = (await api(pg, '/api/state')).body.data;
         const row = () => pg.locator('.rent-row', { hasText: 'Rita' });
@@ -123,7 +146,7 @@ function watch(pg, errors, label) {
       });
       await step(tag, 'E10 A change on one device shows on the other', async () => {
         await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');
-        await go(pgB, 'settings'); await pgB.locator('#account label.check input').check();
+        await go(pgB, 'settings'); await pgB.locator('#profile > .sheet > label.check input').check();
         await until(async () => (await api(pgB, '/api/state')).body.data.profile.emailUpdates === true, 6000, 'saved on B');
         await pg.evaluate(() => window.dispatchEvent(new Event('focus')));
         await until(async () => (await pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')))).profile.emailUpdates === true, 8000, 'device A updated');
@@ -131,7 +154,7 @@ function watch(pg, errors, label) {
       await step(tag, 'E10b Signed out on the server mid-use: the change is kept and saved after signing in again', async () => {
         await go(pg, 'settings');
         await pg.evaluate(() => fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Keyholder': '1' } }));
-        await pg.locator('#account label.check input').uncheck();
+        await pg.locator('#profile > .sheet > label.check input').uncheck();
         await pg.waitForSelector('text=You were signed out', { timeout: 8000 });
         await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');
         await until(async () => (await api(pg, '/api/state')).body?.data?.profile?.emailUpdates === false, 8000, 'change saved after signing in');

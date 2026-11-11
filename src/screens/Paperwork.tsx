@@ -1,13 +1,14 @@
 import { BackToMore, PageSub } from '../components/Guide';
 import { useState } from 'react';
-import { Link, NavLink, useParams } from 'react-router-dom';
+import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
 import type { Lease, Message, Province, Receipt } from '../data/types';
 import { AUTHORITY_URL, SITUATIONS, formsFor } from '../lib/forms';
 import { FormWizard, SituationPicker } from '../components/FormWizard';
 import { useStore } from '../data/store';
 import { addDays, addMonths, fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
 import { PROVINCES, province } from '../lib/jurisdiction';
-import { Expenses } from './Money';
+import { TaxPackPage } from './Money';
+import { PaymentForm } from '../components/forms';
 import { fmt } from '../lib/money';
 import { messageBody } from '../lib/templates';
 import { Letterhead, ReceiptLetter, methodLabel } from '../components/domain';
@@ -16,18 +17,35 @@ import { Icon } from '../components/Icon';
 import { SceneTap, SceneWelcome } from '../components/Art';
 
 export function Paperwork() {
-  const { tab = 'expenses' } = useParams();
-  const tabs = [{ id: 'expenses', label: 'Expense receipts' }, { id: 'income', label: 'Rental income' }, { id: 'leases', label: 'Leases' }, { id: 'notices', label: 'Notices and letters' }, { id: 'forms', label: 'Forms' }];
-  const cur = tab === 'receipts' ? 'income' : tab === 'letters' || tab === 'log' ? 'notices' : tab;
+  const { tab = 'leases' } = useParams();
+  const tabs = [{ id: 'leases', label: 'Leases' }, { id: 'notices', label: 'Notices and letters' }, { id: 'forms', label: 'Forms' }, { id: 'taxes', label: 'Taxes' }];
+  // Income and expenses have their own pages now; old links still land there.
+  if (tab === 'expenses') return <Navigate to="/expenses" replace />;
+  if (tab === 'income' || tab === 'receipts') return <Navigate to="/income" replace />;
+  const cur = tab === 'letters' || tab === 'log' ? 'notices' : tabs.some((t) => t.id === tab) ? tab : 'leases';
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="paper" size={22} /></span>Paperwork</h1><PageSub>Receipts, rent records, leases and notices</PageSub></div></div>
+      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="paper" size={22} /></span>Paperwork</h1><PageSub>Leases, notices, forms and taxes</PageSub></div></div>
       <nav className="tabs" aria-label="Paperwork sections">{tabs.map((t) => <NavLink key={t.id} to={`/paperwork/${t.id}`} className={cur === t.id ? 'active' : ''}>{t.label}</NavLink>)}</nav>
-      {cur === 'expenses' && <Expenses />}
-      {cur === 'income' && <Income />}
       {cur === 'leases' && <Leases />}
       {cur === 'forms' && <FormsLibrary />}
+      {cur === 'taxes' && <><p className="soft" style={{ marginTop: 0 }}>Your year's rent and costs, ready for your tax return (T776).</p><TaxPackPage /></>}
       {cur === 'notices' && <><NoticesLog /><section className="section"><h2 className="section-title">Receipts and reminders sent</h2><Letters /></section><section className="section"><h2 className="section-title">History of changes</h2><Log /></section></>}
+    </div>
+  );
+}
+
+/** Income (its own page in the menu): every rent payment received, with its receipt. */
+export function IncomePage() {
+  const { state } = useStore();
+  const [pay, setPay] = useState(false);
+  const live = state.leases.some((l) => !l.end || l.end >= new Date().toISOString().slice(0, 10));
+  return (
+    <div className="page">
+      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="cash" size={22} /></span>Income</h1><PageSub>Rent received, with a receipt for each payment</PageSub></div>
+        {live && <button className="btn primary" onClick={() => setPay(true)}><Icon name="cash" size={18} />Mark rent paid</button>}</div>
+      <Income />
+      {pay && <PaymentForm onClose={() => setPay(false)} />}
     </div>
   );
 }

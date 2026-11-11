@@ -77,7 +77,8 @@ address and email; wrong passwords and unknown emails get the same answer.
 
 **Cross-site protection.** Every request that changes something must come from the site itself (Origin
 check) and carry the `X-Keyholder: 1` header, which a form on another site cannot add. Strict security
-headers (CSP, frame-ancestors none, HSTS on https).
+headers (CSP, frame-ancestors none, HSTS on https). The CSP allows `'wasm-unsafe-eval'` so the on-device receipt
+reader (WebAssembly) can start; it does not allow evaluating text as code.
 
 **A landlord's data.** The app keeps working on its copy in the browser (fast, works offline) and saves
 the whole record to the server a moment after each change (`PUT /api/state` with the version it started

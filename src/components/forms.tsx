@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type {
   CCAClass, Comparable, Expense, ExpenseCategory, Lease, Mortgage, MortgageFrequency, PayMethod, Payment, Person, Property, PropertyType, Tenant, Unit, Valuation,
 } from '../data/types';
@@ -10,6 +10,7 @@ import { withPeople } from '../lib/people';
 import { CATEGORIES, CCA_CLASSES, PROVINCES, category, province } from '../lib/jurisdiction';
 import { fmt } from '../lib/money';
 import { Icon } from './Icon';
+import { canReadReceipts, readReceiptPhoto } from '../lib/ocr';
 import { Drawer, Field, MoneyInput, Seg, Term } from './ui';
 
 // =====================================================================================
@@ -104,7 +105,12 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
     scope: category('repairs').sharedByDefault ? 'shared' : 'direct', createdAt: new Date().toISOString(), ...prefill,
   });
   const [flash, setFlash] = useState(false);
-  const [step, setStep] = useState<'snap' | 'details'>(expense || prefill ? 'details' : 'snap');
+  const [step, setStep] = useState<'snap' | 'reading' | 'details'>(expense || prefill ? 'details' : 'snap');
+  // Reading the receipt photo on the device: progress, then which fields it filled in.
+  const [progress, setProgress] = useState<{ step: string; pct: number }>({ step: 'Getting the reader ready', pct: 0 });
+  const [filled, setFilled] = useState<string[]>([]);
+  const [readNote, setReadNote] = useState<'none' | null>(null);
+  const readRun = useRef(0);
   const [more, setMore] = useState(!!expense?.unitId || !!expense?.note);
   const set = (p: Partial<Expense>) => setE((x) => ({ ...x, ...p }));
   const prop = props.find((p) => p.id === e.propertyId);
@@ -117,7 +123,26 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
     const data = await compress(f);
     setFlash(true); setTimeout(() => setFlash(false), 320);
     set({ receiptImage: data });
-    setStep('details');
+    if (!canReadReceipts()) { setStep('details'); return; }
+    // Read the receipt and fill in only what is still empty (never over something already typed).
+    const run = ++readRun.current;
+    setStep('reading'); setReadNote(null); setFilled([]);
+    try {
+      const g = await readReceiptPhoto(f, today, (st, pct) => { if (run === readRun.current) setProgress({ step: st, pct }); });
+      if (run !== readRun.current) return;
+      const got: string[] = [];
+      setE((x) => {
+        const n = { ...x };
+        if (g.amount && !x.amount) { n.amount = g.amount; got.push('amount'); }
+        if (g.date && (x.date === today && !prefill?.date && !expense)) { n.date = g.date; got.push('date'); }
+        if (g.vendor && !x.vendor.trim()) { n.vendor = g.vendor; got.push('store'); }
+        if (g.category && !expense && !prefill?.category && x.category === 'repairs') { n.category = g.category; n.scope = part ? (category(g.category).sharedByDefault ? 'shared' : 'direct') : x.scope; got.push('type'); }
+        return n;
+      });
+      setFilled(got);
+      if (!g.found.length) setReadNote('none');
+    } catch { if (run === readRun.current) setReadNote('none'); }
+    if (run === readRun.current) setStep('details');
   };
 
   if (!props.length) {
@@ -126,12 +151,13 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
 
   if (step === 'snap') {
     return (
-      <Drawer title="Add a receipt" onClose={onClose}>
+      <Drawer title="Add an expense" onClose={onClose}>
         <label className={`capture-frame${flash ? ' flash' : ''}`} style={{ cursor: 'pointer' }}>
           <div className="edges" />
           <div style={{ textAlign: 'center', zIndex: 1 }}>
             <Icon name="camera" size={40} />
-            <div style={{ marginTop: 8, fontSize: 'var(--t-20)' }}>Take a photo</div>
+            <div style={{ marginTop: 8, fontSize: 'var(--t-20)' }}>Take a photo of the receipt</div>
+            {canReadReceipts() && <div className="small" style={{ marginTop: 4, opacity: .8 }}>Keyholder reads it and fills in the details</div>}
           </div>
           <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(ev) => onPhoto(ev.target.files?.[0])} />
         </label>
@@ -143,9 +169,24 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
     );
   }
 
+  if (step === 'reading') {
+    return (
+      <Drawer title="Add an expense" onClose={onClose}>
+        <div className="reading">
+          {e.receiptImage && <img src={e.receiptImage} alt="Your receipt" className="photo" />}
+          <p className="reading-step" role="status"><span className="spinner" aria-hidden />{progress.step}…</p>
+          <div className="rent-bar" aria-hidden><i style={{ width: `${Math.max(6, progress.pct)}%` }} /></div>
+          <p className="small soft">Keyholder reads the receipt on this device and fills in the amount, date and store. You check it before saving.</p>
+          <button className="btn ghost" onClick={() => { readRun.current++; setStep('details'); }}>Type it instead</button>
+        </div>
+      </Drawer>
+    );
+  }
+
+  const auto = (f: string) => (filled.includes(f) ? ' autofilled' : '');
   const valid = e.amount > 0 && e.propertyId && e.date;
   return (
-    <Drawer title={expense ? 'Edit expense' : 'Add a receipt'} onClose={onClose}
+    <Drawer title={expense ? 'Edit expense' : 'Add an expense'} onClose={onClose}
       footer={<>
         {expense && <button className="btn ghost danger" onClick={() => { act.deleteExpense(expense.id); onClose(); }}><Icon name="trash" size={16} />Delete</button>}
         <button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -165,11 +206,13 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
       {e.cashNoReceipt && !e.receiptImage && (
         <p className="callout cash-note"><strong>That's OK.</strong> You can still count it if you keep a record: the date, who you paid, what for and how much. Keyholder saves this as your record. A short signed note from the person you paid is even better (you can add a photo of it).</p>
       )}
+      {filled.length > 0 && <p className="callout read-note" role="status"><Icon name="sparkle" size={16} /><span><strong>Filled in from your receipt:</strong> {filled.join(', ')}. Please check before you save.</span></p>}
+      {readNote === 'none' && <p className="callout warn read-note" role="status"><span>Keyholder couldn't read this receipt. Please type the details. The photo is kept.</span></p>}
       <div className="grid2">
-        <Field label="Amount" htmlFor="ex-amt"><MoneyInput id="ex-amt" value={e.amount || undefined} onChange={(c) => set({ amount: c ?? 0 })} autoFocus /></Field>
-        <Field label="Date" htmlFor="ex-date"><input id="ex-date" type="date" className="input" value={e.date} onChange={(x) => set({ date: x.target.value })} /></Field>
+        <Field label="Amount" htmlFor="ex-amt"><span className={`af${auto('amount')}`}><MoneyInput id="ex-amt" value={e.amount || undefined} onChange={(c) => set({ amount: c ?? 0 })} autoFocus /></span></Field>
+        <Field label="Date" htmlFor="ex-date"><input id="ex-date" type="date" className={`input${auto('date')}`} value={e.date} onChange={(x) => set({ date: x.target.value })} /></Field>
       </div>
-      <Field label="Paid to" htmlFor="ex-vendor"><input id="ex-vendor" className="input" value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder={e.cashNoReceipt ? 'Name of the person you paid' : 'Home Depot, plumber, city…'} /></Field>
+      <Field label="Paid to" htmlFor="ex-vendor"><input id="ex-vendor" className={`input${auto('store')}`} value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder={e.cashNoReceipt ? 'Name of the person you paid' : 'Home Depot, plumber, city…'} /></Field>
       <div className="grid2">
         <Field label="Property" htmlFor="ex-prop">
           <select id="ex-prop" className="input" value={e.propertyId} onChange={(x) => set({ propertyId: x.target.value, unitId: undefined })}>
@@ -177,7 +220,7 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
           </select>
         </Field>
         <Field label="What for?" htmlFor="ex-cat">
-          <select id="ex-cat" className="input" value={e.category} onChange={(x) => { const c = x.target.value as ExpenseCategory; set({ category: c, scope: part ? (category(c).sharedByDefault ? 'shared' : 'direct') : e.scope }); }}>
+          <select id="ex-cat" className={`input${auto('type')}`} value={e.category} onChange={(x) => { const c = x.target.value as ExpenseCategory; set({ category: c, scope: part ? (category(c).sharedByDefault ? 'shared' : 'direct') : e.scope }); }}>
             {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </Field>

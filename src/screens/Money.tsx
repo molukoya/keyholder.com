@@ -1,4 +1,4 @@
-import { BackToMore, PageSub } from '../components/Guide';
+import { PageSub } from '../components/Guide';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import type { BankName, BankTxn, Expense, ExpenseCategory, Property } from '../data/types';
@@ -30,11 +30,15 @@ export function Money() {
 }
 
 /** Taxes: its own tab. */
-export function Taxes() {
+/** Expenses (its own page in the menu): every bill and receipt, and "Add an expense" with the camera. */
+export function ExpensesPage() {
+  const [adding, setAdding] = useState(false);
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><h1 className="title-ic"><span className="tile-ic sun" aria-hidden><Icon name="print" size={22} /></span>Taxes</h1><PageSub>Your year's rent and costs, ready for your tax return (T776)</PageSub></div></div>
-      <TaxPackPage />
+      <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="receipt" size={22} /></span>Expenses</h1><PageSub>Bills and receipts, sorted for tax time</PageSub></div>
+        <button className="btn primary add-expense" data-tour="add-expense" onClick={() => setAdding(true)}><Icon name="camera" size={18} />Add an expense</button></div>
+      <Expenses />
+      {adding && <ExpenseForm onClose={() => setAdding(false)} />}
     </div>
   );
 }
@@ -106,10 +110,9 @@ export function Expenses() {
           </select>
           {<Seg label="Kind" value={kind} onChange={setKind} options={[{ id: 'all', label: 'All' }, { id: 'current', label: 'Running costs' }, { id: 'capital', label: 'Improvements' }]} />}
         </div>
-        <button className="btn primary" onClick={() => setForm('new')}><Icon name="camera" size={16} />Snap a receipt</button>
       </div>
       {list.length === 0 ? (
-        <div className="sheet"><Empty title="No receipts yet this month." art={<SceneReceipts />} action={<button className="btn primary" onClick={() => setForm('new')}>Snap the first one</button>}>Snap the next one when you get it.</Empty></div>
+        <div className="sheet"><Empty title="No receipts yet this month." art={<SceneReceipts />} action={<button className="btn primary" onClick={() => setForm('new')}><Icon name="camera" size={16} />Add an expense</button>}>Take a photo of a receipt: Keyholder reads it and fills in the details.</Empty></div>
       ) : (
         <>
           <p className="small soft">{list.length} entries · <strong className="mono">{fmt(total)}</strong> counted toward the rental{state.properties.some((p) => p.rentalSharePct < 100) ? ' (after rental-share split)' : ''}</p>
@@ -382,7 +385,7 @@ function RegularCosts({ prop, year }: { prop: Property; year: number }) {
 // =====================================================================================
 // Phase 3 — Tax Pack (T776)
 // =====================================================================================
-function TaxPackPage() {
+export function TaxPackPage() {
   const { state, today } = useStore();
   const props = state.properties.filter((p) => !p.archived);
   const [pid, setPid] = useState(props[0]?.id ?? '');
@@ -460,7 +463,7 @@ function TaxPackPage() {
             </li>
           ))}</ul>
         )}
-        {fixes > 0 && <Link to="/paperwork/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
+        {fixes > 0 && <Link to="/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
       </div>
 
       <RegularCosts prop={p} year={year} />

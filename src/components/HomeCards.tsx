@@ -111,7 +111,7 @@ function upcoming(state: AppState, today: string): Ev[] {
     }
   }
   const y = Number(today.slice(0, 4)); const tax = `${today >= `${y}-04-30` ? y + 1 : y}-04-30`;
-  out.push({ date: tax, title: 'Tax return due', sub: 'Your rental numbers are ready in Taxes', icon: 'print', tone: 'sun', to: '/taxes' });
+  out.push({ date: tax, title: 'Tax return due', sub: 'Your rental numbers are ready in Taxes', icon: 'print', tone: 'sun', to: '/paperwork/taxes' });
   return out.sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 5);
 }
 

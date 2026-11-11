@@ -474,3 +474,21 @@ html body .drawer { z-index: 126; }
 .rc-item .tiny { display: block; }
 .rc-n { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; font-size: 14px; }
 .rc-n.done { color: var(--pine); }
+
+/* Settings: Your profile */
+.profile-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.profile-head strong { font-size: var(--t-20, 20px); }
+.profile-account { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule); }
+
+/* Add an expense: reading the receipt photo, and fields it filled in */
+.reading { display: grid; gap: 14px; justify-items: start; }
+.reading .photo { max-height: 260px; width: auto; max-width: 100%; border-radius: 12px; }
+.reading .rent-bar { width: 100%; }
+.reading-step { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; font-size: var(--t-18, 18px); }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--rule); border-top-color: var(--primary); animation: kh-spin .8s linear infinite; }
+@keyframes kh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.read-note { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; }
+.input.autofilled, .af.autofilled .input { border-color: var(--primary); box-shadow: 0 0 0 3px var(--accent-tint); }
+.af { display: block; }
+.add-expense { min-height: 48px; }

@@ -23,6 +23,8 @@ export interface Profile {
   onboarded: boolean;
   name: string;
   email: string;
+  /** Optional: shown on receipts and letters. */
+  phone?: string;
   province: Province;
   city: string;
   setup: SetupKind;
