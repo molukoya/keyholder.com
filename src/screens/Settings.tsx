@@ -3,8 +3,6 @@ import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isPreviewUser, useStore } from '../data/store';
 
-import { LEVELS } from '../lib/levels';
-import { LevelBadge } from '../components/levels';
 import { RentTracking } from './Money';
 import { PACK_VERIFIED, PACK_VERSION, PROVINCES, province } from '../lib/jurisdiction';
 import { fmtDate } from '../lib/dates';
@@ -82,18 +80,6 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="section" id="levels">
-        <h2 className="section-title">Property cards: Bronze, Silver and Gold</h2>
-        <div className="sheet">
-          <p className="soft" style={{ marginTop: 0 }}>Cards change colour as you add details. Only Bronze is needed.</p>
-          <ul className="rows">{LEVELS.map((l) => (
-            <li key={l.id} className="row" style={{ gridTemplateColumns: '110px 1fr' }}>
-              <LevelBadge level={l.id} />
-              <span><span className="title">{l.gives}</span><span className="sub" style={{ display: 'block' }}>Add: {l.needs.toLowerCase()}</span></span>
-            </li>
-          ))}</ul>
-        </div>
-      </section>
 
       <section className="section">
         <h2 className="section-title">Appearance</h2>

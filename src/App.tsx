@@ -57,6 +57,8 @@ function Root() {
   // admin / admin: the support dashboard. Anyone else asking for it gets their own home instead.
   if (loc.pathname.startsWith('/support') && signedIn && p.account?.provider === 'admin') return <Routes><Route path="/support/*" element={<Support />} /></Routes>;
   if (loc.pathname.startsWith('/signin')) return signedIn ? <Navigate to={p.account?.provider === 'admin' ? '/support' : '/today'} replace /> : <SignIn />;
+  // The Keyholder team (with the server) sees only the support dashboard: no landlord app behind it.
+  if (signedIn && p.account?.provider === 'admin' && !p.sample) return <Navigate to="/support" replace />;
   if (!inApp) return onStart ? <Onboarding /> : <Landing />;
   return <Shell />;
 }
@@ -103,16 +105,16 @@ function Shell() {
         <Link to="/welcome" className="brand" title="About Keyholder"><Brand size={28} /></Link>
         {nav.map((n) => <NavLink key={n.to} to={n.to} data-tour={n.to.slice(1)} className={({ isActive }) => `nav-link${isActive || (n.to === '/rentals' && loc.pathname.startsWith('/rent/')) ? ' active' : ''}`}><Icon name={n.icon} />{n.label}{n.badge && count > 0 && <span className="badge" aria-label={`${count} things need you`}>{count}</span>}</NavLink>)}
         <div className="rail-foot">
-          <NavLink to="/settings" className="nav-link"><Icon name="settings" />Settings</NavLink>
+          <HelpButton />
         </div>
       </aside>
 
       <div className="main">
         <div className="mobile-top">
           <Link to="/welcome" className="brand" style={{ margin: 0 }}><Brand size={24} /></Link>
-          <span className="top-tools"><SetupCircle /><HelpButton compact /></span>
+          <span className="top-tools" data-tour="account"><SetupCircle /><AccountIcons /></span>
         </div>
-        <div className="top-tools desk"><SetupCircle /><HelpButton compact /></div>
+        <div className="top-tools desk"><span className="top-tools" data-tour="account"><SetupCircle /><AccountIcons /></span></div>
         <main>
           <AnnouncementBar where="app" />
           <SampleBanner />
@@ -166,6 +168,18 @@ function Shell() {
   );
 }
 
+/** Top right in the app: Settings and Sign out, as icons. */
+function AccountIcons() {
+  const { act } = useStore();
+  const navigate = useNavigate();
+  return (
+    <>
+      <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>
+      <button className="icon-btn" aria-label="Sign out" title="Sign out" onClick={() => { act.signOut(); navigate('/welcome'); }}><Icon name="logout" size={20} /></button>
+    </>
+  );
+}
+
 /** Phone "More" menu: big, plain buttons for the pages not in the bottom bar. */
 function More() {
   const items = [
@@ -175,10 +189,10 @@ function More() {
   ];
   return (
     <div className="page">
-      <div className="page-head"><div><h1>More</h1><PageSub>Portfolio, paperwork and your settings.</PageSub></div></div>
+      <div className="page-head"><div><h1>More</h1><PageSub>Portfolio, paperwork, settings and help.</PageSub></div></div>
       <div className="more-list">{items.map((i) => (
         <Link key={i.to} to={i.to} className="more-item"><Icon name={i.icon} size={26} /><span><strong>{i.label}</strong><span>{i.sub}</span></span><Icon name="next" /></Link>
-      ))}</div>
+      ))}<HelpButton variant="more" /></div>
     </div>
   );
 }

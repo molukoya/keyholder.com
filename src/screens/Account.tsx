@@ -27,7 +27,7 @@ export const PENDING_SIGNUP = 'kh:pending-signup';
 /** After a real sign-in: the team goes to the support dashboard; a landlord gets their data from the server. */
 export async function afterSignIn(user: ServerUser, act: ReturnType<typeof useStore>['act'], nav: (to: string) => void) {
   setUser(user);
-  if (isStaff(user)) { act.signInPreview('admin'); nav('/support'); return; }
+  if (isStaff(user)) { act.signInTeam(user.email, user.name); nav('/support'); return; }
   const r = await sync.hydrate();
   nav(r === 'empty' ? '/start' : '/today');
 }
@@ -227,7 +227,8 @@ function CentralLogin({ onAccount }: { onAccount: (email: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [forgot, setForgot] = useState(false);
   const server = serverMode();
-  const preview = !server || !!getConn().config?.previewLogins;
+  // The sample logins (test / test, admin / admin) only exist where there are no real accounts (the Claude preview).
+  const preview = !server;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const u = user.trim().toLowerCase();
@@ -250,7 +251,7 @@ function CentralLogin({ onAccount }: { onAccount: (email: string) => void }) {
   if (forgot) return <ForgotPassword email={user.includes('@') ? user.trim() : ''} onBack={() => setForgot(false)} />;
   return (
     <form className="acct-login" onSubmit={submit}>
-      <div className="field"><label htmlFor="login-user">Email{preview ? ' or username' : ''}</label><input id="login-user" className="input" value={user} onChange={edit(setUserName)} autoComplete="username" autoCapitalize="none" placeholder="you@example.com" /></div>
+      <div className="field"><label htmlFor="login-user">Email or username</label><input id="login-user" className="input" value={user} onChange={edit(setUserName)} autoComplete="username" autoCapitalize="none" placeholder="you@example.com" /></div>
       <div className="field"><label htmlFor="login-pass">Password</label><input id="login-pass" type="password" className="input" value={pass} onChange={edit(setPass)} autoComplete="current-password" /></div>
       {wrong && <p className="small acct-error" role="alert">That email, username or password is not right.</p>}
       {err && <p className="small acct-error" role="alert">{err}</p>}

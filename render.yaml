@@ -31,8 +31,6 @@ services:
         value: log
       - key: EMAIL_FROM
         value: Keyholder <hello@keyholder.ca>
-      - key: PREVIEW_LOGINS
-        value: "true"
       - key: WORKER
         value: inline
       - key: DAILY_HOUR

@@ -55,7 +55,6 @@ Other hosts: the `Dockerfile` builds one container; give it `DATABASE_URL`, or a
 | `RESEND_API_KEY` / `POSTMARK_TOKEN` | — | Key for the chosen provider. |
 | `EMAIL_FROM` | `Keyholder <hello@keyholder.ca>` | Sender. The domain must be verified with the provider. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Turns on "Continue with Google". Redirect URI: `APP_URL/api/auth/google/callback`. |
-| `PREVIEW_LOGINS` | `true` | test / test (demo) and admin / admin (sample support dashboard). Sample data only, never real accounts. |
 | `WORKER` | `inline` | `inline`: email sender and daily jobs run in the web service. `off`: run `npm run worker` separately. |
 | `DAILY_HOUR` | `9` | Hour (server time zone, `TZ`) for automatic reminders and the daily summary email. |
 | `SESSION_DAYS` | `30` | Sign-in lasts this many days (renewed while used). |

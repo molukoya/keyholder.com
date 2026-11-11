@@ -77,13 +77,15 @@ function watch(pg, errors, label) {
         await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h');
         const s = await api(pg, '/api/session'); if (!s.body?.config) throw new Error('no session config'); return `version ${s.body.config.version}`;
       });
-      await step(tag, 'E2 Signup: 6 questions, then name, email and password create a real account', async () => {
+      await step(tag, 'E2 Signup: 6 questions, then name, email and password create a real account; the 5-step tour starts', async () => {
         await go(pg, 'start'); await answerQuestions(pg, 'Alex');
         if (await pg.locator('text=Open the link (preview)').count()) throw new Error('still the simulated link');
+        if (tag === 'desktop') { const extra = await pg.evaluate(() => document.documentElement.scrollHeight - window.innerHeight); if (extra > 1) throw new Error(`plan page scrolls ${extra}px`); }
         await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', email); await pg.fill('#ob-pass', 'short');
         if (await pg.locator('.acct-email button.btn:not(.ghost)').isEnabled()) throw new Error('weak password accepted');
         await pg.fill('#ob-pass', password); await pg.click('text=Create my account');
         await pg.waitForSelector('text=Start here');
+        await pg.waitForSelector('.tour-card >> text=Step 1 of 5'); await pg.locator('.tour-card >> text=Skip tour').click();
         const welcome = await until(async () => (await outbox(email)).find((m) => m.kind === 'welcome'), 4000, 'welcome email');
         return welcome.subject;
       });
@@ -129,8 +131,12 @@ function watch(pg, errors, label) {
         await go(pg, 'settings'); await pg.waitForSelector(`text=${email}`); await pg.waitForSelector('.save-status');
         return (await pg.locator('.save-status').textContent()).trim();
       });
-      await step(tag, 'E7 Sign out: back to the website, and the data leaves this browser', async () => {
-        await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      const top = tag === 'phone' ? '.mobile-top' : '.top-tools.desk';
+      await step(tag, 'E6b Top right: the Settings icon opens Settings', async () => {
+        await go(pg, 'today'); await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
+      });
+      await step(tag, 'E7 Sign out (icon at the top right): back to the website, and the data leaves this browser', async () => {
+        await go(pg, 'today'); await pg.locator(`${top} [aria-label="Sign out"]`).click(); await pg.waitForSelector('.lp-hero-h');
         const local = await until(async () => { const s = await pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1'))); return s && s.properties.length === 0 && s; }, 5000, 'local data cleared');
         if ((await api(pg, '/api/session')).body.user) throw new Error('still signed in on the server');
         return `local properties: ${local.properties.length}`;
@@ -193,9 +199,9 @@ function watch(pg, errors, label) {
         await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');
         await until(async () => (await api(pg, '/api/state')).body?.data?.profile?.emailUpdates === false, 8000, 'change saved after signing in');
       });
-      await step(tag, 'E11 Help → Write to us reaches the support inbox', async () => {
-        await go(pg, 'today'); await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.top-tools.desk .help-btn').click();
-        await pg.locator('text=Write to us').click(); await pg.fill('#ct-subject', `Question from ${tag}`); await pg.fill('#ct-message', 'How do I add a second property?');
+      await step(tag, 'E11 Help (side menu; phones: More) → Write to us reaches the support inbox', async () => {
+        if (tag === 'phone') { await go(pg, 'more'); await pg.locator('.more-list .help-btn').click(); } else { await go(pg, 'today'); await pg.locator('.rail-foot .help-btn').click(); }
+        await pg.locator('.acct-modal button:has-text("Write to us")').click(); await pg.fill('#ct-subject', `Question from ${tag}`); await pg.fill('#ct-message', 'How do I add a second property?');
         await pg.locator('.contact-form >> text=Send').click(); await pg.waitForSelector('text=A person on our team will reply');
         await pg.keyboard.press('Escape');
         await until(async () => (await outbox(email)).find((m) => m.kind === 'ticket-ack'), 4000, 'acknowledgement email');
@@ -216,16 +222,22 @@ function watch(pg, errors, label) {
         const [dl] = await Promise.all([pgB.waitForEvent('download'), pgB.locator('text=Download my data').click()]);
         return dl.suggestedFilename();
       });
-      await step(tag, 'E14 The demo (test / test) still opens the sample, and is never saved to the account', async () => {
+      await step(tag, 'E14 No demo on the live site: test / test is refused', async () => {
         const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage(); watch(p, errors, 'demo');
-        await signIn(p, 'test', 'test'); await p.waitForSelector('.rent-row'); await wait(1500);
+        await signIn(p, 'test', 'test'); await p.waitForSelector('.acct-error');
+        if (await p.locator('.rent-row, .sample-banner').count()) throw new Error('the demo opened');
         const s = await api(p, '/api/session'); if (s.body.user) throw new Error('demo created a session'); await ctx.close();
       });
       const ctxC = await b.newContext({ viewport: vp }); const ad = await ctxC.newPage(); watch(ad, errors, 'admin');
-      await step(tag, 'E15 A real admin signs in to the live support dashboard', async () => {
+      await step(tag, 'E15 A real admin signs in to the live support dashboard, and only sees that', async () => {
         await signIn(ad, ADMIN.email, ADMIN.password); await ad.waitForSelector('.sp-page');
         if (tag === 'desktop') await ad.waitForSelector('.sp-sample.live');
         await go(ad, 'support/customers'); await ad.waitForSelector(`text=${email}`);
+        for (const r of ['today', 'rentals', 'settings']) {
+          await go(ad, r); await ad.waitForSelector('.sp-page');
+          const h = await ad.evaluate(() => location.hash); if (!h.startsWith('#/support')) throw new Error(`${r} opened ${h}`);
+          if (await ad.locator('.sample-banner, .rent-row').count()) throw new Error('a landlord dashboard showed for the team');
+        }
       });
       await step(tag, 'E15c Team & settings → Your password: change it, sign in with the new one, change it back', async () => {
         const change = async (from, to) => {
@@ -258,9 +270,10 @@ function watch(pg, errors, label) {
         await signIn(p, 'admin', ADMIN.password); await p.waitForSelector('.sp-page');
         await go(p, 'support/customers'); await p.waitForSelector(`text=${email}`); await ctx.close();
       });
-      await step(tag, 'E18 The admin preview (admin / admin) still shows sample data only', async () => {
+      await step(tag, 'E18 No preview on the live site: admin / admin is refused', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
-        await signIn(p, 'admin', 'admin'); await p.waitForSelector('.sp-page'); await p.waitForSelector('.sp-sample:not(.live)'); await ctx.close();
+        await signIn(p, 'admin', 'admin'); await p.waitForSelector('.acct-error');
+        if (await p.locator('.sp-page').count()) throw new Error('the preview opened'); await ctx.close();
       });
       await step(tag, 'E19 Delete my account: password needed, then everything is gone', async () => {
         await go(pgB, 'settings'); await pgB.locator('text=Delete my account').first().click();

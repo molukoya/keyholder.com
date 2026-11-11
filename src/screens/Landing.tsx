@@ -37,7 +37,7 @@ const toTour = () => requestAnimationFrame(() => document.getElementById('tour')
 
 /** Adds "shown" to every .reveal element as it scrolls into view. */
 /**
- * True while any of the page's own Start free / Sign in buttons, or the footer, are on screen (the part under
+ * True while any of the page's own Get started buttons, or the footer, are on screen (the part under
  * the menu bar does not count). The phone bar and the menu-bar buttons step aside then, so the same buttons
  * never show twice at once.
  */
@@ -70,12 +70,9 @@ function useTourInView(on: boolean) {
   return inTour;
 }
 
-/** Start free and Sign in as a pair. Someone who already has an account in this browser gets Sign in first. */
-function CtaPair({ start, signIn, returning, big, ghost = '' }: { start: () => void; signIn: () => void; returning: boolean; big?: boolean; ghost?: string }) {
-  const cls = (primary: boolean) => `btn${primary ? ' primary' : ` ${ghost}`}${big ? ' lp-big' : ''}`.trim();
-  const s = <button key="start" className={cls(!returning)} onClick={start}>Start free</button>;
-  const i = <button key="signin" className={cls(returning)} onClick={signIn}>Sign in</button>;
-  return <>{returning ? [i, s] : [s, i]}</>;
+/** The one main button on the website's pages: Get started (Sign in and Sign up stay at the top right). */
+function GetStarted({ start, big, className = '' }: { start: () => void; big?: boolean; className?: string }) {
+  return <button className={`btn primary${big ? ' lp-big' : ''} ${className}`.trim()} onClick={start}>Get started</button>;
 }
 
 function useReveal(key: string) {
@@ -101,13 +98,10 @@ export function Landing() {
   const page: PageId = (section ? 'about' : PAGES.find((p) => p.id === raw)?.id ?? '') as PageId;
   const idx = PAGES.findIndex((p) => p.id === page);
   // Only a signed-in account (admin included) gets "Open my dashboard", and only in the menu bar.
-  // Everyone else, including an old demo left in this browser, sees Sign in and Start free.
+  // Everyone else sees Sign in and Sign up at the top right, and Get started on the page.
   const signedIn = !!state.profile.account?.signedIn;
-  // Signed out of an account that lives in this browser: Sign in is the main button.
-  const returning = !signedIn && !!state.profile.account && state.profile.account.provider !== 'admin' && state.profile.account.provider !== 'demo';
   const home = state.profile.account?.provider === 'admin' ? '/support' : '/today';
   const start = () => nav(signedIn ? home : '/start');
-  const signIn = () => nav(signedIn ? home : '/signin');
   // Tapping the page you are already on: back to its top (or to the tour, for Features).
   const same = (id: string) => { setMenu(false); if (id !== page) return; if (id === 'features') toTour(); else window.scrollTo(0, 0); };
 
@@ -122,11 +116,10 @@ export function Landing() {
   // Which menu item is lit: on the Overview, Features lights up while the tour is on screen.
   const isOn = (id: string) => (overview ? (id === 'features' ? inTour : id === '' ? !inTour : false) : id === page);
 
+  // Top right, always: Sign in and Sign up (or the dashboard for someone signed in).
   const ctas = signedIn
     ? <Link className="btn primary" to={home}>Open my dashboard</Link>
-    : returning
-      ? <><button className="btn ghost" onClick={start}>Start free</button><button className="btn primary" onClick={signIn}>Sign in</button></>
-      : <><Link className="btn ghost" to="/signin">Sign in</Link><button className="btn primary" onClick={start}>Start free</button></>;
+    : <><Link className="btn ghost" to="/signin">Sign in</Link><Link className="btn primary" to="/start">Sign up</Link></>;
 
   return (
     <div className="lp">
@@ -137,8 +130,9 @@ export function Landing() {
           <nav aria-label="Site" className="lp-links">
             {PAGES.map((p) => <Link key={p.id} to={href(p.id)} onClick={() => same(p.id)} className={isOn(p.id) ? 'on' : ''} aria-current={isOn(p.id) ? 'page' : undefined}>{p.label}</Link>)}
           </nav>
-          <div className={`btn-row lp-nav-cta${!signedIn && ctaShown ? ' away' : ''}`} aria-hidden={!signedIn && ctaShown ? true : undefined}>{ctas}</div>
-          <button className="btn lp-burger" aria-expanded={menu} aria-controls="lp-menu" onClick={() => setMenu((m) => !m)}><Icon name={menu ? 'close' : 'menu'} size={20} /><span>Menu</span></button>
+          <div className="btn-row lp-nav-cta">{ctas}</div>
+          {!signedIn && <Link className="btn ghost lp-signin-xs" to="/signin">Sign in</Link>}
+          <button className="btn lp-burger" aria-label="Menu" aria-expanded={menu} aria-controls="lp-menu" onClick={() => setMenu((m) => !m)}><Icon name={menu ? 'close' : 'menu'} size={20} /><span>Menu</span></button>
         </div>
       </header>
       {/* Outside the header on purpose: the header's frosted-glass effect would trap a full-screen menu inside its 72px. */}
@@ -150,7 +144,7 @@ export function Landing() {
       )}
 
       <main>
-        {overview && <Overview start={start} signIn={signIn} returning={returning} />}
+        {overview && <Overview start={start} />}
         {page === 'about' && <About section={section} />}
         {page === 'pricing' && <Pricing start={start} />}
 
@@ -162,7 +156,7 @@ export function Landing() {
                 <p className="lp-lede">Free for 1 rental unit. No card needed.</p>
               </div>
               <div className="btn-row" data-cta>
-                <CtaPair start={start} signIn={signIn} returning={returning} big ghost="lp-cta-ghost" />
+                <GetStarted start={start} big />
               </div>
             </div>
           </div>
@@ -184,7 +178,7 @@ export function Landing() {
 
       {!signedIn && !menu && (
         <div className={`lp-sticky${ctaShown ? ' away' : ''}`} role="region" aria-label="Get started" aria-hidden={ctaShown ? true : undefined}>
-          <CtaPair start={start} signIn={signIn} returning={returning} />
+          <GetStarted start={start} />
         </div>
       )}
     </div>
@@ -263,7 +257,7 @@ const STEPS: ['home' | 'bank' | 'tap', string, string, string][] = [
   ['tap', 'Tap to approve', 'Nothing is sent without you.', 'One tap'],
 ];
 
-function Overview({ start, signIn, returning }: { start: () => void; signIn: () => void; returning: boolean }) {
+function Overview({ start }: { start: () => void }) {
   return (
     <>
       <section className="lp-hero">
@@ -277,7 +271,7 @@ function Overview({ start, signIn, returning }: { start: () => void; signIn: () 
               {AUTO.map(([ic, label, tone]) => <li key={label}><span className={`lp-tile-ic ${tone}`}><Icon name={ic} size={16} /></span>{label}</li>)}
             </ul>
             <div className="btn-row" data-cta>
-              <CtaPair start={start} signIn={signIn} returning={returning} big />
+              <GetStarted start={start} big />
             </div>
           </div>
           <div className="lp-hero-visual">
@@ -501,7 +495,7 @@ function Pricing({ start }: { start: () => void }) {
               <h3>Starter</h3>
               <p className="lp-amt">Free</p><p className="lp-per">Automation for one rental unit</p>
               <ul><li>Rent tracking and receipts</li><li>Reminders</li><li>Expenses and receipt photos</li><li>Tax summary</li></ul>
-              <button className="btn lp-big" onClick={start} data-cta>Start free</button>
+              <button className="btn lp-big" onClick={start} data-cta>Get started</button>
             </div>
             <div className="lp-price best reveal">
               <span className="lp-flag">Most landlords pick this</span>

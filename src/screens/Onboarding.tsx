@@ -47,6 +47,8 @@ export function Onboarding() {
   useEffect(() => { window.scrollTo(0, 0); }, [step]);
   const [a, setA] = useState<Partial<Profile>>({ province: 'ON', city: 'Toronto', dreads: [], taxWorries: [] });
   const set = (p: Partial<Profile>) => setA((x) => ({ ...x, ...p }));
+  // Province: the four biggest are buttons; the others appear in a list only after tapping "Others".
+  const [others, setOthers] = useState(false);
   const toggle = (k: 'dreads' | 'taxWorries', id: string) => {
     const cur = a[k] ?? [];
     if (id === 'none') return set({ [k]: cur.includes('none') ? [] : ['none'] });
@@ -69,22 +71,26 @@ export function Onboarding() {
         <>
           <div className="choices" role="radiogroup" aria-label="Province">
             {PROVINCES.slice(0, 4).map((p) => (
-              <button key={p.code} role="radio" className="choice" aria-checked={a.province === p.code} onClick={() => set({ province: p.code, city: p.cities[0] })}>
+              <button key={p.code} role="radio" className="choice" aria-checked={!others && a.province === p.code} onClick={() => { setOthers(false); set({ province: p.code, city: p.cities[0] }); }}>
                 <span className="t">{p.name}</span>
               </button>
             ))}
+            <button role="radio" className="choice" aria-checked={others} onClick={() => { if (!others) { setOthers(true); set({ province: undefined, city: undefined }); } }}>
+              <span className="t">Others</span><span className="s">Another province or territory</span>
+            </button>
           </div>
           <div className="grid2" style={{ marginTop: 16 }}>
-            <div className="field"><label htmlFor="ob-prov">Another province or territory</label>
-              <select id="ob-prov" className="input" value={a.province} onChange={(e) => set({ province: e.target.value as Province, city: province(e.target.value as Province).cities[0] })}>
-                {PROVINCES.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
+            {others && <div className="field"><label htmlFor="ob-prov">Province or territory</label>
+              <select id="ob-prov" className="input" value={a.province ?? ''} onChange={(e) => set({ province: e.target.value as Province, city: province(e.target.value as Province).cities[0] })} autoFocus>
+                <option value="" disabled>Choose one</option>
+                {PROVINCES.slice(4).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
               </select>
-            </div>
-            <div className="field"><label htmlFor="ob-city">City</label>
+            </div>}
+            {a.province && <div className="field"><label htmlFor="ob-city">City</label>
               <select id="ob-city" className="input" value={a.city} onChange={(e) => set({ city: e.target.value })}>
                 {province(a.province ?? 'ON').cities.map((c) => <option key={c}>{c}</option>)}
               </select>
-            </div>
+            </div>}
           </div>
         </>
       ),
@@ -213,60 +219,53 @@ function SavePlan({ a, first, onBack, onExit, onAccount, onGoogle }: { a: Partia
   const d = a.dreads ?? [];
   const prov = province(a.province ?? 'ON');
   const bank = a.rentMethod === 'etransfer' || a.rentMethod === 'mix';
-  const taxes = (a.taxWorries ?? []).some((x) => x !== 'none') || a.goal === 'tax-ready';
-  // The plan, grouped by when it helps. Each line says what happens, then how.
-  type Item = [icon: string, title: string, how: string];
-  const groups: [string, Item[]][] = [
-    ['Every month', [
-      bank ? ['bank', 'Rent spotted in your bank', `We check every ${4} hours and mark rent paid for you.`] : ['check', 'Rent marked paid in one tap', 'Tap "Mark paid" when cash or a cheque comes in.'],
-      ['receipt', 'Receipts sent for you', 'A numbered receipt goes out the moment rent is in.'],
-      ['bell', 'Friendly reminders', 'Written for you the day after rent is due. Cancelled if rent arrives.'],
-      ...(a.setup === 'part-home' ? [['home', 'Shared costs split for you', 'Heat and hydro split between your home and the suite.'] as Item] : []),
-    ]],
-    ['When rent is late', d.includes('which-notice') || d.includes('chasing') || a.goal === 'no-chasing'
-      ? [['paper', `${prov.name}'s official notice, filled in`, 'The right form with the right dates, checked for you. You sign off.']] : []],
-    ['At tax time', taxes ? [
-      ['camera', 'Every receipt and cost saved', 'Snap a photo, or let your bank find bills. Each is filed to the right property.'],
-      ['print', 'Your T776 numbers ready', 'Rental income and costs, totalled for your accountant.'],
-    ] : []],
-    ['Your money', a.goal === 'makes-money' ? [
-      ['trend', 'What your rental is worth', 'A value estimate each month, next to a GIC.'],
-      ['cash', 'Are you making money?', 'Rent in, costs out, and what you keep.'],
-    ] : []],
-    ['Finding tenants', a.goal === 'fill-unit' ? [['users', 'Applications in one place', 'Share one link, then compare applicants side by side.']] : []],
+  // Six things Keyholder will do, each one plain sentence, chosen from the answers.
+  type Item = [icon: string, text: string];
+  const notice = d.includes('which-notice') || d.includes('chasing') || a.goal === 'no-chasing';
+  const core: Item[] = [
+    bank ? ['bank', 'Spots rent in your bank every 4 hours and marks it paid, so you always know who has paid.'] : ['check', 'Keeps track of who has paid: one tap marks rent paid when cash or a cheque comes in.'],
+    ['receipt', 'Sends each tenant a numbered receipt the moment their rent is in.'],
+    ['bell', 'Sends friendly reminders when rent is late, and stops them as soon as the money arrives.'],
+    ['camera', 'Files every receipt and bill to the right property: take a photo and it fills in the details.'],
+    ['print', 'Totals your rental income and costs for your tax return (T776), ready for your accountant.'],
   ];
+  const extras: Item[] = [
+    ...(notice ? [['paper', `Prepares ${prov.name}'s official late-rent notice with the right dates, for you to approve.`] as Item] : []),
+    ...(a.setup === 'part-home' ? [['home', 'Splits shared costs like heat and hydro between your home and the rental.'] as Item] : []),
+    ...(a.goal === 'makes-money' ? [['trend', 'Shows what your rental is worth and how much you keep each month, next to a GIC.'] as Item] : []),
+    ...(a.goal === 'fill-unit' ? [['users', 'Collects tenant applications in one place, so you can compare them side by side.'] as Item] : []),
+    ['paper', `Prepares ${prov.name}'s official late-rent notice with the right dates, for you to approve.`],
+  ];
+  const items: Item[] = [...core, extras[0]];
+  // Their main goal goes first.
+  const lead = a.goal === 'tax-ready' ? 4 : a.goal === 'no-chasing' ? 2 : -1;
+  if (lead > 0) items.unshift(...items.splice(lead, 1));
   const SETUP: Record<string, string> = { 'part-home': 'Part of your home', single: 'One house or condo', few: '2 to 5 units', many: '6 or more units' };
   const PAY: Record<string, string> = { etransfer: 'paid by e-Transfer', cheque: 'paid by cheque', cash: 'paid in cash', mix: 'paid a mix of ways' };
   const summary = [`${prov.name}${a.city ? `, ${a.city}` : ''}`, a.setup && SETUP[a.setup], a.rentMethod && PAY[a.rentMethod]].filter(Boolean).join(' · ');
 
   return (
-    <div className="q-wrap">
+    <div className="q-wrap plan-page">
       <div className="q-top"><span className="brand" style={{ margin: 0 }}><Brand /></span><button className="btn ghost q-exit" onClick={onExit} aria-label="Exit signup and go back to the Keyholder website"><Icon name="close" size={18} />Exit</button></div>
-      <div className="plan-top">
-        <div>
+      <div className="plan-two">
+        <div className="plan-main">
           <p className="q-count">Your plan is ready</p>
           <h1 className="q-question">{first ? `${first}, here's` : "Here's"} what Keyholder will automate for you</h1>
           <p className="plan-summary">{summary}</p>
-          <div className="plan-groups">{groups.filter(([, items]) => items.length).map(([g, items]) => (
-            <section key={g} className="plan-group"><h2>{g}</h2>
-              <ul>{items.map(([ic, t, how]) => <li key={t}><span className="plan-ic" aria-hidden><Icon name={ic} size={18} /></span><span><strong>{t}</strong><span>{how}</span></span></li>)}</ul>
-            </section>
-          ))}</div>
+          <ul className="plan-six">{items.map(([ic, text]) => <li key={text}><span className="plan-ic" aria-hidden><Icon name={ic} size={18} /></span><span>{text}</span></li>)}</ul>
+          <button className="btn ghost plan-back" onClick={onBack}><Icon name="back" size={16} />Back</button>
         </div>
-        <div className="plan-art" aria-hidden><SceneWelcome /></div>
+        <div className="sheet acct-save">
+          <h2>Turn on your automation</h2>
+          <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
+          {googleOn() && <>
+            <GoogleButton onClick={() => (serverMode() ? onGoogle(emails) : setPicker(true))} />
+            <div className="acct-or"><span>or</span></div>
+          </>}
+          <EmailLink askName defaultName={a.name ?? ''} onDone={(w) => onAccount(w, emails)} />
+          <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me when something needs me</label>
+        </div>
       </div>
-
-      <div className="sheet acct-save">
-        <h2>Turn on your automation</h2>
-        <p className="small soft" style={{ marginTop: 4 }}>Free for one rental unit. No card needed.</p>
-        {googleOn() && <>
-          <GoogleButton onClick={() => (serverMode() ? onGoogle(emails) : setPicker(true))} />
-          <div className="acct-or"><span>or</span></div>
-        </>}
-        <EmailLink askName defaultName={a.name ?? ''} onDone={(w) => onAccount(w, emails)} />
-        <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={emails} onChange={(e) => setEmails(e.target.checked)} />Email me on rent day and once a month with a summary</label>
-      </div>
-      <div className="q-foot" style={{ marginTop: 16 }}><button className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back</button><span /></div>
       {picker && <GooglePicker onPick={(w) => { setPicker(false); onAccount(w, emails); }} onClose={() => setPicker(false)} />}
     </div>
   );
