@@ -69,7 +69,7 @@ const FIRST_STEPS: typeof STEPS = [
   { sel: '[data-tour="income"]', title: 'Income', body: 'Every rent payment you receive, with a receipt sent to your tenant.' },
   { sel: '[data-tour="expenses"]', title: 'Expenses', body: 'Add an expense with your camera: Keyholder reads the receipt and fills in the details.' },
   { sel: '[data-tour="score"]', title: 'Your setup progress', body: 'Goes up as you add details. Tap it to see what is left.', path: '/today' },
-  { sel: '[data-tour="account"]', title: 'Settings and sign out', body: 'Your profile and settings, and Sign out, are up here. Help is in the menu.', path: '/today' },
+  { sel: '[data-tour="account"]', title: 'Settings', body: 'Your profile and settings are up here. Sign out is in Settings. Help is in the menu.', path: '/today' },
 ];
 
 export function Tour() {

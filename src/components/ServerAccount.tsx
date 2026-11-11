@@ -17,18 +17,16 @@ export function SaveStatus() {
 }
 
 export function ServerAccount() {
-  const { state, act } = useStore();
+  const { state } = useStore();
   const { user, config } = useConn();
-  const nav = useNavigate();
   const [sentVerify, setSentVerify] = useState(false);
   const [pw, setPw] = useState(false);
   if (!user) return null;
   const p = state.profile;
   return (
     <>
-      <div className="spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+      <div>
         <div><strong>{user.name || p.name}</strong><div className="small soft">{user.email} · {user.google && !user.hasPassword ? 'signs in with Google' : 'email and password'}</div></div>
-        <button className="btn" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
       </div>
       <SaveStatus />
       {!user.emailVerified && config?.emailDelivery && (

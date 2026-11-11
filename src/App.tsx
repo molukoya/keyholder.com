@@ -112,9 +112,9 @@ function Shell() {
       <div className="main">
         <div className="mobile-top">
           <Link to="/welcome" className="brand" style={{ margin: 0 }}><Brand size={24} /></Link>
-          <span className="top-tools" data-tour="account"><SetupCircle /><AccountIcons /></span>
+          <span className="top-tools" data-tour="account"><SetupCircle /><SettingsIcon /></span>
         </div>
-        <div className="top-tools desk"><span className="top-tools" data-tour="account"><SetupCircle /><AccountIcons /></span></div>
+        <div className="top-tools desk"><span className="top-tools" data-tour="account"><SetupCircle /><SettingsIcon /></span></div>
         <main>
           <AnnouncementBar where="app" />
           <SampleBanner />
@@ -154,8 +154,8 @@ function Shell() {
 
       <nav className="bottombar" aria-label="Main">
         <NavLink to="/today"><Icon name="home" />Home{count > 0 && <span className="badge">{count}</span>}</NavLink>
-        <NavLink to="/rentals" data-tour="rentals" className={({ isActive }) => (isActive || loc.pathname.startsWith('/rent/') ? 'active' : '')}><Icon name="rent" />Rentals</NavLink>
         <NavLink to="/income" data-tour="income"><Icon name="cash" />Income</NavLink>
+        <NavLink to="/rentals" data-tour="rentals" className={({ isActive }) => `hub${isActive || loc.pathname.startsWith('/rent/') ? ' active' : ''}`}><span className="disc"><Icon name="rent" size={24} /></span>Rentals</NavLink>
         <NavLink to="/expenses" data-tour="expenses"><Icon name="receipt" />Expenses</NavLink>
         <NavLink to="/more" data-tour="more" className={['/portfolio', '/paperwork', '/settings', '/more'].some((x) => loc.pathname.startsWith(x)) ? 'active' : ''}><Icon name="menu" />More</NavLink>
       </nav>
@@ -168,16 +168,9 @@ function Shell() {
   );
 }
 
-/** Top right in the app: Settings and Sign out, as icons. */
-function AccountIcons() {
-  const { act } = useStore();
-  const navigate = useNavigate();
-  return (
-    <>
-      <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>
-      <button className="icon-btn" aria-label="Sign out" title="Sign out" onClick={() => { act.signOut(); navigate('/welcome'); }}><Icon name="logout" size={20} /></button>
-    </>
-  );
+/** Top right in the app: Settings, as an icon. Sign out is at the top of Settings. */
+function SettingsIcon() {
+  return <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>;
 }
 
 /** Phone "More" menu: big, plain buttons for the pages not in the bottom bar. */

@@ -366,3 +366,28 @@ html body .lp-week-card.free .lp-week-txt strong { font: 400 24px/1.05 var(--fon
 }
 /* Very narrow phones: the logo, Sign in and the menu button still fit on one line (the button keeps its icon). */
 @media (max-width: 379px) { .lp-burger > span { display: none; } .lp-burger { padding: 0; width: 44px; justify-content: center; } .lp-signin-xs { padding-inline: 10px; } }
+
+/* ================================================================ Get started: the website's one main button.
+   A pill with a deep indigo gradient, a soft halo, and an arrow in a small circle that moves forward on hover. */
+html body .lp .btn.lp-go {
+  gap: 14px; border-radius: 999px; border: 0; padding: 0 10px 0 26px; min-height: 52px;
+  background: linear-gradient(135deg, #7371FA 0%, #4F46E5 52%, #3A31C4 100%); color: #fff; letter-spacing: -0.005em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 0 6px rgba(99,102,241,.10), 0 16px 32px -14px rgba(67,56,202,.8);
+  transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), filter 180ms;
+}
+html body .lp .btn.lp-go:hover { transform: translateY(-2px); background: linear-gradient(135deg, #7F7DFB 0%, #5850EB 52%, #3F36CC 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 0 0 8px rgba(99,102,241,.14), 0 20px 36px -14px rgba(67,56,202,.85); }
+html body .lp .btn.lp-go:active { transform: translateY(0); filter: brightness(.97); }
+.lp-go-arrow { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.2); transition: transform 180ms var(--ease), background 180ms; }
+.lp .btn.lp-go:hover .lp-go-arrow { transform: translateX(3px); background: rgba(255,255,255,.28); }
+html body .lp .btn.lp-go.lp-big { min-height: 62px; font-size: 18px; padding: 0 12px 0 32px; min-width: 248px; justify-content: space-between; }
+.lp-go.lp-big .lp-go-arrow { width: 40px; height: 40px; }
+.lp-go-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.lp-go-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding-left: 8px; font-size: 14px; color: var(--lp-faint); }
+.lp-go-note svg { color: #12B76A; }
+/* Phones: the closing card's and the bottom bar's button fill the width. */
+@media (max-width: 600px) {
+  .lp-go-wrap, html body .lp .btn.lp-go.lp-big { width: 100%; }
+  .lp-go-wrap { align-items: stretch; } .lp-go-note { justify-content: center; padding-left: 0; }
+}
+html body .lp .lp-sticky .btn.lp-go { justify-content: space-between; min-height: 54px; }
+@media (prefers-reduced-motion: reduce) { html body .lp .btn.lp-go, .lp-go-arrow { transition: none; } html body .lp .btn.lp-go:hover { transform: none; } }
