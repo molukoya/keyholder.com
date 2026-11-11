@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.DS_Store
+*.tsbuildinfo
+.data
+server-dist
+.env
+public/ocr

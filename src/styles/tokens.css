@@ -1,0 +1,64 @@
+/* Design tokens — "The Living Ledger" (PRD §11). Light = paper, dark = "Night Ledger". */
+:root {
+  --paper: #F4EFE6;
+  --paper-raised: #FBF8F2;
+  --paper-sunk: #ECE5D8;
+  --ink: #1B2421;
+  --ink-soft: #4A544F;
+  --ink-faint: #69716B;
+  --rule: #D8D0C0;
+  --rule-strong: #BFB49F;
+  --pine: #1F4D3F;
+  --pine-tint: #DCE7DF;
+  --brass: #B08A3E;
+  --brass-tint: #F0E4C8;
+  --rust: #B5472E;
+  --rust-tint: #F4DDD5;
+  --ink-blue: #2F4B7C;
+  --ink-blue-tint: #DDE3EE;
+  --stamp-red: #C23B2A;
+  --on-pine: #FBF8F2;
+  --bronze: #9A5B2E;
+  --silver: #6E7780;
+  --gold: #A67C1E;
+
+  --font-display: 'Fraunces', 'Newsreader', Georgia, serif;
+  --font-ui: 'Instrument Sans', 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+
+  --t-12: 0.8125rem; --t-14: 0.9375rem; --t-16: 1.0625rem; --t-20: 1.3125rem; --t-28: 1.75rem; --t-44: 2.75rem; --t-72: 4.5rem;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+  --radius: 4px;
+  --notch: 10px;
+  --shadow-line: 1px 1px 0 var(--rule-strong);
+  --shadow-lift: 2px 2px 0 var(--rule-strong);
+  --dur-micro: 160ms; --dur-trans: 340ms; --ease: cubic-bezier(.2,.7,.3,1);
+  --content: 1180px;
+  --grain-opacity: 0.03;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #14191A; --paper-raised: #1B2224; --paper-sunk: #101415;
+    --ink: #EDE7DA; --ink-soft: #A9B0A8; --ink-faint: #858C85;
+    --rule: #2E3739; --rule-strong: #414C4E;
+    --pine: #4E9A82; --pine-tint: #1D3029; --brass: #D2AE62; --brass-tint: #33291A;
+    --rust: #E07A5F; --rust-tint: #3A211B; --ink-blue: #8BA6D9; --ink-blue-tint: #1E2638;
+    --stamp-red: #E86A55; --on-pine: #0F1413;
+    --bronze: #D08A55; --silver: #AEB6BE; --gold: #D9B45A;
+    --grain-opacity: 0.04;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #14191A; --paper-raised: #1B2224; --paper-sunk: #101415;
+  --ink: #EDE7DA; --ink-soft: #A9B0A8; --ink-faint: #858C85;
+  --rule: #2E3739; --rule-strong: #414C4E;
+  --pine: #4E9A82; --pine-tint: #1D3029; --brass: #D2AE62; --brass-tint: #33291A;
+  --rust: #E07A5F; --rust-tint: #3A211B; --ink-blue: #8BA6D9; --ink-blue-tint: #1E2638;
+  --stamp-red: #E86A55; --on-pine: #0F1413;
+    --bronze: #D08A55; --silver: #AEB6BE; --gold: #D9B45A;
+  --grain-opacity: 0.04;
+  color-scheme: dark;
+}
