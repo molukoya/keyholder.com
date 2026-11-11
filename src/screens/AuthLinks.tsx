@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { api, getConn, isStaff, serverMode, type ServerUser } from '../data/api';
+import { api, getConn, serverMode, type ServerUser } from '../data/api';
 import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
 import { SceneWelcome } from '../components/Art';
-import { afterSignIn, PENDING_SIGNUP } from './Account';
-import type { Profile } from '../data/types';
+import { afterSignIn } from './Account';
 
 // Pages opened from emails and from Google (Stage 2, with the server):
 //   #/reset?token=…            choose a new password (also a team invitation: &invite=1)
@@ -18,7 +17,7 @@ export function AuthLinks() {
   const q = new URLSearchParams(loc.search);
   const page = loc.pathname.startsWith('/reset') ? <Reset token={q.get('token') ?? ''} invite={q.get('invite') === '1'} />
     : loc.pathname.startsWith('/verify') ? <Verify token={q.get('token') ?? ''} />
-    : <GoogleReturn intent={q.get('intent') === 'signup' ? 'signup' : 'signin'} />;
+    : <GoogleReturn />;
   return (
     <div className="acct-page">
       <div className="acct-top"><Link to="/welcome" aria-label="Keyholder home"><Brand size={28} /></Link><Link className="btn ghost" to="/welcome"><Icon name="back" size={16} />Back<span className="hide-xs"> to website</span></Link></div>
@@ -85,7 +84,7 @@ function Verify({ token }: { token: string }) {
   );
 }
 
-function GoogleReturn({ intent }: { intent: 'signin' | 'signup' }) {
+function GoogleReturn() {
   const { act } = useStore();
   const nav = useNavigate();
   const once = useRef(false);
@@ -94,15 +93,8 @@ function GoogleReturn({ intent }: { intent: 'signin' | 'signup' }) {
     if (once.current) return; once.current = true;
     const user = getConn().user;
     if (!user) { nav('/signin?error=google', { replace: true }); return; }
-    let pending: { profile: Partial<Profile>; name: string } | null = null;
-    try { const raw = sessionStorage.getItem(PENDING_SIGNUP); pending = raw ? JSON.parse(raw) : null; sessionStorage.removeItem(PENDING_SIGNUP); } catch { /* blocked */ }
-    if (pending && intent === 'signup' && !isStaff(user)) {
-      // Back from Google at the end of signup: the answers waited in this tab. Save the plan.
-      act.signUp(pending.profile, { provider: 'google', email: user.email, name: pending.name || user.name });
-      nav('/today', { replace: true });
-      return;
-    }
+    // A new account (signup) goes on to the questions; an account with data opens its dashboard.
     afterSignIn(user, act, (to) => nav(to, { replace: true })).catch((x) => setErr((x as Error).message));
-  }, [act, intent, nav]);
+  }, [act, nav]);
   return err ? <><h1>Something went wrong</h1><p className="soft">{err}</p><Link className="btn" to="/signin">Back to sign in</Link></> : <h1>Signing you in…</h1>;
 }

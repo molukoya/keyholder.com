@@ -136,8 +136,9 @@ Migrations are in `server/migrations.ts` and run at start-up (each once, in a tr
 
 ## Not done yet (needs an outside service or a decision)
 
-- **Bank data**: rent checks every 4 hours stay simulated in the app until a Canadian aggregator (Flinks or
-  Plaid Canada) is contracted. The matcher is real code; the server job slot is ready.
+- **Bank data**: needs a Canadian aggregator (Plaid, see `docs/REQUIREMENTS.md` R12). Until then the live app
+  shows bank checks as "Coming soon" (`/api/session` config `banks: false`) and removes any practice bank
+  connection left in an account; only the browser-only preview simulates them. The matcher is real code.
 - **Card payments** for the Landlord plan (Stripe): plans can be set by the team; nobody is charged.
 - **Valuation data**: the price index is a placeholder until a data source is licensed.
 - **Receipt photos** are saved inside the landlord's data; move them to object storage (S3 in Canada)

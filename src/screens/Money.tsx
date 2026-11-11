@@ -8,6 +8,7 @@ import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, recordsStart, rentalPortion, taxPack } from '../lib/finance';
 import { BANK_CHECK_HOURS, CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
+import { banksOn } from '../data/api';
 import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm, MortgageForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
@@ -153,6 +154,7 @@ export function RentTracking() {
   const banks = state.banks ?? [];
   const deposits = state.txns.filter((t) => t.amount > 0 && t.status !== 'ignored').slice(0, 20);
   const manual = banks.length === 0;
+  const soon = !banksOn();
 
   return (
     <>
@@ -163,10 +165,10 @@ export function RentTracking() {
           <span className="t">I'll mark it myself</span>
           <span className="s">Tap "Mark paid" when rent comes in.</span>
         </button>
-        <button role="radio" aria-checked={!manual} className="choice big" onClick={() => manual && setConnect(true)}>
+        <button role="radio" aria-checked={!manual} className={`choice big${soon ? ' soon' : ''}`} disabled={soon} onClick={() => manual && setConnect(true)}>
           <Icon name="bank" size={28} />
-          <span className="t">Check my banks for me</span>
-          <span className="s">Any Canadian banks or credit unions. Rent, bills and mortgage payments, every {BANK_CHECK_HOURS} hours.</span>
+          <span className="t">Check my banks for me{soon && <span className="soon-tag">Coming soon</span>}</span>
+          <span className="s">{soon ? 'Keyholder will spot rent, bills and mortgage payments in your bank. Until then, tap "Mark paid" when rent comes in.' : `Any Canadian banks or credit unions. Rent, bills and mortgage payments, every ${BANK_CHECK_HOURS} hours.`}</span>
         </button>
       </div>
 

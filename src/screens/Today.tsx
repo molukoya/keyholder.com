@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { banksOn } from '../data/api';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { fmtDay, periodOf } from '../lib/dates';
@@ -25,7 +26,7 @@ export function Today() {
     const steps = [
       { done: state.properties.length > 0, title: 'Add your property', sub: 'The address and how many units.', to: '/rentals', btn: 'Add property', icon: 'home' },
       { done: state.tenants.length > 0, title: 'Add your tenant', sub: 'Their name, rent and the day it is due.', to: state.properties[0] ? `/rent/property/${state.properties[0].id}` : '/rentals', btn: 'Add tenant', icon: 'user' },
-      { done: state.banks.some((b) => b.status === 'connected') || state.profile.rentArrival === 'manual', title: 'Choose how rent is tracked', sub: 'Connect your banks, or tap "Mark paid" yourself.', to: '/settings#rent-tracking', btn: 'Choose', icon: 'bank' },
+      { done: state.banks.some((b) => b.status === 'connected') || state.profile.rentArrival === 'manual', title: 'Choose how rent is tracked', sub: banksOn() ? 'Connect your banks, or tap "Mark paid" yourself.' : 'Tap "Mark paid" when rent comes in. Bank checks are coming soon.', to: '/settings#rent-tracking', btn: 'Choose', icon: 'bank' },
     ];
     const n = steps.filter((x) => x.done).length;
     const next = steps.findIndex((x) => !x.done);

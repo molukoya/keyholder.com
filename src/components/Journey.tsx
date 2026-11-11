@@ -8,6 +8,7 @@ import { addDays, addMonths, fmtDay, fmtPeriod, periodOf } from '../lib/dates';
 import { activeLease, byRoom, leasePlace, openRooms, roomsLine } from '../lib/finance';
 import { allJourneyCards, isHidden, journeyLeases, leaseStep, openStep, prefKey, propertySteps, unitStep, type JourneyCard } from '../lib/journey';
 import { keyholderScore, scoreKey } from '../lib/score';
+import { banksOn } from '../data/api';
 import { hasSilver, type Level } from '../lib/levels';
 import { fmt } from '../lib/money';
 import { bankToSort } from '../lib/bankrules';
@@ -208,7 +209,7 @@ export function RentRows() {
 export function ScoreList() {
   const { state, today } = useStore();
   const nav = useNavigate();
-  const { score, todo } = useMemo(() => keyholderScore(state, today), [state, today]);
+  const { score, todo } = useMemo(() => keyholderScore(state, today, banksOn()), [state, today]);
   const [all, setAll] = useState(false);
   const [form, setForm] = useState<{ to: Level; pid: string } | null>(null);
   const p = form ? state.properties.find((x) => x.id === form.pid) : undefined;

@@ -7,7 +7,7 @@ import { embedded } from '../components/ui';
 // The mode is decided once at start-up, before the first screen is drawn.
 
 export type ServerUser = { id: string; email: string; name: string; role: 'owner' | 'admin' | 'support'; emailVerified: boolean; hasPassword: boolean; google: boolean };
-export type ServerConfig = { google: boolean; emailDelivery: boolean; version: string };
+export type ServerConfig = { google: boolean; emailDelivery: boolean; banks?: boolean; version: string };
 export type Conn = { mode: 'local' | 'server'; user: ServerUser | null; config: ServerConfig | null };
 
 let conn: Conn = { mode: 'local', user: null, config: null };
@@ -16,6 +16,11 @@ const emit = () => subs.forEach((f) => f());
 
 export const getConn = () => conn;
 export const serverMode = () => conn.mode === 'server';
+/**
+ * Bank checks. The browser-only preview simulates them; on the live site they need a real bank-data
+ * provider (Phase 3), so until the server says so, "Connect a bank" is "Coming soon".
+ */
+export const banksOn = () => conn.mode !== 'server' || !!conn.config?.banks;
 export const isStaff = (u: ServerUser | null = conn.user) => !!u && (u.role === 'admin' || u.role === 'support');
 export function setUser(user: ServerUser | null) { conn = { ...conn, user }; emit(); }
 export function useConn(): Conn {

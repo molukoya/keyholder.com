@@ -59,6 +59,9 @@ function Root() {
   if (loc.pathname.startsWith('/signin')) return signedIn ? <Navigate to={p.account?.provider === 'admin' ? '/support' : '/today'} replace /> : <SignIn />;
   // The Keyholder team (with the server) sees only the support dashboard: no landlord app behind it.
   if (signedIn && p.account?.provider === 'admin' && !p.sample) return <Navigate to="/support" replace />;
+  // Signed up but the questions are not done yet: back to the questions (the website stays open to them).
+  const unfinished = signedIn && !p.onboarded && !p.sample && (p.account?.provider === 'google' || p.account?.provider === 'email');
+  if (unfinished) return onStart ? <Onboarding /> : <Navigate to="/start/1" replace />;
   if (!inApp) return onStart ? <Onboarding /> : <Landing />;
   return <Shell />;
 }
@@ -168,9 +171,17 @@ function Shell() {
   );
 }
 
-/** Top right in the app: Settings, as an icon. Sign out is at the top of Settings. */
+/** Top right in the app: Settings, as an icon; on the Settings page, a small Sign out icon next to it. */
 function SettingsIcon() {
-  return <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>;
+  const { act } = useStore();
+  const navigate = useNavigate();
+  const onSettings = useLocation().pathname.startsWith('/settings');
+  return (
+    <>
+      <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>
+      {onSettings && <button className="icon-btn signout-icon" aria-label="Sign out" title="Sign out" onClick={() => { act.signOut(); navigate('/welcome'); }}><Icon name="logout" size={20} /></button>}
+    </>
+  );
 }
 
 /** Phone "More" menu: big, plain buttons for the pages not in the bottom bar. */

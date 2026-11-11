@@ -4,6 +4,7 @@ import type { Mortgage, Property } from '../data/types';
 import { useStore } from '../data/store';
 import { levelInfo, nextStep, propertyLevel, type Level } from '../lib/levels';
 import { keyholderScore } from '../lib/score';
+import { banksOn } from '../data/api';
 import { portfolio } from '../lib/finance';
 import { monthChange } from '../lib/silver';
 import { RETURN_PRESETS } from '../lib/jurisdiction';
@@ -83,7 +84,7 @@ export function PropertyCard({ property, active, banner }: { property: Property;
 export function ScoreChip() {
   const { state, today } = useStore();
   const nav = useNavigate();
-  const { score, todo } = useMemo(() => keyholderScore(state, today), [state, today]);
+  const { score, todo } = useMemo(() => keyholderScore(state, today, banksOn()), [state, today]);
   const shown = useCountUp(score);
   const prev = useRef(score);
   const [bump, setBump] = useState(false);

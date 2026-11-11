@@ -27,7 +27,7 @@ export function byValue(state: AppState, today: string): Property[] {
     .map((x) => x.p);
 }
 
-export function scoreItems(state: AppState, today: string): ScoreItem[] {
+export function scoreItems(state: AppState, today: string, banks = true): ScoreItem[] {
   const items: ScoreItem[] = [];
   const pr = state.profile;
   const add = (i: Omit<ScoreItem, 'earned'> & { done: boolean | number }) => {
@@ -37,7 +37,9 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
   };
 
   add({ id: 'name', text: 'Add your name and email for receipts', points: 4, done: !!pr.name && !!pr.email, to: '/settings' });
-  add({ id: 'bank', text: 'Connect your bank to spot rent automatically', points: 8, done: (state.banks ?? []).length > 0, to: '/settings#rent-tracking' });
+  if (banks) add({ id: 'bank', text: 'Connect your bank to spot rent automatically', points: 8, done: (state.banks ?? []).some((b) => b.status === 'connected'), to: '/settings#rent-tracking' });
+  // Until there is a property, the score cannot be complete.
+  if (!state.properties.some((p) => !p.archived)) add({ id: 'property', text: 'Add your first property', points: 10, done: false, to: '/rentals' });
 
   for (const p of byValue(state, today)) {
     const units = state.units.filter((u) => u.propertyId === p.id);
@@ -70,10 +72,10 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
 
 export const scoreKey = (i: ScoreItem) => `score:${i.id}`;
 
-export function keyholderScore(state: AppState, today: string): { score: number; todo: ScoreItem[] } {
+export function keyholderScore(state: AppState, today: string, banks = true): { score: number; todo: ScoreItem[] } {
   // Ignored items no longer count against the score; hidden ones still count but are not suggested.
   const prefs = state.todoPrefs ?? {};
-  const all = scoreItems(state, today);
+  const all = scoreItems(state, today, banks);
   const items = all.filter((i) => !prefs[scoreKey(i)]?.ignored);
   const total = items.reduce((a, i) => a + i.points, 0);
   const earned = items.reduce((a, i) => a + i.earned, 0);

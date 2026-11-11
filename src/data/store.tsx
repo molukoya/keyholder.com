@@ -13,7 +13,7 @@ import { levelInfo, propertyLevel, type Level } from '../lib/levels';
 import { formById } from '../lib/forms';
 import { vendorKey } from '../lib/bankrules';
 import { CATEGORIES } from '../lib/jurisdiction';
-import { api, getConn, serverMode, setUser } from './api';
+import { api, banksOn, getConn, serverMode, setUser } from './api';
 import * as sync from './sync';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
@@ -145,15 +145,26 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
         Object.assign(d, next);
       });
     },
-    /** Create the account at the end of signup (Google or email link) and start with the user's own empty setup. */
-    signUp(p: Partial<Profile>, account: { provider: 'google' | 'email'; email: string; name: string }) {
+    /** Signup, step 1: the account (Google or email). The questions come next; the app opens after them. */
+    createAccount(account: { provider: 'google' | 'email'; email: string; name: string }) {
       mut((d) => {
-        const profile = { ...d.profile, ...p, name: account.name || p.name || '', email: account.email, onboarded: true, sample: false, tourDone: false,
+        const profile = { ...defaultProfile(), theme: d.profile.theme, name: account.name, email: account.email, onboarded: false, sample: false, tourDone: false,
           account: { ...account, signedIn: true, created: today() } };
         const next = emptyState(profile);
         next.banks = [];
         Object.assign(d, next);
-        audit(d, 'Account created', `${account.provider === 'google' ? 'Google' : 'Email link'} · ${account.email}`);
+      });
+    },
+    /** Signup, last step: save the answers and open the dashboard (the tour starts). */
+    completeSignup(p: Partial<Profile>) {
+      mut((d) => {
+        const a = d.profile.account;
+        if (!a) return;
+        const profile = { ...d.profile, ...p, name: d.profile.name || a.name, email: a.email, onboarded: true, sample: false, tourDone: false };
+        const next = emptyState(profile);
+        next.banks = [];
+        Object.assign(d, next);
+        audit(d, 'Account created', `${a.provider === 'google' ? 'Google' : 'Email'} · ${a.email}`);
       });
     },
     signIn() { mut((d) => { if (d.profile.account) d.profile.account.signedIn = true; }); },
@@ -280,7 +291,37 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
     setAutoSend(on: boolean) { mut((d) => { d.profile.autoSend = on; d.profile.autoSendOffered = true; audit(d, on ? 'Automatic receipts and reminders on' : 'Back to approving each message'); }); },
 
     // ---- Bank & email ----
+    /**
+     * Live site, before real bank checks exist: an earlier version let a landlord "connect" a pretend bank that
+     * made up deposits. Remove the connection, those deposits, anything they filed or marked as paid, and note
+     * each removal in the account's history.
+     */
+    removePretendBank() {
+      let removed = 0;
+      mut((d) => {
+        const banks = d.banks ?? [];
+        const fake = d.txns.filter((t) => t.source === 'bank');
+        if (!banks.length && !fake.length) return;
+        const payIds = new Set([...fake.flatMap((t) => (t.paymentId ? [t.paymentId] : [])), ...d.payments.filter((x) => x.source === 'bank').map((x) => x.id)]);
+        const expIds = new Set(fake.flatMap((t) => (t.expenseId ? [t.expenseId] : [])));
+        const rcptIds = new Set(d.receipts.filter((r) => payIds.has(r.paymentId)).map((r) => r.id));
+        for (const b of banks) audit(d, 'Practice bank connection removed', `${b.bank} ${b.accountMask}: bank checks are not live yet`);
+        if (fake.length) audit(d, 'Made-up bank transactions removed', `${fake.length} from the practice bank connection`);
+        for (const x of d.payments.filter((y) => payIds.has(y.id))) audit(d, 'Rent un-marked', `${fmt(x.amount)} on ${x.date}: a made-up deposit had marked it paid`);
+        for (const e of d.expenses.filter((y) => expIds.has(y.id))) audit(d, 'Expense removed', `${fmt(e.amount)} ${e.vendor}: filed from a made-up bank transaction`);
+        d.messages.forEach((m) => { if (m.receiptId && rcptIds.has(m.receiptId) && m.status === 'draft') m.status = 'cancelled'; });
+        d.receipts = d.receipts.filter((r) => !rcptIds.has(r.id));
+        d.payments = d.payments.filter((x) => !payIds.has(x.id));
+        d.expenses = d.expenses.filter((e) => !expIds.has(e.id));
+        d.txns = d.txns.filter((t) => t.source !== 'bank');
+        d.banks = [];
+        d.profile.rentArrival = 'manual';
+        removed = banks.length + fake.length;
+      });
+      if (removed) toast('Bank checks are not live yet, so the practice bank connection was removed. You mark rent paid yourself for now.');
+    },
     connectBank(bank: BankName) {
+      if (!banksOn()) return; // live site: no bank-data provider yet
       mut((d) => {
         d.banks = d.banks ?? [];
         d.banks.push({ id: uid('bank'), bank, accountMask: `•••• ${Math.floor(1000 + Math.random() * 8999)}`, status: 'connected', lastSync: new Date().toISOString() });
@@ -318,6 +359,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
      * `auto` = run by the schedule: only speak up when rent was found.
      */
     syncBank(auto = false) {
+      if (!banksOn()) return; // live site: never make up deposits
       let matched = 0, review = 0;
       mut((d) => {
         const connected = (d.banks ?? []).filter((b) => b.status === 'connected');
@@ -501,6 +543,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     else if (!u && a?.signedIn && (a.provider === 'email' || a.provider === 'google')) mut((d) => { if (d.profile.account) d.profile.account.signedIn = false; });
     sync.startPulling();
   }, [mut]);
+  // Live site without real bank checks: clear out a practice bank connection left from before.
+  const pretend = !banksOn() && ((state.banks ?? []).length > 0 || state.txns.some((t) => t.source === 'bank'));
+  useEffect(() => { if (pretend && sync.owned(state)) act.removePretendBank(); }, [pretend, state, act]);
   // The every-4-hours bank check. Stage 1 runs it while the app is open; Stage 2 runs it on the server.
   const lastSync = (state.banks ?? []).filter((b) => b.status === 'connected').map((b) => b.lastSync).sort()[0];
   useEffect(() => {

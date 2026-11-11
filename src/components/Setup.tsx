@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { keyholderScore } from '../lib/score';
+import { banksOn } from '../data/api';
 import { Icon } from './Icon';
 import { ScoreRing } from './levels';
 import { ScoreList } from './Journey';
@@ -9,7 +10,7 @@ import { ScoreList } from './Journey';
 /** Setup progress: the % in a small ring by Help, with a red dot while steps are left. Tap for the list. */
 export function SetupCircle() {
   const { state, today } = useStore();
-  const { score, todo } = useMemo(() => keyholderScore(state, today), [state, today]);
+  const { score, todo } = useMemo(() => keyholderScore(state, today, banksOn()), [state, today]);
   const [open, setOpen] = useState(false);
   useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [open]);
   const left = todo.length > 0 && score < 100;
