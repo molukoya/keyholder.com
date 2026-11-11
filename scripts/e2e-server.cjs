@@ -24,15 +24,16 @@ const api = async (pg, path) => pg.evaluate(async (p) => { const r = await fetch
 const outbox = async (to) => (await (await fetch(`${BASE}api/dev/outbox?to=${encodeURIComponent(to)}`)).json());
 async function until(fn, ms = 6000, what = 'condition') { const end = Date.now() + ms; let last; while (Date.now() < end) { try { last = await fn(); if (last) return last; } catch { /* retry */ } await wait(200); } throw new Error(`timed out waiting for ${what}`); }
 
-async function answerQuestions(pg, first) {
-  await pg.fill('#ob-first', first); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
+// The 6 signup questions, from question 1 to the plan page.
+async function answerQuestions(pg) {
+  await pg.waitForSelector('h1:has-text("Where is your rental property?")');
   await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=2 to 5 rental units'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Interac e-Transfer'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Knowing who has paid'); await pg.click('.q-foot >> text=Next');
   await pg.click("text=I don't know what costs I can claim"); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Getting paid on time'); await pg.click('.q-foot >> text=See my plan');
-  await pg.waitForSelector('text=Turn on your automation');
+  await pg.waitForSelector('text=Go to dashboard');
 }
 let receiptPath = null;
 async function receiptImage(browser) {
@@ -77,13 +78,18 @@ function watch(pg, errors, label) {
         await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h');
         const s = await api(pg, '/api/session'); if (!s.body?.config) throw new Error('no session config'); return `version ${s.body.config.version}`;
       });
-      await step(tag, 'E2 Signup: 6 questions, then name, email and password create a real account; the 5-step tour starts', async () => {
-        await go(pg, 'start'); await answerQuestions(pg, 'Alex');
+      await step(tag, 'E2 Signup: the account first (first and last name, email, password), then 6 questions, the plan and Go to dashboard; the 5-step tour starts', async () => {
+        await go(pg, 'start'); await pg.waitForSelector('h1:has-text("Create your free account")');
         if (await pg.locator('text=Open the link (preview)').count()) throw new Error('still the simulated link');
-        if (tag === 'desktop') { const extra = await pg.evaluate(() => document.documentElement.scrollHeight - window.innerHeight); if (extra > 1) throw new Error(`plan page scrolls ${extra}px`); }
-        await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', email); await pg.fill('#ob-pass', 'short');
-        if (await pg.locator('.acct-email button.btn:not(.ghost)').isEnabled()) throw new Error('weak password accepted');
+        await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.fill('#ob-email', email); await pg.fill('#ob-pass', 'short');
+        if (await pg.locator('.acct-signup button.btn.primary').isEnabled()) throw new Error('weak password accepted');
         await pg.fill('#ob-pass', password); await pg.click('text=Create my account');
+        await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6');
+        await answerQuestions(pg);
+        if (await pg.locator('.acct-google, #ob-email').count()) throw new Error('Google or email boxes on the plan page');
+        if (await pg.locator('.plan-six >> text=/in your bank/').count()) throw new Error('the plan promises bank checks');
+        if (tag === 'desktop') { const extra = await pg.evaluate(() => document.documentElement.scrollHeight - window.innerHeight); if (extra > 1) throw new Error(`plan page scrolls ${extra}px`); }
+        await pg.click('text=Go to dashboard');
         await pg.waitForSelector('text=Start here');
         await pg.waitForSelector('.tour-card >> text=Step 1 of 5'); await pg.locator('.tour-card >> text=Skip tour').click();
         const welcome = await until(async () => (await outbox(email)).find((m) => m.kind === 'welcome'), 4000, 'welcome email');
@@ -127,6 +133,19 @@ function watch(pg, errors, label) {
         if (!/Amount: \$2,000\.00/.test(mail.text_body)) throw new Error('receipt text: ' + mail.text_body.slice(0, 120));
         return mail.subject;
       });
+      await step(tag, 'E5b No pretend bank on the live site: one left from before is removed with its made-up deposit and the rent it marked paid (noted in the history); Settings says Coming soon', async () => {
+        const cur = (await api(pg, '/api/state')).body; const d = cur.data; const lease = d.leases[0];
+        d.banks = [{ id: 'bank-x', bank: 'RBC Royal Bank', accountMask: '•••• 1234', status: 'connected', lastSync: new Date().toISOString() }];
+        d.payments.push({ id: 'pay-fake', leaseId: lease.id, date: '2026-11-02', amount: 99900, method: 'etransfer', period: '2026-11', source: 'bank', createdAt: new Date().toISOString() });
+        d.txns.push({ id: 'txn-fake', source: 'bank', date: '2026-11-02', amount: 99900, payer: 'Made Up', memo: '', status: 'matched', bankId: 'bank-x', paymentId: 'pay-fake' });
+        const put = await pg.evaluate(async (body) => (await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Keyholder': '1' }, body: JSON.stringify(body) })).status, { baseRevision: cur.revision, data: d });
+        if (put !== 200) throw new Error('save ' + put);
+        await pg.reload(); await pg.waitForSelector('.rent-row');
+        const after = await until(async () => { const x = (await api(pg, '/api/state')).body.data; return !x.banks.length && !x.txns.some((t) => t.source === 'bank') && !x.payments.some((p) => p.id === 'pay-fake') && x; }, 8000, 'clean-up saved');
+        const log = JSON.stringify(after.audit); if (!/Practice bank connection removed/.test(log) || !/Rent un-marked/.test(log)) throw new Error('not in the history');
+        await go(pg, 'settings'); await pg.waitForSelector('#rent-tracking >> text=Coming soon');
+        if (!(await pg.locator('#rent-tracking .choice.soon').isDisabled())) throw new Error('the bank choice can still be clicked');
+      });
       await step(tag, 'E6 Settings shows the account and that it is saved', async () => {
         await go(pg, 'settings'); await pg.waitForSelector(`text=${email}`); await pg.waitForSelector('.save-status');
         return (await pg.locator('.save-status').textContent()).trim();
@@ -135,9 +154,9 @@ function watch(pg, errors, label) {
       await step(tag, 'E6b Top right: the Settings icon opens Settings', async () => {
         await go(pg, 'today'); await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
       });
-      await step(tag, 'E7 Settings → Sign out (top of the page): back to the website, and the data leaves this browser', async () => {
-        if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out icon on every page');
-        await go(pg, 'settings'); await pg.locator('.page-head #signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await step(tag, 'E7 Settings → Sign out (small icon at the top right): back to the website, and the data leaves this browser', async () => {
+        await go(pg, 'today'); if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out icon on Home');
+        await go(pg, 'settings'); await pg.locator(`${top} .signout-icon`).click(); await pg.waitForSelector('.lp-hero-h');
         const local = await until(async () => { const s = await pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1'))); return s && s.properties.length === 0 && s; }, 5000, 'local data cleared');
         if ((await api(pg, '/api/session')).body.user) throw new Error('still signed in on the server');
         return `local properties: ${local.properties.length}`;
@@ -162,27 +181,29 @@ function watch(pg, errors, label) {
         if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
         await ctx.close();
       });
-      await step(tag, 'E9c Back from Google at the end of signup (fresh page load): the plan is saved to the new account', async () => {
+      await step(tag, 'E9c Back from Google at the start of signup (fresh page load): the questions open; Go to dashboard saves the plan to the new account', async () => {
         const ctx = await b.newContext({ viewport: vp });
         const newEmail = `gina.${tag}@landlord-e2e.ca`;
         const r = await ctx.request.post(`${BASE}api/auth/signup`, { headers: { 'X-Keyholder': '1' }, data: { name: 'Gina Lopez', email: newEmail, password: 'gina-the-landlord-1' } });
         if (r.status() !== 201) throw new Error('signup ' + r.status());
         const p = await ctx.newPage(); watch(p, errors, 'google-signup');
-        await p.addInitScript(() => { if (!sessionStorage.getItem('kh:used')) { sessionStorage.setItem('kh:used', '1'); sessionStorage.setItem('kh:pending-signup', JSON.stringify({ profile: { province: 'ON', city: 'Toronto', setup: 'few', rentMethod: 'etransfer', dreads: [], taxWorries: [], goal: 'on-time' }, name: 'Gina Lopez' })); } });
-        await p.goto(BASE + '#/auth/google?intent=signup');
-        await p.waitForSelector(':is(h1, h2):has-text("Start here"), h1:has-text("Something went wrong")', { timeout: 15000 });
-        if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
-        await until(async () => (await api(p, '/api/state')).body?.data?.profile?.name === 'Gina Lopez', 6000, 'plan saved');
-        await ctx.close();
-      });
-      await step(tag, 'E9d Back from Google as a new landlord with no plan yet (fresh page load): the signup questions open', async () => {
-        const ctx = await b.newContext({ viewport: vp });
-        const r = await ctx.request.post(`${BASE}api/auth/signup`, { headers: { 'X-Keyholder': '1' }, data: { name: 'Hugo Lam', email: `hugo.${tag}@landlord-e2e.ca`, password: 'hugo-the-landlord-1' } });
-        if (r.status() !== 201) throw new Error('signup ' + r.status());
-        const p = await ctx.newPage(); watch(p, errors, 'google-new');
         await p.goto(BASE + '#/auth/google?intent=signup');
         await p.waitForSelector('.q-question, h1:has-text("Something went wrong")', { timeout: 15000 });
         if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
+        await p.waitForSelector('text=Nice to meet you, Gina!');
+        await answerQuestions(p); await p.click('text=Go to dashboard'); await p.waitForSelector(':is(h1, h2):has-text("Start here")');
+        await until(async () => { const x = (await api(p, '/api/state')).body?.data?.profile; return x?.name === 'Gina Lopez' && x.onboarded && x.province === 'ON'; }, 6000, 'plan saved');
+        await ctx.close();
+      });
+      await step(tag, 'E9d Signed up but stopped halfway: signing in opens the questions (also from Home)', async () => {
+        const ctx = await b.newContext({ viewport: vp });
+        const r = await ctx.request.post(`${BASE}api/auth/signup`, { headers: { 'X-Keyholder': '1' }, data: { name: 'Hugo Lam', email: `hugo.${tag}@landlord-e2e.ca`, password: 'hugo-the-landlord-1' } });
+        if (r.status() !== 201) throw new Error('signup ' + r.status());
+        const p = await ctx.newPage(); watch(p, errors, 'halfway');
+        await p.request.post(`${BASE}api/auth/logout`, { headers: { 'X-Keyholder': '1' } });
+        await signIn(p, `hugo.${tag}@landlord-e2e.ca`, 'hugo-the-landlord-1');
+        await p.waitForSelector('h1:has-text("Where is your rental property?")');
+        await go(p, 'today'); await p.waitForSelector('h1:has-text("Where is your rental property?")');
         await ctx.close();
       });
       await step(tag, 'E10 A change on one device shows on the other', async () => {
@@ -200,15 +221,17 @@ function watch(pg, errors, label) {
         await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');
         await until(async () => (await api(pg, '/api/state')).body?.data?.profile?.emailUpdates === false, 8000, 'change saved after signing in');
       });
-      await step(tag, 'E11 Help (side menu; phones: More) → Write to us reaches the support inbox', async () => {
+      await step(tag, 'E11 Help (side menu; phones: More) → Write to us opens its own popup and reaches the support inbox', async () => {
         if (tag === 'phone') { await go(pg, 'more'); await pg.locator('.more-list .help-btn').click(); } else { await go(pg, 'today'); await pg.locator('.rail-foot .help-btn').click(); }
-        await pg.locator('.acct-modal button:has-text("Write to us")').click(); await pg.fill('#ct-subject', `Question from ${tag}`); await pg.fill('#ct-message', 'How do I add a second property?');
+        await pg.locator('.acct-modal button:has-text("Write to us")').click(); await pg.waitForSelector('#contact-title');
+        if (await pg.locator('#help-title').count()) throw new Error('Help is still open behind it');
+        await pg.fill('#ct-subject', `Question from ${tag}`); await pg.fill('#ct-message', 'How do I add a second property?');
         await pg.locator('.contact-form >> text=Send').click(); await pg.waitForSelector('text=A person on our team will reply');
-        await pg.keyboard.press('Escape');
+        await pg.locator('.contact-card >> text=Done').click(); if (await pg.locator('.acct-modal').count()) throw new Error('popup still open');
         await until(async () => (await outbox(email)).find((m) => m.kind === 'ticket-ack'), 4000, 'acknowledgement email');
       });
       await step(tag, 'E12 Forgot password: the email link sets a new password and signs in', async () => {
-        await pgB.locator('#signout').click().catch(async () => { await go(pgB, 'settings'); await pgB.locator('#signout').click(); });
+        await go(pgB, 'settings'); await pgB.locator('.signout-icon:visible').click();
         await pgB.waitForSelector('.lp-hero-h');
         await go(pgB, 'signin'); await pgB.locator('text=Forgot your password?').click(); await pgB.fill('#forgot-email', email); await pgB.click('text=Send the link');
         await pgB.waitForSelector('text=Check your email');

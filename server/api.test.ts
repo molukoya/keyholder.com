@@ -60,7 +60,7 @@ let alex = '';
 describe('accounts', () => {
   it('reports health and the public settings', async () => {
     expect((await call('GET', '/api/health')).body).toMatchObject({ ok: true, db: 'pglite' });
-    expect((await call('GET', '/api/session')).body).toMatchObject({ user: null, config: { google: true, emailDelivery: false } });
+    expect((await call('GET', '/api/session')).body).toMatchObject({ user: null, config: { google: true, emailDelivery: false, banks: false } });
     expect((await call('GET', '/api/session')).body.config.previewLogins).toBeUndefined();
   });
 

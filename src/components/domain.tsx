@@ -11,6 +11,7 @@ import { Icon } from './Icon';
 import { Stamp, embedded } from './ui';
 import { Link } from 'react-router-dom';
 import { BANK_CHECK_HOURS } from '../lib/jurisdiction';
+import { banksOn } from '../data/api';
 
 function ago(iso: string): string {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -30,7 +31,7 @@ export function BankStatus({ compact }: { compact?: boolean }) {
       <div className={`track-line${compact ? ' compact' : ''}`}>
         <Icon name="check" size={18} />
         <span>You mark rent paid yourself.</span>
-        <Link to="/settings#rent-tracking">Check my bank automatically instead</Link>
+        {banksOn() && <Link to="/settings#rent-tracking">Check my bank automatically instead</Link>}
       </div>
     );
   }

@@ -10,11 +10,11 @@ const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim().toUpperCase
 const want = (section) => !ONLY.length || ONLY.includes(section);
 const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}`); };
 
-// A new account: the 6 questions, then the email link.
+// A new account: the account first (email link), then the 6 questions, then Go to dashboard.
 async function onboard(pg, skipTour = true) {
-  await pg.goto(BASE + '#/start');
+  await createAccount(pg);
   await answerQuestions(pg);
-  await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
+  await pg.click('text=Go to dashboard');
   await pg.waitForTimeout(300);
   if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
@@ -27,15 +27,22 @@ async function adminIn(pg, skipTour = true) {
   await pg.waitForSelector('.rent-row');
   if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
+// Signup, step 1: the account with the (simulated) email link. Lands on question 1.
+async function createAccount(pg) {
+  await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("Create your free account")');
+  await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.fill('#ob-email', 'alex.morgan@example.com');
+  await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
+  await pg.waitForSelector('h1:has-text("Where is your rental property?")');
+}
+// The 6 questions, from question 1 to the plan page.
 async function answerQuestions(pg) {
-  await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=2 to 5 rental units'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Interac e-Transfer'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Knowing who has paid'); await pg.click('.q-foot >> text=Next');
   await pg.click("text=I don't know what costs I can claim"); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Getting paid on time'); await pg.click('.q-foot >> text=See my plan');
-  await pg.waitForSelector('text=Turn on your automation');
+  await pg.waitForSelector('text=Go to dashboard');
 }
 const state = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('keyholder:v1')));
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(250); };
@@ -268,17 +275,19 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     }
     if (want('C')) ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
     // Navigation bars
-    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Help at the bottom; Settings at the top right, Sign out at the top of Settings (phones: Home, Income, Rentals raised in the middle, Expenses, More)', async () => {
+    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Help at the bottom; Settings at the top right, a small Sign out icon there on Settings only; Settings starts Profile, Appearance (phones: Home, Income, Rentals raised in the middle, Expenses, More)', async () => {
       const labels = tag === 'phone' ? ['Home', 'Income', 'Rentals', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork'];
       const order = (await pg.locator(tag === 'phone' ? '.bottombar a' : '.rail .nav-link').allTextContents()).join(' ').replace(/\d+/g, '');
       if (!(tag === 'phone' ? /Home.*Income.*Rentals.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork/).test(order)) throw new Error('order: ' + order);
       if (tag !== 'phone' && /Settings/.test(order)) throw new Error('Settings still in the side menu');
       if (tag !== 'phone' && !(await pg.locator('.rail-foot .help-btn').count())) throw new Error('no Help at the bottom of the side menu');
       const top = tag === 'phone' ? '.mobile-top' : '.top-tools.desk';
+      if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out on a page other than Settings');
       await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
-      if (await pg.locator(`${top} [aria-label="Sign out"]`).count()) throw new Error('Sign out still on every page at the top right');
-      if (!(await pg.locator('.page-head #signout').isVisible())) throw new Error('no Sign out at the top of Settings');
-      if ((await pg.locator('text=/^Sign out$/').count()) - (await pg.locator('.sample-banner >> text=Sign out').count()) !== 1) throw new Error('Sign out shown more than once in Settings');
+      if (!(await pg.locator(`${top} .signout-icon`).isVisible())) throw new Error('no small Sign out icon at the top right of Settings');
+      if (await pg.locator('.page > .page-head >> text=Sign out').count()) throw new Error('a big Sign out button is still by the title');
+      const order2 = (await pg.locator('.section-title').allTextContents()).join(' | ');
+      if (!/^Your profile \| Appearance \| Rent tracking/.test(order2)) throw new Error('Settings order: ' + order2);
       if (tag === 'phone') { const hub = pg.locator('.bottombar a').nth(2); if (!(await hub.evaluate((a) => a.classList.contains('hub') && a.textContent.includes('Rentals')))) throw new Error('Rentals is not the raised middle button'); }
       if (await pg.locator('.bottombar .capture, .rail >> text=Add a receipt').count()) throw new Error('receipt still in the menu');
       for (const l of labels) { await pg.locator(tag === 'phone' ? `.bottombar >> text=${l}` : `.rail >> text=${l}`).first().click(); await pg.waitForSelector(`h1:has-text("${l === 'Home' ? 'Home' : l === 'Settings' ? 'Your Keyholder' : l}")`, { state: 'attached' }); }
@@ -341,10 +350,16 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'today'); await pg.waitForSelector('.lp-hero-h'); // the dashboard is closed again
     });
     await step(tag, 'D12 Signup: Back on the first screen returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('.q-question'); await pg.locator('.q-foot >> text=Back to website').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
-    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
+    await step(tag, 'D13 Signup: Exit on any question signs out and returns to the website; signing in again opens the questions', async () => {
+      await createAccount(pg); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1');
+      if ((await state(pg)).profile.account?.signedIn) throw new Error('still signed in');
+      await login(pg, 'alex.morgan@example.com', 'x'); await pg.waitForSelector('h1:has-text("Where is your rental property?")');
+      await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1');
+    });
     await step(tag, 'D14 Signup: browser back goes to the previous question', async () => {
-      await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.waitForSelector('h1:has-text("What are you renting out?")');
+      await createAccount(pg); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.waitForSelector('h1:has-text("What are you renting out?")');
       await pg.goBack(); await pg.waitForSelector('h1:has-text("Where is your rental property?")');
+      await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1');
     });
     await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
       await adminIn(pg);
@@ -366,17 +381,22 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const errsE = [];
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsE.push(`E ${e.message}`));
-    await step(tag, 'E1 Signup asks first and last name (both needed), then greets you: "Nice to meet you, Alex! Question 1 of 6"', async () => {
-      await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("What\'s your name?")');
-      await pg.fill('#ob-first', 'Alex'); if (!(await pg.locator('.q-foot button.btn.primary').isDisabled())) throw new Error('Next works without a last name');
-      await pg.fill('#ob-last', 'Morgan'); await pg.keyboard.press('Enter');
+    await step(tag, 'E1 Signup starts with the account (first and last name both needed), then greets you: "Nice to meet you, Alex! Question 1 of 6"', async () => {
+      await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("Create your free account")');
+      if (await pg.locator('.q-question:has-text("What\'s your name?")').count()) throw new Error('old name question');
+      await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-email', 'alex.morgan@example.com');
+      if (!(await pg.locator('.acct-signup button.btn.primary').isDisabled())) throw new Error('works without a last name');
+      await pg.fill('#ob-last', 'Morgan'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
       await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6'); await pg.waitForSelector('.q-aside');
-      await pg.goto(BASE + '#/start');
+      if (await pg.locator('.q-foot >> text=Back').count()) throw new Error('Back on question 1 (the account is already made)');
+      await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1');
     });
-    await step(tag, 'E2 After 6 questions: Continue with Google → account picker → signed up → 5-step tour of the dashboard', async () => {
+    await step(tag, 'E2 Continue with Google first → account picker → 6 questions → plan → Go to dashboard → 5-step tour', async () => {
+      await pg.goto(BASE + '#/start'); await pg.locator('.acct-google').click(); await pg.waitForSelector('#gp-title');
+      await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6');
       await answerQuestions(pg);
-      await pg.locator('.acct-google').click(); await pg.waitForSelector('#gp-title');
-      await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
+      if (await pg.locator('.acct-google, #ob-email').count()) throw new Error('Google or email boxes still on the plan page');
+      await pg.click('text=Go to dashboard'); await pg.waitForSelector('text=Start here');
       await pg.waitForSelector('.tour-card >> text=Step 1 of 5'); await pg.waitForSelector('.tour-card >> text=Start here');
       for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
       await pg.waitForSelector('.tour-card >> text=Sign out is in Settings'); await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200);
@@ -385,7 +405,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
     await step(tag, 'E3 Settings shows the account → Sign out → website', async () => {
       await go(pg, 'settings'); await pg.waitForSelector('#account >> text=alex.morgan@gmail.com');
-      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
     });
     await step(tag, 'E4 Sign in → Google → back to Home', async () => {
       if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator('.lp-menu >> text=Sign in').click(); } else await pg.locator('.lp-nav-cta >> text=Sign in').click();
@@ -393,13 +413,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.acct-google').click(); await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
     });
     await step(tag, 'E5 Sign in with an unknown email offers to create an account', async () => {
-      await go(pg, 'settings'); await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await go(pg, 'settings'); await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
       await login(pg, 'someone@else.ca', 'anything');
-      await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
+      await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('.callout >> text=Create a free account').click(); await pg.waitForSelector('h1:has-text("Create your free account")');
     });
     await step(tag, 'E6 Province: 4 big provinces and Others; the list of the others shows only after tapping Others', async () => {
-      await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
-      await pg.waitForSelector('h1:has-text("Where is your rental property?")');
+      await createAccount(pg);
       const names = await pg.locator('.choices .choice .t').allTextContents();
       if (names.length !== 5 || names[4] !== 'Others') throw new Error('choices: ' + names.join(', '));
       if (await pg.locator('#ob-prov').count()) throw new Error('the list shows before Others');
@@ -411,7 +430,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.choice:has-text("Ontario")').click(); if (await pg.locator('#ob-prov').count()) throw new Error('the list stays after Ontario');
     });
     await step(tag, 'E7 Plan page: 6 full sentences with icons, two columns on a computer, no scrolling', async () => {
-      await pg.goto(BASE + '#/start'); await answerQuestions(pg);
+      await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("Where is your rental property?")'); await answerQuestions(pg);
       const items = await pg.locator('.plan-six li').count(); if (items !== 6) throw new Error(items + ' items');
       if ((await pg.locator('.plan-six li .plan-ic svg').count()) !== 6) throw new Error('icons missing');
       for (const t of await pg.locator('.plan-six li').allTextContents()) if (!/[.!]$/.test(t.trim())) throw new Error('not a full sentence: ' + t);
@@ -570,14 +589,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('.tour-card >> text=Skip tour').click();
       await pg.goto(BASE + '#/support'); await pg.waitForTimeout(300); if (await pg.locator('.sp').count()) throw new Error('the demo reached the support dashboard');
       await go(pg, 'settings'); for (const t of ['Restore sample data', 'Replay the signup questions']) if (!(await pg.locator(`text=${t}`).count())) throw new Error(`admin has no "${t}"`);
-      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
     });
     await step(tag, 'H2 Signing in as admin sets your own account aside; signing out brings it back', async () => {
       await onboard(pg); await pg.waitForSelector('text=Start here');
       await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); s.properties.push({ id: 'p-oak', nickname: 'Oak house', address: '9 Oak St', city: 'Toronto', province: 'ON', type: 'house', rentalSharePct: 100, ownerOccupied: false, ownershipPct: 100, claimCCA: false }); localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
       await pg.reload(); await go(pg, 'settings');
       for (const t of ['Restore sample data', 'Replay the signup questions']) if (await pg.locator(`text=${t}`).count()) throw new Error(`a real account sees "${t}"`);
-      await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
       await adminIn(pg); await go(pg, 'rentals'); await pg.waitForSelector('text=Maple triplex');
       if (await pg.locator('text=Oak house').count()) throw new Error('own data mixed into the sample');
       await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
@@ -664,7 +683,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     });
     await step(tag, 'I5 After signing out: Sign in and Sign up at the top right, one Get started on the banner', async () => {
       await onboard(pg); await pg.waitForSelector('text=Start here');
-      await go(pg, 'settings'); await pg.locator('#signout').click(); await pg.waitForSelector('.lp-hero-h');
+      await go(pg, 'settings'); await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
       const hero = (await pg.locator('.lp-hero [data-cta] .btn').allTextContents()).join('|');
       if (hero !== 'Get started') throw new Error('banner buttons: ' + hero);
       if (tag !== 'phone') { const top = (await pg.locator('.lp-nav-cta .btn').allTextContents()).join('|'); if (top !== 'Sign in|Sign up') throw new Error('top right: ' + top); }

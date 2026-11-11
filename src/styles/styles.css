@@ -440,10 +440,16 @@ html body .drawer { z-index: 126; }
 .acct-email .acct-error { flex: 1 1 100%; margin: 0; }
 
 /* Signup: first and last name side by side (stacked on phones) */
-.q-names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; max-width: 560px; }
-.q-names .field { margin: 0; }
-.q-names .q-name { max-width: none; }
-@media (max-width: 560px) { .q-names { grid-template-columns: minmax(0, 1fr); } }
+.acct-names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .acct-names { grid-template-columns: minmax(0, 1fr); } }
+/* Signup, step 1: the account form (labels above the boxes). */
+.acct-email.acct-signup { display: grid; gap: 12px; }
+.acct-signup .field { margin: 0; }
+.acct-signup .input { flex: none; width: 100%; }
+.acct-signup > .btn { width: 100%; }
+.acct-save.acct-first { margin-top: 20px; }
+.acct-first > .btn.acct-google { margin-top: 0; }
+.acct-first .acct-switch { margin: 14px 0 0; text-align: center; }
 
 /* Dark mode: the rent summary card and the urgent "next step" card follow the theme (they used fixed white). */
 :root[data-theme="dark"] .rent-card { background: linear-gradient(135deg, #1B2130 0%, #171C2B 100%); }
@@ -498,21 +504,19 @@ html body .drawer { z-index: 126; }
 .add-expense { min-height: 48px; }
 
 /* Signup: the plan on one screen, two columns (the plan, and the account box) */
-.plan-page .plan-two { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr); gap: 32px; align-items: start; margin-top: 8px; }
 .plan-page .q-question { font-size: clamp(26px, 2.4vw, 34px); margin-bottom: 6px; }
 .plan-page .plan-summary { margin: 0 0 14px; }
 .plan-six { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .plan-six li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--paper-raised); border: 1px solid var(--rule); font-size: var(--t-15, 15px); line-height: 1.45; }
 .plan-six .plan-ic { flex: none; }
-.plan-page .acct-save { margin-top: 0; max-width: none; }
-.plan-page .plan-back { margin-top: 14px; }
-@media (max-width: 900px) { .plan-page .plan-two { grid-template-columns: minmax(0, 1fr); gap: 20px; } .plan-six { grid-template-columns: minmax(0, 1fr); } }
-.q-wrap.plan-page { max-width: 1160px; padding-top: 16px; }
+@media (max-width: 900px) { .plan-six { grid-template-columns: minmax(0, 1fr); } }
+.q-wrap.plan-page { max-width: 1040px; padding-top: 16px; }
 .plan-page .q-top { margin-bottom: 12px; }
-.plan-page .plan-two { margin-top: 0; }
 .plan-page .q-count { margin-bottom: 4px; }
 .plan-six li { padding: 11px 14px; }
-@media (min-width: 901px) and (max-height: 820px) { .plan-page .acct-save h2 { font-size: 26px; } .plan-page .plan-back { margin-top: 8px; } }
+.plan-page .plan-emails { margin-top: 18px; }
+.plan-page .plan-foot { margin-top: 18px; }
+.btn.plan-go { gap: 8px; min-height: 52px; padding: 0 22px 0 26px; font-size: 17px; }
 
 /* App top right: setup circle, Settings and Sign out as round icon buttons */
 .icon-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--ink-soft); }
@@ -524,7 +528,7 @@ html body .drawer { z-index: 126; }
 /* Help in the side menu (where Settings was) and in More on phones */
 .rail-foot .help-btn { width: 100%; }
 .more-list button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
-/* Settings: Sign out sits at the top right of the page, easy to find. */
-.page-head .signout-btn { align-self: center; }
-.btn.signout-btn { gap: 8px; min-height: 44px; padding: 0 18px; background: var(--paper-raised); color: var(--ink); border: 1.5px solid var(--rule-strong); }
-.btn.signout-btn:hover { border-color: var(--primary); color: var(--primary); }
+/* A choice that is not available yet (bank checks on the live site). */
+.choice.soon { cursor: default; opacity: .78; }
+.choice.soon:hover { transform: none; box-shadow: none; }
+.soon-tag { display: inline-block; margin-left: 10px; padding: 2px 10px; border-radius: 999px; background: var(--accent-tint); color: var(--primary); font-family: var(--font-ui); font-size: 12px; font-weight: 600; vertical-align: middle; }

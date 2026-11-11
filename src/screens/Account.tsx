@@ -5,7 +5,7 @@ import { PREVIEW_LOGINS, useStore } from '../data/store';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Brand';
 import { SceneWelcome } from '../components/Art';
-import { api, ApiError, getConn, isStaff, serverMode, setUser, useConn, type ServerUser } from '../data/api';
+import { api, ApiError, getConn, isStaff, serverMode, setUser, type ServerUser } from '../data/api';
 import * as sync from '../data/sync';
 
 // Sign up / sign in. With the Keyholder server (Stage 2), accounts are real: email and password (or Google,
@@ -21,15 +21,19 @@ const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
 export const googleOn = () => !serverMode() || !!getConn().config?.google;
 /** Real Google sign-in: leaves for Google and comes back to #/auth/google. */
 export function startGoogle(intent: 'signin' | 'signup') { window.location.assign(`/api/auth/google/start?intent=${intent}`); }
-/** Signup answers wait here while the visitor is at Google. */
-export const PENDING_SIGNUP = 'kh:pending-signup';
 
 /** After a real sign-in: the team goes to the support dashboard; a landlord gets their data from the server. */
 export async function afterSignIn(user: ServerUser, act: ReturnType<typeof useStore>['act'], nav: (to: string) => void) {
   setUser(user);
   if (isStaff(user)) { act.signInTeam(user.email, user.name); nav('/support'); return; }
   const r = await sync.hydrate();
-  nav(r === 'empty' ? '/start' : '/today');
+  if (r === 'empty') {
+    // Signed up but the questions are not done yet (or just back from Google): the questions open.
+    act.createAccount({ provider: user.google && !user.hasPassword ? 'google' : 'email', email: user.email, name: user.name });
+    nav('/start/1');
+    return;
+  }
+  nav('/today');
 }
 
 /** The standard multicolour "G", used on the Continue with Google button. */
@@ -87,79 +91,61 @@ export function GooglePicker({ onPick, onClose }: { onPick: (w: Who) => void; on
   );
 }
 
-/** "Continue with email". With the server: name, email and a password create the account. Without: a simulated email link. */
-export function EmailLink(props: { cta?: string; askName?: boolean; defaultName?: string; onDone: (w: Who) => void }) {
-  return serverMode() ? <ServerSignup defaultName={props.defaultName ?? ''} onDone={props.onDone} /> : <LocalEmailLink {...props} />;
-}
-
-function ServerSignup({ defaultName, onDone }: { defaultName: string; onDone: (w: Who) => void }) {
-  const { user } = useConn();
-  const [name, setName] = useState(defaultName);
+/**
+ * Signup with email: first and last name and email, plus a password with the server (it creates the account
+ * there). Without a server (the Claude preview) the email link is simulated.
+ */
+export function EmailSignup({ onDone }: { onDone: (w: Who) => void }) {
+  const server = serverMode();
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const [err, setErr] = useState<{ text: string; signIn?: boolean } | null>(null);
-  if (user && user.role === 'owner') return (
+  const name = `${first.trim()} ${last.trim()}`.trim();
+  const ready = validEmail(email) && !!first.trim() && !!last.trim() && (!server || pass.length >= 8);
+  if (sent) return (
     <div className="acct-sent" role="status">
-      <Icon name="check" size={22} />
-      <div><strong>Signed in as {user.email}</strong><p className="small soft">Save your plan to your account.</p>
-        <div className="btn-row"><button className="btn primary" onClick={() => onDone({ provider: user.google && !user.hasPassword ? 'google' : 'email', email: user.email, name: user.name || name })}>Save my plan</button></div>
+      <Icon name="mail" size={22} />
+      <div><strong>Check your email</strong><p className="small soft">We sent a sign-in link to {email}. Tap it to finish. No password needed.</p>
+        <div className="btn-row"><button className="btn primary" onClick={() => onDone({ provider: 'email', email: email.trim(), name })}>Open the link (preview)</button><button className="btn ghost" onClick={() => setSent(false)}>Use a different email</button></div>
       </div>
     </div>
   );
-  const ready = validEmail(email) && !!name.trim() && pass.length >= 8;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!ready || busy) return;
+    if (!server) { setSent(true); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ user: ServerUser }>('POST', '/api/auth/signup', { name: name.trim(), email: email.trim(), password: pass });
+      const r = await api<{ user: ServerUser }>('POST', '/api/auth/signup', { name, email: email.trim(), password: pass });
       setUser(r.user);
       onDone({ provider: 'email', email: r.user.email, name: r.user.name });
     } catch (x) {
       setErr({ text: (x as Error).message, signIn: x instanceof ApiError && x.status === 409 });
     } finally { setBusy(false); }
   };
+  const edit = (f: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { f(e.target.value); setErr(null); };
   return (
-    <form className="acct-email" onSubmit={submit}>
-      <label htmlFor="ob-name" className="sr-only">Your name</label>
-      <input id="ob-name" className="input acct-name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-      <label htmlFor="ob-email" className="sr-only">Email</label>
-      <input id="ob-email" type="email" className="input" placeholder="you@example.com" value={email} onChange={(e) => { setEmail(e.target.value); setErr(null); }} autoComplete="email" />
-      <label htmlFor="ob-pass" className="sr-only">Create a password</label>
-      <span className="acct-pass">
-        <input id="ob-pass" type={show ? 'text' : 'password'} className="input" placeholder="Create a password (8+ characters)" value={pass} onChange={(e) => { setPass(e.target.value); setErr(null); }} autoComplete="new-password" />
-        <button type="button" className="btn ghost small" onClick={() => setShow(!show)} aria-pressed={show}>{show ? 'Hide' : 'Show'}</button>
-      </span>
-      {err && <p className="small acct-error" role="alert">{err.text} {err.signIn && <Link to="/signin">Sign in</Link>}</p>}
-      <button className="btn" disabled={!ready || busy}>{busy ? 'Creating your account…' : 'Create my account'}</button>
-    </form>
-  );
-}
-
-function LocalEmailLink({ cta = 'Continue with email', askName = false, defaultName = '', onDone }: { cta?: string; askName?: boolean; defaultName?: string; onDone: (w: Who) => void }) {
-  const [name, setName] = useState(defaultName);
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const ready = validEmail(email) && (!askName || !!name.trim());
-  if (sent) return (
-    <div className="acct-sent" role="status">
-      <Icon name="mail" size={22} />
-      <div><strong>Check your email</strong><p className="small soft">We sent a sign-in link to {email}. Tap it to finish. No password needed.</p>
-        <div className="btn-row"><button className="btn primary" onClick={() => onDone({ provider: 'email', email: email.trim(), name: name.trim() || nameFromEmail(email) })}>Open the link (preview)</button><button className="btn ghost" onClick={() => setSent(false)}>Use a different email</button></div>
+    <form className="acct-email acct-signup" onSubmit={submit}>
+      <div className="acct-names">
+        <div className="field"><label htmlFor="ob-first">First name</label><input id="ob-first" className="input" value={first} onChange={edit(setFirst)} autoComplete="given-name" autoCapitalize="words" /></div>
+        <div className="field"><label htmlFor="ob-last">Last name</label><input id="ob-last" className="input" value={last} onChange={edit(setLast)} autoComplete="family-name" autoCapitalize="words" /></div>
       </div>
-    </div>
-  );
-  return (
-    <form className="acct-email" onSubmit={(e) => { e.preventDefault(); if (ready) setSent(true); }}>
-      {askName && <>
-        <label htmlFor="ob-name" className="sr-only">Your name</label>
-        <input id="ob-name" className="input acct-name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-      </>}
-      <label htmlFor="ob-email" className="sr-only">Email</label>
-      <input id="ob-email" type="email" className="input" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-      <button className="btn" disabled={!ready}>{cta}</button>
+      <div className="field"><label htmlFor="ob-email">Email</label><input id="ob-email" type="email" className="input" placeholder="you@example.com" value={email} onChange={edit(setEmail)} autoComplete="email" /></div>
+      {server && (
+        <div className="field"><label htmlFor="ob-pass">Create a password</label>
+          <span className="acct-pass">
+            <input id="ob-pass" type={show ? 'text' : 'password'} className="input" placeholder="8 characters or more" value={pass} onChange={edit(setPass)} autoComplete="new-password" />
+            <button type="button" className="btn ghost small" onClick={() => setShow(!show)} aria-pressed={show}>{show ? 'Hide' : 'Show'}</button>
+          </span>
+        </div>
+      )}
+      {err && <p className="small acct-error" role="alert">{err.text} {err.signIn && <Link to="/signin">Sign in</Link>}</p>}
+      <button className="btn primary" disabled={!ready || busy}>{!server ? 'Continue with email' : busy ? 'Creating your account…' : 'Create my account'}</button>
     </form>
   );
 }
@@ -190,7 +176,7 @@ export function SignIn() {
         {unknown ? (
           <div className="callout warn" role="alert">
             <p style={{ margin: 0 }}><strong>No Keyholder account for {unknown} yet.</strong> It takes 2 minutes to set one up.</p>
-            <div className="btn-row" style={{ marginTop: 12 }}><Link className="btn primary" to="/start">Answer 6 quick questions</Link><button className="btn ghost" onClick={() => setUnknown(null)}>Try another account</button></div>
+            <div className="btn-row" style={{ marginTop: 12 }}><Link className="btn primary" to="/start">Create a free account</Link><button className="btn ghost" onClick={() => setUnknown(null)}>Try another account</button></div>
           </div>
         ) : (
           <>

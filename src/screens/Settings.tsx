@@ -26,9 +26,7 @@ export function Settings() {
 
   return (
     <div className="page">
-      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Your profile, rent tracking, reminders, display</PageSub></div>
-        {(admin || live || !!p.account) && <button id="signout" className="btn signout-btn" onClick={() => { act.signOut(); nav('/welcome'); }}><Icon name="logout" size={18} />Sign out</button>}
-      </div>
+      <BackToMore /><div className="page-head"><div><div className="eyebrow">Settings</div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="settings" size={22} /></span>Your Keyholder</h1><PageSub>Your profile, appearance, rent tracking, reminders</PageSub></div></div>
 
       <section className="section" id="profile">
         <h2 className="section-title">Your profile</h2>
@@ -62,6 +60,14 @@ export function Settings() {
         </div>
       </section>
 
+      <section className="section">
+        <h2 className="section-title">Appearance</h2>
+        <div className="sheet">
+          <Field label="Theme"><Seg label="Theme" value={p.theme} onChange={(theme) => act.setProfile({ theme })} options={[{ id: 'system', label: 'Match device' }, { id: 'light', label: 'Paper' }, { id: 'dark', label: 'Night Ledger' }]} /></Field>
+          <label className="check"><input type="checkbox" checked={p.paperGrain} onChange={(e) => act.setProfile({ paperGrain: e.target.checked })} />Paper grain texture</label>
+        </div>
+      </section>
+
       <section className="section" id="rent-tracking">
         <h2 className="section-title">Rent tracking</h2>
         <RentTracking />
@@ -81,13 +87,6 @@ export function Settings() {
       </section>
 
 
-      <section className="section">
-        <h2 className="section-title">Appearance</h2>
-        <div className="sheet">
-          <Field label="Theme"><Seg label="Theme" value={p.theme} onChange={(theme) => act.setProfile({ theme })} options={[{ id: 'system', label: 'Match device' }, { id: 'light', label: 'Paper' }, { id: 'dark', label: 'Night Ledger' }]} /></Field>
-          <label className="check"><input type="checkbox" checked={p.paperGrain} onChange={(e) => act.setProfile({ paperGrain: e.target.checked })} />Paper grain texture</label>
-        </div>
-      </section>
 
       <section className="section">
         <h2 className="section-title">Data</h2>

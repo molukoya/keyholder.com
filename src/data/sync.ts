@@ -141,7 +141,7 @@ export async function pull() {
 export function forget(account: NonNullable<AppState['profile']['account']>) {
   clearTimeout(timer);
   writeMeta(null);
-  const s = emptyState({ ...defaultProfile(), name: account.name, email: account.email, onboarded: true, account: { ...account, signedIn: false } });
+  const s = emptyState({ ...defaultProfile(), name: account.name, email: account.email, onboarded: false, account: { ...account, signedIn: false } });
   s.banks = [];
   synced = s;
   set(s);
