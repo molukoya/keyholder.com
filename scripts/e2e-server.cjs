@@ -209,6 +209,11 @@ function watch(pg, errors, label) {
         await go(ad, 'support/announcements'); await ad.locator('.sp-rows li', { hasText: `(${tag})` }).locator('text=Hide').click();
         await until(async () => !(await (await fetch(`${BASE}api/announcements`)).json()).some((a) => a.text.includes(tag)), 5000, 'announcement hidden');
       });
+      await step(tag, 'E17b The username "admin" with the team password opens the live dashboard', async () => {
+        const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage(); watch(p, errors, 'admin-username');
+        await signIn(p, 'admin', ADMIN.password); await p.waitForSelector('.sp-page');
+        await go(p, 'support/customers'); await p.waitForSelector(`text=${email}`); await ctx.close();
+      });
       await step(tag, 'E18 The admin preview (admin / admin) still shows sample data only', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
         await signIn(p, 'admin', 'admin'); await p.waitForSelector('.sp-page'); await p.waitForSelector('.sp-sample:not(.live)'); await ctx.close();

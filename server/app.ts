@@ -101,6 +101,10 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
 
+  /** The account behind the username "admin": the ADMIN_EMAIL account, else the oldest admin. */
+  const teamAdmin = async () => (cfg.admin ? await userByEmail(db, cfg.admin.email) : undefined)
+    ?? (await db.one<User>(`select * from users where role = 'admin' and disabled_at is null order by created_at limit 1`));
+
   // ---------------- Public ----------------
   app.get('/api/health', async () => {
     await db.query('select 1');
@@ -134,7 +138,8 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
   const Login = z.object({ email: z.string().trim().max(200), password: z.string().max(200) });
   app.post('/api/auth/login', { config: authLimit }, async (req, reply) => {
     const b = Login.parse(req.body);
-    const u = await userByEmail(db, b.email);
+    // The username "admin" is the first team account (ADMIN_EMAIL), so the team can sign in with "admin".
+    const u = b.email.trim().toLowerCase() === 'admin' ? await teamAdmin() : await userByEmail(db, b.email);
     const ok = u && !u.disabled_at ? await verifyPassword(b.password, u.password_hash) : (await burnPasswordCheck(b.password), false);
     if (!ok || !u) {
       if (u) await audit(db, { actor: u.email, actorId: u.id, scope: 'auth', action: 'Sign-in failed', detail: 'Wrong password', ip: ip(req) });

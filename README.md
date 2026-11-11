@@ -19,7 +19,7 @@ npm run dev:server              # API only, reloads on change (:8080)
 npm run dev                     # website with hot reload (:5173, /api goes to :8080)
 ```
 
-Sign in as the support team locally: start with `ADMIN_EMAIL=you@example.ca ADMIN_PASSWORD=a-long-password`.
+Sign in as the support team locally: start with `ADMIN_EMAIL=you@example.ca ADMIN_PASSWORD=a-long-password`, then sign in with that email (or the username `admin`) and password.
 The sample logins always work: **test / test** (demo landlord) and **admin / admin** (sample support dashboard).
 
 ## Tests
