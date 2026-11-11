@@ -227,6 +227,16 @@ function watch(pg, errors, label) {
         if (tag === 'desktop') await ad.waitForSelector('.sp-sample.live');
         await go(ad, 'support/customers'); await ad.waitForSelector(`text=${email}`);
       });
+      await step(tag, 'E15c Team & settings → Your password: change it, sign in with the new one, change it back', async () => {
+        const change = async (from, to) => {
+          await go(ad, 'support/team'); await ad.fill('#my-pw-cur', from); await ad.fill('#my-pw-new', to);
+          await ad.locator('#my-password >> text=Change password').click(); await ad.waitForSelector('#my-password >> text=Password changed');
+        };
+        await change(ADMIN.password, 'new-team-password-9');
+        const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+        await signIn(p, 'admin', 'new-team-password-9'); await p.waitForSelector('.sp-page'); await ctx.close();
+        await change('new-team-password-9', ADMIN.password);
+      });
       await step(tag, 'E16 The team replies to the request: the landlord gets the reply by email', async () => {
         await go(ad, 'support/inbox'); await ad.locator('.sp-tickets a', { hasText: `Question from ${tag}` }).click(); await ad.waitForSelector('.sp-thread');
         await ad.locator('.sp-reply textarea').fill('Open Rentals and tap Add property.'); await ad.locator('.sp-reply-foot .btn.primary').click();

@@ -11,8 +11,9 @@ async function main() {
   const cfg = loadConfig();
   const db = await openDb({ url: cfg.databaseUrl, pgliteDir: cfg.pgliteDir });
   const applied = await migrate(db);
-  await ensureAdmin(db, cfg);
+  const admin = await ensureAdmin(db, cfg);
   const app = await buildApp({ cfg, db });
+  if (admin === 'updated') app.log.info('team password changed from ADMIN_PASSWORD; old sign-ins ended');
   if (applied.length) app.log.info(`migrations applied: ${applied.join(', ')}`);
   if (!cfg.databaseUrl) app.log.warn(`no DATABASE_URL: using the embedded Postgres in ${cfg.pgliteDir}`);
   if (cfg.email.provider === 'log') app.log.warn('EMAIL_PROVIDER=log: emails are kept in the outbox, not sent');
