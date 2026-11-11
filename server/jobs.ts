@@ -6,6 +6,7 @@ import { trayItems } from '../src/lib/tray';
 import type { Config } from './config';
 import type { Db } from './db';
 import { queueMail, recordError, sendDue } from './email';
+import { Keys } from './keys';
 import { digestMail } from './mails';
 import { readState, writeState } from './services';
 
@@ -76,13 +77,13 @@ export async function cleanup(db: Db) {
 }
 
 /** Starts the background loop: the email queue every 10 s, the daily run and clean-up once an hour. */
-export function startWorker(cfg: Config, db: Db, log: (msg: string) => void) {
+export function startWorker(cfg: Config, db: Db, log: (msg: string) => void, keys = new Keys(cfg)) {
   let stopped = false, busy = false;
   const tick = async () => {
     if (busy || stopped) return;
     busy = true;
     try {
-      const r = await sendDue(cfg, db);
+      const r = await sendDue(cfg, db, 20, keys);
       if (r.sent || r.failed) log(`email: ${r.sent} delivered, ${r.failed} failed`);
     } catch (e) { log(`email queue error: ${(e as Error).message}`); } finally { busy = false; }
   };

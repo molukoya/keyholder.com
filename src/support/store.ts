@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { ISODate } from '../data/types';
 import { daysBetween } from '../lib/dates';
-import { generateSupport, SLA_HOURS, type Announcement, type Customer, type Health, type Priority, type SupportBase, type Ticket } from './data';
+import { DEFAULT_UNIT_CENTS, generateSupport, SLA_HOURS, type Announcement, type Customer, type Health, type Platform, type Priority, type SupportBase, type Ticket } from './data';
 import { api, getConn, isStaff, serverMode } from '../data/api';
 
 // The support dashboard's own little store. Every admin action is written to the audit log.
@@ -21,8 +21,26 @@ const toastSubs = new Set<() => void>();
 let n = 0;
 
 function load(): SupportState {
-  try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw) as SupportState; } catch { /* fall through */ }
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw) as SupportState;
+      // Sample data saved before the super user: add the platform settings and the new team roles.
+      const fresh = generateSupport();
+      if (!s.platform) s.platform = fresh.platform;
+      s.myRole ??= 'super';
+      s.team = s.team.map((m) => ({ ...m, role: (m.role as string) === 'Owner' ? 'Super user' : (m.role as string) === 'Read-only' ? 'Support' : m.role }));
+      return s;
+    }
+  } catch { /* fall through */ }
   return { ...generateSupport(), sla: { ...SLA_HOURS } };
+}
+/** Super user: the Landlord plan price, promotions and banks. Only the super user changes these. */
+export const isSuper = (s: SupportState) => (s.myRole ?? 'super') === 'super';
+export const canAdmin = (s: SupportState) => (s.myRole ?? 'super') !== 'support';
+/** Browser-only preview: the sample dashboard's platform settings, for the website and the app on this device. */
+export function localPlatform(): Platform | null {
+  try { const raw = localStorage.getItem(KEY); return raw ? ((JSON.parse(raw) as SupportState).platform ?? null) : null; } catch { return null; }
 }
 /** Live: a real team member is signed in to the Keyholder server. */
 let liveMode = false;
@@ -95,7 +113,7 @@ export function resetSupport() {
 
 // ---------------- Derived numbers ----------------
 export const live = (s: SupportState) => s.customers.filter((c) => !c.deleted);
-export const mrr = (c: Customer) => (c.plan === 'landlord' && !c.deleted ? c.units * 800 : 0);
+export const mrr = (c: Customer, unitCents = DEFAULT_UNIT_CENTS) => (c.plan === 'landlord' && !c.deleted ? c.units * (c.unitPrice ?? unitCents) : 0);
 export const fmtMoney = (cents: number, digits = 0) => (cents / 100).toLocaleString('en-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: digits, maximumFractionDigits: digits });
 export const customerOf = (s: SupportState, id: string) => s.customers.find((c) => c.id === id);
 

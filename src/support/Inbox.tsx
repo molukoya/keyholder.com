@@ -106,7 +106,7 @@ export function TicketPage() {
             <label className="field"><span className="label">Priority</span>
               <select className="input" value={t.priority} onChange={(e) => set({ priority: e.target.value as Priority }, 'Priority changed', `Priority set to ${PRIORITY[e.target.value as Priority]}.`)}>{Object.entries(PRIORITY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
             <label className="field"><span className="label">Assigned to</span>
-              <select className="input" value={t.assignee} onChange={(e) => set({ assignee: e.target.value }, 'Request assigned', e.target.value ? `Assigned to ${e.target.value}.` : 'Unassigned.')}><option value="">Nobody</option>{s.team.filter((m) => m.role !== 'Read-only').map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}</select></label>
+              <select className="input" value={t.assignee} onChange={(e) => set({ assignee: e.target.value }, 'Request assigned', e.target.value ? `Assigned to ${e.target.value}.` : 'Unassigned.')}><option value="">Nobody</option>{s.team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}</select></label>
           </div>
           {c && (
             <div className="sp-card">

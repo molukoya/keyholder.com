@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { PageHead } from '../screens/Support';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { Status } from './charts';
-import { customerOf, isLive, resetSupport, sup, useSupport } from './store';
+import { customerOf, isLive, isSuper, resetSupport, sup, useSupport } from './store';
 import type { Member, Priority } from './data';
 import { api } from '../data/api';
 
@@ -47,10 +47,16 @@ export function Privacy() {
   );
 }
 
-const ROLE_NOTE: Record<Member['role'], string> = { Owner: 'Full access', Support: 'Inbox, customers, banners', 'Read-only': 'View only' };
+const ROLE_NOTE: Record<Member['role'], string> = {
+  'Super user': 'Everything, plus the team, price, promotions, banks and API keys',
+  Admin: 'Everything except the team, price, promotions, banks and API keys',
+  Support: 'Inbox, customers, banners',
+};
 export function Team() {
   const s = useSupport();
   const [m, setM] = useState({ name: '', email: '', role: 'Support' as Member['role'] });
+  // Only the super user adds, changes or removes team members.
+  const canTeam = isSuper(s);
   const [reply, setReply] = useState({ title: '', text: '' });
   const [sla, setSla] = useState(s.sla);
   return (
@@ -60,17 +66,19 @@ export function Team() {
         <ul className="sp-rows">{s.team.map((t) => (
           <li key={t.id}><span><strong>{t.name}</strong><span>{t.email} · {ROLE_NOTE[t.role]}</span></span>
             <span className="btn-row">
-              {t.role === 'Owner' ? <Status tone="good">Owner</Status> : <>
-                <select className="input sp-inline-select" aria-label={`Role for ${t.name}`} value={t.role} onChange={(e) => sup((d) => { d.team.find((x) => x.id === t.id)!.role = e.target.value as Member['role']; }, { action: 'Role changed', detail: `${t.name} → ${e.target.value}` }, 'Role changed')}><option>Support</option><option>Read-only</option></select>
+              {t.role === 'Super user' || !canTeam ? <Status tone={t.role === 'Support' ? 'off' : 'good'}>{t.role}</Status> : <>
+                <select className="input sp-inline-select" aria-label={`Role for ${t.name}`} value={t.role} onChange={(e) => sup((d) => { d.team.find((x) => x.id === t.id)!.role = e.target.value as Member['role']; }, { action: 'Role changed', detail: `${t.name} → ${e.target.value}` }, 'Role changed')}><option>Admin</option><option>Support</option></select>
                 <button className="btn small ghost" onClick={() => sup((d) => { d.team = d.team.filter((x) => x.id !== t.id); }, { action: 'Team member removed', detail: t.name }, `${t.name} removed`)}>Remove</button></>}
             </span></li>
         ))}</ul>
+        {canTeam ? (
         <form className="sp-addform" onSubmit={(e) => { e.preventDefault(); sup((d) => { d.team.push({ id: `m${Date.now()}`, ...m, name: m.name.trim(), email: m.email.trim() }); }, { action: 'Team member invited', detail: `${m.name.trim()} (${m.role})` }, `Invite sent to ${m.email.trim()}`); setM({ name: '', email: '', role: 'Support' }); }}>
-          <label className="field"><span className="label">Name</span><input className="input" value={m.name} onChange={(e) => setM({ ...m, name: e.target.value })} /></label>
-          <label className="field"><span className="label">Email</span><input className="input" type="email" value={m.email} onChange={(e) => setM({ ...m, email: e.target.value })} /></label>
-          <label className="field"><span className="label">Role</span><select className="input" value={m.role} onChange={(e) => setM({ ...m, role: e.target.value as Member['role'] })}><option>Support</option><option>Read-only</option></select></label>
-          <button className="btn primary" disabled={!m.name.trim() || !/\S+@\S+\.\S+/.test(m.email)}>Invite</button>
-        </form>
+            <label className="field"><span className="label">Name</span><input className="input" value={m.name} onChange={(e) => setM({ ...m, name: e.target.value })} /></label>
+            <label className="field"><span className="label">Email</span><input className="input" type="email" value={m.email} onChange={(e) => setM({ ...m, email: e.target.value })} /></label>
+            <label className="field"><span className="label">Role</span><select className="input" value={m.role} onChange={(e) => setM({ ...m, role: e.target.value as Member['role'] })}><option>Support</option><option>Admin</option></select></label>
+            <button className="btn primary" disabled={!m.name.trim() || !/\S+@\S+\.\S+/.test(m.email)}>Invite</button>
+          </form>
+        ) : <p className="sp-small sp-muted">Only the super user adds, changes or removes team members.</p>}
       </section>
       <section className="sp-card sp-sec"><h2 className="sp-h3" title="Past these, a request is overdue">Reply targets (hours)</h2>
         <div className="sp-sla">{(['urgent', 'high', 'normal', 'low'] as Priority[]).map((p) => (
@@ -90,7 +98,7 @@ export function Team() {
       </section>
       {isLive() && <MyPassword />}
       <section className="sp-card sp-sec"><h2 className="sp-h3">Security</h2>
-        <p className="sp-small">{isLive() ? 'Each person on the team has their own login. The sample login (admin / admin) only ever shows sample data.' : "Preview login (admin / admin) is in the site's code: a lock, not real security. With the backend, each person gets their own login and a second sign-in step."}</p>
+        <p className="sp-small">{isLive() ? 'Each person on the team has their own login. The sample logins (admin / admin, test / test) do not work on the live site.' : "Preview login (admin / admin) is in the site's code: a lock, not real security. With the backend, each person gets their own login and a second sign-in step."}</p>
         {isLive() ? <button className="btn" onClick={resetSupport}>Refresh</button> : <button className="btn ghost danger" onClick={resetSupport}>Reset sample data</button>}
       </section>
     </>
@@ -117,7 +125,7 @@ function MyPassword() {
         {msg && <p className={`sp-small${msg.ok ? '' : ' acct-error'}`} role="status">{msg.text}</p>}
         <button className="btn primary" disabled={!cur || next.length < 8 || busy}>Change password</button>
       </form>
-      <p className="sp-small">At least 8 characters. The first team account's password can also be set with ADMIN_PASSWORD in Render: a new value there replaces this one at the next restart.</p>
+      <p className="sp-small">At least 8 characters. The super user's password can also be set with ADMIN_PASSWORD in Render: a new value there replaces this one at the next restart.</p>
     </section>
   );
 }

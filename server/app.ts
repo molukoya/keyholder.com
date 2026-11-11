@@ -14,10 +14,11 @@ import { queueMail, recordError } from './email';
 import { newTicketAdminMail, resetMail, ticketAckMail, welcomeMail } from './mails';
 import { burnPasswordCheck, newToken, normEmail, passwordProblem, verifyPassword, hashPassword } from './security';
 import {
-  accountFor, audit, createLinkToken, createSession, createUser, endAllSessions, endSession, publicUser, readState, sessionUser,
+  accountFor, audit, createLinkToken, createSession, createUser, endAllSessions, endSession, isTeam, publicUser, readState, sessionUser,
   SESSION_COOKIE, stateProblem, useLinkToken, userByEmail, userById, writeState, type User,
 } from './services';
-import { applyChange, customerState, deleteAccount, snapshot } from './support';
+import { applyChange, bankSettings, customerState, deleteAccount, snapshot, unitPrice } from './support';
+import { fieldOf, Keys, type ServiceId } from './keys';
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null; sessionToken: string | null }
@@ -29,9 +30,9 @@ export const VERSION = '2.0.0';
 class Http extends Error { constructor(public status: number, message: string) { super(message); } }
 const fail = (status: number, message: string) => { throw new Http(status, message); };
 
-export interface Deps { cfg: Config; db: Db; fetch?: typeof fetch; staticDir?: string | null }
+export interface Deps { cfg: Config; db: Db; fetch?: typeof fetch; staticDir?: string | null; keys?: Keys }
 
-export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: Deps) {
+export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, keys = new Keys(cfg) }: Deps) {
   const app = Fastify({
     logger: cfg.logLevel === 'silent' ? false : { level: cfg.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization'] },
     bodyLimit: 12 * 1024 * 1024, // a landlord's data with receipt photos
@@ -92,26 +93,35 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
 
   const ip = (req: FastifyRequest) => req.ip;
   const need = (req: FastifyRequest): User => req.user ?? fail(401, 'Please sign in again.');
-  const needStaff = (req: FastifyRequest): User => { const u = need(req); if (u.role !== 'admin' && u.role !== 'support') fail(403, 'Only the Keyholder team can open this.'); return u; };
+  const needStaff = (req: FastifyRequest): User => { const u = need(req); if (!isTeam(u.role)) fail(403, 'Only the Keyholder team can open this.'); return u; };
+  const needSuper = (req: FastifyRequest): User => { const u = need(req); if (u.role !== 'super') fail(403, 'Only the super user can do this.'); return u; };
   const startSession = async (req: FastifyRequest, reply: FastifyReply, u: User) => {
     const token = await createSession(db, u.id, cfg.sessionDays, { ip: ip(req), ua: req.headers['user-agent'] });
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/', maxAge: cfg.sessionDays * 86400 });
   };
-  // banks: real bank checks need a bank-data provider (Plaid, Phase 3); until then the app says "Coming soon".
-  const publicConfig = () => ({ google: !!cfg.google, emailDelivery: cfg.email.provider !== 'log', banks: false, version: VERSION });
+  // What the app needs to know. Google and email follow the keys in effect (Connections page, then Render).
+  // banks: real bank checks need the bank-data provider (Plaid, Phase 3); until then the app says "Coming soon".
+  // banksOff: banks the super user turned off one by one.
+  const publicConfig = async () => {
+    await keys.refresh(db);
+    const b = await bankSettings(db);
+    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: false, banksOff: b.enabled ? b.off : [], version: VERSION };
+  };
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
 
   /** The account behind the username "admin": the ADMIN_EMAIL account, else the oldest admin. */
   const teamAdmin = async () => (cfg.admin ? await userByEmail(db, cfg.admin.email) : undefined)
-    ?? (await db.one<User>(`select * from users where role = 'admin' and disabled_at is null order by created_at limit 1`));
+    ?? (await db.one<User>(`select * from users where role in ('super', 'admin') and disabled_at is null order by role = 'super' desc, created_at limit 1`));
 
   // ---------------- Public ----------------
   app.get('/api/health', async () => {
     await db.query('select 1');
     return { ok: true, version: VERSION, db: db.kind };
   });
-  app.get('/api/session', async (req) => ({ user: req.user ? publicUser(req.user) : null, config: publicConfig() }));
+  app.get('/api/session', async (req) => ({ user: req.user ? publicUser(req.user) : null, config: await publicConfig() }));
+  // The Landlord plan price, for the website's Pricing page (set by the super user).
+  app.get('/api/pricing', async (_req, reply) => { reply.header('Cache-Control', 'public, max-age=60'); return { unitCents: await unitPrice(db) }; });
   app.get('/api/announcements', async (_req, reply) => {
     reply.header('Cache-Control', 'public, max-age=60');
     const rows = await db.query<{ id: string; text: string; where_shown: string; tone: string; created_at: Date }>(`select id, text, where_shown, tone, created_at from announcements where active order by created_at desc limit 5`);
@@ -214,23 +224,24 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
 
   // ---------------- Google sign-in (when GOOGLE_CLIENT_ID / SECRET are set) ----------------
   const redirectUri = `${cfg.appUrl}/api/auth/google/callback`;
+  const googleKeys = async () => { await keys.refresh(db); return keys.google() ?? fail(404, 'Google sign-in is not set up.'); };
   app.get('/api/auth/google/start', async (req, reply) => {
-    if (!cfg.google) fail(404, 'Google sign-in is not set up.');
+    const g = await googleKeys();
     const state = newToken();
     const intent = (req.query as { intent?: string }).intent === 'signup' ? 'signup' : 'signin';
     reply.setCookie('kh_oauth', `${state}.${intent}`, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/api/auth/google', maxAge: 600 });
-    const q = new URLSearchParams({ client_id: cfg.google!.clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'openid email profile', state, prompt: 'select_account' });
+    const q = new URLSearchParams({ client_id: g.clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'openid email profile', state, prompt: 'select_account' });
     return reply.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${q}`);
   });
   app.get('/api/auth/google/callback', async (req, reply) => {
-    if (!cfg.google) fail(404, 'Google sign-in is not set up.');
+    const g = await googleKeys();
     const { code, state } = req.query as { code?: string; state?: string };
     const [want, intent] = String(req.cookies.kh_oauth ?? '').split('.');
     reply.clearCookie('kh_oauth', { path: '/api/auth/google' });
     if (!code || !state || state !== want) return reply.redirect(`${cfg.appUrl}/#/signin?error=google`);
     const tok = await fetcher('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code, client_id: cfg.google!.clientId, client_secret: cfg.google!.clientSecret, redirect_uri: redirectUri, grant_type: 'authorization_code' }),
+      body: new URLSearchParams({ code, client_id: g.clientId, client_secret: g.clientSecret, redirect_uri: redirectUri, grant_type: 'authorization_code' }),
     });
     if (!tok.ok) { await recordError(db, 'Google sign-in', `token ${tok.status}`); return reply.redirect(`${cfg.appUrl}/#/signin?error=google`); }
     const { access_token } = (await tok.json()) as { access_token: string };
@@ -297,7 +308,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
         [id, accountId, u.id, u.email, u.name, b.subject, b.category, b.category === 'bank' ? 'high' : 'normal',
           JSON.stringify([{ from: 'customer', who: u.name || u.email, at: new Date().toISOString(), text: b.message }])]);
       await queueMail(q, { ...ticketAckMail(u.email, u.name, b.subject), accountId });
-      const staff = await q.query<{ email: string }>(`select email from users where role = 'admin' and disabled_at is null limit 5`);
+      const staff = await q.query<{ email: string }>(`select email from users where role in ('super', 'admin') and disabled_at is null limit 5`);
       for (const s of staff) await queueMail(q, newTicketAdminMail(s.email, `${u.name} <${u.email}>`, b.subject, b.message, `${cfg.appUrl}/#/support/inbox`));
       await audit(q, { actor: u.email, actorId: u.id, accountId, scope: 'app', action: 'Support request sent', detail: b.subject, ip: ip(req) });
     });
@@ -315,7 +326,8 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
     const me = needStaff(req);
     const b = z.object({ next: z.any(), log: z.object({ action: z.string().max(100), detail: z.string().max(500) }).optional() }).parse(req.body);
     if (!b.next || typeof b.next !== 'object') fail(400, 'Nothing to save.');
-    if (me.role === 'support' && b.log && /Role changed|Team member|Account deleted|Reply-time|Province rules|Saved reply/.test(b.log.action)) fail(403, 'Only an owner can do that.');
+    if (me.role === 'support' && b.log && /Role changed|Team member|Account deleted|Reply-time|Province rules|Saved reply/.test(b.log.action)) fail(403, 'Only an admin can do that.');
+    if (me.role !== 'super' && b.log && /Role changed|Team member|Price|Promotion|Bank/.test(b.log.action)) fail(403, 'Only the super user can do that.');
     const done = await applyChange(db, cfg, me, b.next, b.log, ip(req));
     return { done, snapshot: await snapshot(db, me) };
   });
@@ -330,6 +342,44 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
   app.get('/api/admin/email', async (req) => {
     needStaff(req);
     return db.query(`select id, kind, to_email, subject, status, last_error, created_at, sent_at from outbox order by created_at desc limit 200`);
+  });
+
+  // ---------------- Connections: API keys (super user only) ----------------
+  app.get('/api/admin/connections', async (req) => {
+    needSuper(req);
+    await keys.refresh(db, true);
+    return { canSave: keys.canSave, services: keys.describe() };
+  });
+  app.put('/api/admin/connections', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const me = needSuper(req);
+    const b = z.object({ password: z.string().max(200), values: z.record(z.string().max(80), z.string().max(2000).nullable()) }).parse(req.body);
+    if (!keys.canSave) fail(400, 'Add KEYS_SECRET in Render first (Environment), then try again.');
+    if (!me.password_hash || !(await verifyPassword(b.password, me.password_hash))) fail(400, 'Your password is not right.');
+    for (const [name, v] of Object.entries(b.values)) {
+      const f = fieldOf(name); if (!f) fail(400, `Unknown setting: ${name}`);
+      if (v && f!.options && !f!.options.includes(v.trim())) fail(400, `${f!.label}: choose ${f!.options.join(' or ')}.`);
+    }
+    // Sending email through a provider needs its key (set now, saved earlier, or in Render).
+    await keys.refresh(db, true);
+    const after = (n: string) => (n in b.values ? (b.values[n] ?? '').trim() || keys.envValue(n) : keys.get(n));
+    const provider = after('email.provider');
+    if (provider === 'resend' && !after('email.resendKey')) fail(400, 'Sending with Resend needs the Resend API key.');
+    if (provider === 'postmark' && !after('email.postmarkToken')) fail(400, 'Sending with Postmark needs the Postmark server token.');
+    const lines = await db.tx(async (q) => {
+      const l = await keys.save(q, b.values, me.email);
+      for (const line of l) await audit(q, { actor: me.email, actorId: me.id, scope: 'admin', action: 'API key changed', detail: line, ip: ip(req) });
+      return l;
+    });
+    await keys.refresh(db, true);
+    return { saved: lines.length, canSave: keys.canSave, services: keys.describe() };
+  });
+  app.post('/api/admin/connections/test', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
+    const me = needSuper(req);
+    const { service } = z.object({ service: z.enum(['google', 'email', 'stripe', 'plaid']) }).parse(req.body);
+    await keys.refresh(db, true);
+    const r = await keys.test(service as ServiceId, fetcher, cfg.appUrl);
+    await audit(db, { actor: me.email, actorId: me.id, scope: 'admin', action: 'Connection tested', detail: `${service}: ${r.ok ? 'ok' : 'not working'}`, ip: ip(req) });
+    return r;
   });
 
   // ---------------- Local tools (never in production) ----------------

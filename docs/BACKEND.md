@@ -24,7 +24,8 @@ Browser ──► Keyholder service (Node 22, Fastify)  ──► Postgres
 No database to install: without `DATABASE_URL` the server uses an embedded Postgres (PGlite) in
 `./.data/pglite`. Production uses a real Postgres through `DATABASE_URL`.
 
-To sign in as the team locally, start with `ADMIN_EMAIL=you@example.ca ADMIN_PASSWORD=a-long-password npm start`.
+To sign in as the team locally (as the super user), start with `ADMIN_EMAIL=you@example.ca ADMIN_PASSWORD=a-long-password npm start`
+(add `KEYS_SECRET=` and a long random value to try saving API keys on the Connections page).
 Emails are not sent locally; read them at `http://localhost:8080/api/dev/outbox` (local only).
 
 ## Deploy on Render
@@ -50,11 +51,13 @@ Other hosts: the `Dockerfile` builds one container; give it `DATABASE_URL`, or a
 |---|---|---|
 | `DATABASE_URL` | — | Postgres. Without it: embedded Postgres in `PGLITE_DIR`. |
 | `APP_URL` | Render's address, else `http://localhost:PORT` | Used in email links and the cross-site check. |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | — | The first admin, created (or promoted) at start-up. Sign in with the email, or with the username `admin`, and this password (10+ characters). Changing `ADMIN_PASSWORD` changes the team password at the next start and signs out old sessions; a password changed in the dashboard (Team & settings → Your password) stays until `ADMIN_PASSWORD` is changed again. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | — | The **super user**, created (or promoted) at start-up. Sign in with the email, or with the username `admin`, and this password (10+ characters). Changing `ADMIN_PASSWORD` changes the team password at the next start and signs out old sessions; a password changed in the dashboard (Team & settings → Your password) stays until `ADMIN_PASSWORD` is changed again. |
 | `EMAIL_PROVIDER` | `log` | `log` keeps emails in the outbox (visible to the team); `resend` or `postmark` sends them. |
 | `RESEND_API_KEY` / `POSTMARK_TOKEN` | — | Key for the chosen provider. |
 | `EMAIL_FROM` | `Keyholder <hello@keyholder.ca>` | Sender. The domain must be verified with the provider. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Turns on "Continue with Google". Redirect URI: `APP_URL/api/auth/google/callback`. |
+| `KEYS_SECRET` | — (Render generates one) | Locks the API keys saved on the dashboard (Support → Connections), AES-256-GCM. Without it, keys can only be set here in Render. Never change it once keys are saved. |
+| `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV` | — | Card payments and bank data (Phase 3, being built). Can be set here or on the Connections page. |
 | `WORKER` | `inline` | `inline`: email sender and daily jobs run in the web service. `off`: run `npm run worker` separately. |
 | `DAILY_HOUR` | `9` | Hour (server time zone, `TZ`) for automatic reminders and the daily summary email. |
 | `SESSION_DAYS` | `30` | Sign-in lasts this many days (renewed while used). |
@@ -96,7 +99,18 @@ failed (shown under System health). Test and sample addresses (`example.com`, `.
   one short email lists what needs them.
 - Welcome / confirm email, password reset, support request received, support replies, team invitations.
 
-**Support dashboard.** Real team members (role `admin` = Owner, `support` = Support) sign in with their
+**API keys (Connections).** Google sign-in, email (Resend or Postmark), Stripe and Plaid keys can be set in Render or, by the
+super user, on Support → Connections. Keys saved there are encrypted with `KEYS_SECRET`, shown only as their last 4
+characters, need the super user's password to change, are logged in the audit log, and take over from Render's (removing
+one goes back to Render's). Each service has a Test button that checks the keys with the service (`server/keys.ts`).
+
+**Team roles.** The **super user** is the `ADMIN_EMAIL` account (only one). It can do everything, and is the only one who
+adds, changes or removes team members, sets the Landlord plan price (new subscribers pay the new price; each
+subscriber keeps the price they signed up at), creates promotions (promo codes, applied at checkout once Stripe is on),
+turns bank connection off for everyone or bank by bank, and manages API keys. **Admins** can do everything else;
+**Support** answers requests and helps landlords. The server checks every one of these rules.
+
+**Support dashboard.** Real team members (super user, `admin`, `support`) sign in with their
 email on the same Sign in page and land on the live dashboard: real landlords (with counts from their
 data), support requests from Help → Write to us, announcements shown to every visitor, data requests,
 problems, the team and the audit log. The screens are the Stage 1 ones; the server fills the same data
@@ -113,7 +127,8 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 | Method & path | Who | What |
 |---|---|---|
 | `GET /health` | anyone | `{ ok, version, db }` (Render health check) |
-| `GET /session` | anyone | `{ user \| null, config }` |
+| `GET /session` | anyone | `{ user \| null, config }` (Google on, email sending, banks, banks turned off) |
+| `GET /pricing` | anyone | `{ unitCents }`: the Landlord plan price per unit a month |
 | `GET /announcements` | anyone | Active announcements |
 | `POST /auth/signup` | anyone | `{ name, email, password }` → creates the account and signs in |
 | `POST /auth/login` · `POST /auth/logout` | anyone · signed in | Sign in / out |
@@ -126,13 +141,15 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 | `POST /support/tickets` · `GET /support/tickets` | signed in | Write to support · my requests |
 | `GET /admin/support` · `PUT /admin/support` | team | Dashboard data · apply a change `{ next, log }` |
 | `GET /admin/customers/:id/state` · `GET /admin/email` | team | A landlord's data (read-only, logged) · the email log |
+| `GET /admin/connections` · `PUT /admin/connections` | super user | API keys (never in full) · save `{ password, values }` |
+| `POST /admin/connections/test` | super user | `{ service }` → `{ ok, message }` |
 
 ## Database
 
 Migrations are in `server/migrations.ts` and run at start-up (each once, in a transaction). Tables:
 `users`, `sessions`, `auth_tokens`, `accounts`, `account_state` (+ `account_state_history`),
 `message_deliveries`, `outbox`, `audit_log`, `support_tickets`, `announcements`, `data_requests`,
-`settings`, `system_errors`, `job_runs`.
+`settings`, `system_errors`, `job_runs`, `promotions`, `secrets` (encrypted API keys).
 
 ## Not done yet (needs an outside service or a decision)
 

@@ -13,6 +13,8 @@ export interface Customer {
   plan: Plan; units: number; properties: number; tenants: number;
   signedUp: ISODate; lastActive: ISODate; banks: BankLink[]; emailBounces: number;
   paymentStatus: 'ok' | 'failed' | 'none'; trialEnds?: ISODate; credit: number;
+  /** What this subscriber pays per unit a month (the price when they subscribed). */
+  unitPrice?: number;
   source: string; receiptsSent: number; deleted?: boolean; notes: string[];
 }
 export type TicketStatus = 'open' | 'waiting' | 'solved';
@@ -21,7 +23,13 @@ export interface TicketMsg { from: 'customer' | 'agent' | 'note'; who: string; a
 export interface Ticket { id: string; customerId: string; subject: string; category: string; priority: Priority; status: TicketStatus; created: string; assignee: string; messages: TicketMsg[] }
 export interface Invoice { id: string; customerId: string; date: ISODate; amount: number; status: 'paid' | 'failed' | 'refunded' }
 export interface DataRequest { id: string; customerId: string; kind: 'copy' | 'delete'; received: ISODate; status: 'to do' | 'done' }
-export interface Member { id: string; name: string; email: string; role: 'Owner' | 'Support' | 'Read-only' }
+export type TeamRole = 'Super user' | 'Admin' | 'Support';
+export interface Member { id: string; name: string; email: string; role: TeamRole }
+/** A promo code for the Landlord plan (applied at checkout once card payments are on). */
+export interface Promotion { id: string; code: string; kind: 'percent' | 'amount'; value: number; months: number; endsOn?: ISODate; maxUses?: number; uses: number; status: 'active' | 'paused' | 'ended'; created: string }
+/** The super user's settings: the Landlord plan price, promotions, and which banks can be connected. */
+export interface Platform { unitCents: number; promotions: Promotion[]; banks: { enabled: boolean; off: string[] } }
+export const DEFAULT_UNIT_CENTS = 800;
 export interface Reply { id: string; title: string; text: string }
 export interface AuditEntry { id: string; at: string; who: string; action: string; detail: string }
 export interface Announcement { id: string; text: string; where: 'website' | 'app' | 'both'; tone: 'info' | 'warning'; active: boolean; created: string }
@@ -55,6 +63,9 @@ const TOPICS: [string, string, string][] = [
 export interface SupportBase {
   today: ISODate; customers: Customer[]; tickets: Ticket[]; invoices: Invoice[]; requests: DataRequest[];
   team: Member[]; replies: Reply[]; audit: AuditEntry[]; announcements: Announcement[]; rules: RuleStatus[]; errors: SysError[];
+  platform: Platform;
+  /** Who is looking: the super user, an admin or support staff. */
+  myRole?: 'super' | 'admin' | 'support';
 }
 
 export function generateSupport(today: ISODate = todayISO()): SupportBase {
@@ -97,11 +108,18 @@ export function generateSupport(today: ISODate = todayISO()): SupportBase {
   }
 
   const team: Member[] = [
-    { id: 'm1', name: 'You', email: 'admin', role: 'Owner' },
-    { id: 'm2', name: 'Nadia Rahman', email: 'nadia@keyholder.ca', role: 'Support' },
+    { id: 'm1', name: 'You', email: 'admin', role: 'Super user' },
+    { id: 'm2', name: 'Nadia Rahman', email: 'nadia@keyholder.ca', role: 'Admin' },
     { id: 'm3', name: 'Leo Tremblay', email: 'leo@keyholder.ca', role: 'Support' },
-    { id: 'm4', name: 'Kim & Associates', email: 'books@kimcpa.ca', role: 'Read-only' },
   ];
+  const platform: Platform = {
+    unitCents: DEFAULT_UNIT_CENTS,
+    promotions: [
+      { id: 'pr1', code: 'WELCOME3', kind: 'percent', value: 50, months: 3, maxUses: 200, uses: 37, status: 'active', created: `${addDays(today, -40)}T14:00:00.000Z` },
+      { id: 'pr2', code: 'SPRING10', kind: 'amount', value: 1000, months: 1, endsOn: addDays(today, -20), uses: 12, status: 'ended', created: `${addDays(today, -120)}T14:00:00.000Z` },
+    ],
+    banks: { enabled: true, off: [] },
+  };
   const now = Date.parse(`${today}T15:00:00`);
   const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3600_000).toISOString();
   const tickets: Ticket[] = [];
@@ -145,5 +163,5 @@ export function generateSupport(today: ISODate = todayISO()): SupportBase {
     { id: 'e2', at: iso(9), area: 'Email', message: 'Receipts bounced: mailbox full or address wrong', count: customers.reduce((a, c) => a + c.emailBounces, 0) },
     { id: 'e3', at: iso(30), area: 'Forms', message: 'N4 preview took over 5 seconds', count: 4 },
   ];
-  return { today, customers, tickets, invoices, requests, team, replies, audit, announcements, rules, errors };
+  return { today, customers, tickets, invoices, requests, team, replies, audit, announcements, rules, errors, platform, myRole: 'super' };
 }

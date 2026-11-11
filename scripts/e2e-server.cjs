@@ -60,7 +60,7 @@ function watch(pg, errors, label) {
 (async () => {
   rmSync(DATA, { recursive: true, force: true });
   const server = spawn(process.execPath, ['server-dist/index.mjs'], {
-    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
+    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, KEYS_SECRET: 'e2e-keys-secret-0123456789abcdef', DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   let b;
@@ -293,6 +293,54 @@ function watch(pg, errors, label) {
         const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage(); watch(p, errors, 'admin-username');
         await signIn(p, 'admin', ADMIN.password); await p.waitForSelector('.sp-page');
         await go(p, 'support/customers'); await p.waitForSelector(`text=${email}`); await ctx.close();
+      });
+      // ---------------- The super user (ADMIN_EMAIL): price, promotions, banks, API keys, the team ----------------
+      await step(tag, 'E21 Super user → Price & promotions: a new price shows on the website; a promo code is added and paused', async () => {
+        const groups = await ad.locator('.sp-nav-group > p').allTextContents();
+        if (!groups.includes('Super user')) throw new Error('no Super user group: ' + groups.join(', '));
+        await go(ad, 'support/pricing'); await ad.fill('#sp-price', '9.50'); await ad.locator('#price >> text=Save price').click();
+        await until(async () => (await (await fetch(`${BASE}api/pricing`)).json()).unitCents === 950, 5000, 'price saved');
+        const ctx = await b.newContext({ viewport: vp }); const v = await ctx.newPage();
+        await v.goto(BASE + '#/welcome/pricing'); await v.waitForSelector('.lp-price.best >> text=$9.50'); await ctx.close();
+        const code = `E2E${tag.toUpperCase()}`;
+        await ad.fill('#promo-code', code); await ad.fill('#promo-value', '20'); await ad.fill('#promo-months', '2'); await ad.locator('#promotions >> text=Add code').click();
+        await ad.waitForSelector(`#promotions li:has-text("${code}") >> text=Active`);
+        await ad.locator(`#promotions li:has-text("${code}") >> text=Pause`).click(); await ad.waitForSelector(`#promotions li:has-text("${code}") >> text=Paused`);
+        await ad.fill('#sp-price', '8'); await ad.locator('#price >> text=Save price').click();
+        await until(async () => (await (await fetch(`${BASE}api/pricing`)).json()).unitCents === 800, 5000, 'price back');
+      });
+      await step(tag, 'E22 Super user → Banks: turning one bank off reaches the app; turning it back on', async () => {
+        await go(ad, 'support/banks'); await ad.locator('.sp-bank-list li:has-text("TD") >> text=Turn off').click();
+        await until(async () => (await (await fetch(`${BASE}api/session`)).json()).config.banksOff.includes('TD'), 5000, 'TD off');
+        await ad.locator('.sp-bank-list li:has-text("TD") >> text=Turn on').click();
+        await until(async () => !(await (await fetch(`${BASE}api/session`)).json()).config.banksOff.includes('TD'), 5000, 'TD on');
+      });
+      await step(tag, 'E23 Super user → Connections: a key is saved with the password, shown only as its last 4, and email is tested', async () => {
+        await go(ad, 'support/connections'); await ad.waitForSelector('#conn-stripe');
+        if (await ad.locator('#keys-secret').count()) throw new Error('asks for KEYS_SECRET although it is set');
+        const last4 = tag === 'phone' ? '5432' : '9876';
+        await ad.fill('#key-stripe-secretKey', `sk_test_e2e_${tag}_${last4}`); await ad.fill('#conn-password', 'not-my-password');
+        await ad.locator('.sp-conn-save >> text=Save 1 change').click(); await ad.waitForSelector('.sp-conn-save .acct-error');
+        await ad.fill('#conn-password', ADMIN.password); await ad.locator('.sp-conn-save >> text=Save 1 change').click();
+        await ad.waitForSelector(`#conn-stripe >> text=•••• ${last4}`); await ad.waitForSelector('#conn-password:disabled'); await ad.waitForSelector('#conn-stripe >> text=Saved here');
+        if ((await ad.content()).includes(`sk_test_e2e_${tag}_${last4}`)) throw new Error('the full key is on the page');
+        await ad.locator('#conn-email >> text=Test').click(); await ad.waitForSelector('#conn-email >> text=Sending is off');
+      });
+      await step(tag, 'E24 The super user invites an Admin: the Admin has no Super user pages and cannot change the team', async () => {
+        const mail = `ava.${tag}@keyholder-e2e.ca`;
+        await go(ad, 'support/team');
+        const form = ad.locator('.sp-addform');
+        await form.locator('input').nth(0).fill('Ava Admin'); await form.locator('input').nth(1).fill(mail); await form.locator('select').selectOption('Admin');
+        await form.locator('text=Invite').click();
+        const invite = await until(async () => (await outbox(mail)).find((m) => m.kind === 'invite'), 5000, 'invite email');
+        const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage(); watch(p, errors, 'admin-invite');
+        await p.goto(invite.text_body.match(/https?:\/\/\S+/)[0]); await p.fill('#new-pass', 'ava-the-admin-2026'); await p.click('text=Save and sign in');
+        await p.waitForSelector('.sp-page');
+        if ((await p.locator('.sp-nav-group > p').allTextContents()).includes('Super user')) throw new Error('an Admin sees the Super user pages');
+        await go(p, 'support/team'); await p.waitForSelector('text=Only the super user adds, changes or removes team members');
+        await go(p, 'support/pricing'); await p.waitForSelector('#price >> text=Only the super user can change this');
+        const r = await p.evaluate(async () => (await fetch('/api/admin/connections')).status); if (r !== 403) throw new Error('connections ' + r);
+        await ctx.close();
       });
       await step(tag, 'E18 No preview on the live site: admin / admin is refused', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();

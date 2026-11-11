@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Config } from './config';
 import type { Db, Q } from './db';
+import type { Keys } from './keys';
 
 // Email goes through an outbox table: whatever creates an email only writes a row (inside its own
 // transaction), and the sender delivers queued rows in the background with retries. With
@@ -26,20 +27,20 @@ export async function queueMail(q: Q, m: Mail): Promise<string | null> {
 
 type Row = { id: string; to_email: string; to_name: string | null; reply_to: string | null; subject: string; text_body: string; attempts: number };
 
-async function deliver(cfg: Config, m: Row): Promise<{ providerId?: string }> {
+async function deliver(em: Config['email'], m: Row): Promise<{ providerId?: string }> {
   const to = m.to_name ? `${m.to_name.replace(/[<>"]/g, '')} <${m.to_email}>` : m.to_email;
-  if (cfg.email.provider === 'resend') {
+  if (em.provider === 'resend') {
     const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST', headers: { Authorization: `Bearer ${cfg.email.resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: cfg.email.from, to: [to], subject: m.subject, text: m.text_body, reply_to: m.reply_to ?? undefined }),
+      method: 'POST', headers: { Authorization: `Bearer ${em.resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: em.from, to: [to], subject: m.subject, text: m.text_body, reply_to: m.reply_to ?? undefined }),
     });
     if (!r.ok) throw new Error(`Resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return { providerId: ((await r.json()) as { id?: string }).id };
   }
-  if (cfg.email.provider === 'postmark') {
+  if (em.provider === 'postmark') {
     const r = await fetch('https://api.postmarkapp.com/email', {
-      method: 'POST', headers: { 'X-Postmark-Server-Token': cfg.email.postmarkToken!, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ From: cfg.email.from, To: to, Subject: m.subject, TextBody: m.text_body, ReplyTo: m.reply_to ?? undefined, MessageStream: 'outbound' }),
+      method: 'POST', headers: { 'X-Postmark-Server-Token': em.postmarkToken!, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ From: em.from, To: to, Subject: m.subject, TextBody: m.text_body, ReplyTo: m.reply_to ?? undefined, MessageStream: 'outbound' }),
     });
     if (!r.ok) throw new Error(`Postmark ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return { providerId: ((await r.json()) as { MessageID?: string }).MessageID };
@@ -48,7 +49,9 @@ async function deliver(cfg: Config, m: Row): Promise<{ providerId?: string }> {
 }
 
 /** Sends what is due. Safe to run from several processes at once (rows are claimed with SKIP LOCKED). */
-export async function sendDue(cfg: Config, db: Db, limit = 20): Promise<{ sent: number; failed: number }> {
+export async function sendDue(cfg: Config, db: Db, limit = 20, keys?: Keys): Promise<{ sent: number; failed: number }> {
+  if (keys) await keys.refresh(db);
+  const em = keys ? keys.email() : cfg.email;
   const rows = await db.query<Row>(
     `update outbox set status = 'sending', attempts = attempts + 1
      where id in (select id from outbox where status = 'queued' and send_after <= now() order by created_at limit $1 for update skip locked)
@@ -56,9 +59,9 @@ export async function sendDue(cfg: Config, db: Db, limit = 20): Promise<{ sent: 
   let sent = 0, failed = 0;
   for (const m of rows) {
     try {
-      const r = await deliver(cfg, m);
+      const r = await deliver(em, m);
       await db.query(`update outbox set status = $2, provider = $3, provider_id = $4, sent_at = now(), last_error = null where id = $1`,
-        [m.id, cfg.email.provider === 'log' ? 'logged' : 'sent', cfg.email.provider, r.providerId ?? null]);
+        [m.id, em.provider === 'log' ? 'logged' : 'sent', em.provider, r.providerId ?? null]);
       sent++;
     } catch (e) {
       failed++;
