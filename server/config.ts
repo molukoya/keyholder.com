@@ -27,8 +27,6 @@ const Env = z.object({
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(10).optional(),
   ADMIN_NAME: z.string().default('Keyholder Admin'),
-  /** test / test (demo) and admin / admin (sample support dashboard) on the Sign in form. Sample data only. */
-  PREVIEW_LOGINS: bool(true),
   /** Lets local tools read sent emails at /api/dev/outbox. Never on in production. */
   DEV_TOOLS: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -62,7 +60,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sessionDays: e.SESSION_DAYS,
     email: { provider: e.EMAIL_PROVIDER, from: e.EMAIL_FROM, resendKey: e.RESEND_API_KEY, postmarkToken: e.POSTMARK_TOKEN },
     admin: e.ADMIN_EMAIL && e.ADMIN_PASSWORD ? { email: e.ADMIN_EMAIL, password: e.ADMIN_PASSWORD, name: e.ADMIN_NAME } : undefined,
-    previewLogins: e.PREVIEW_LOGINS,
     devTools: e.DEV_TOOLS ? e.DEV_TOOLS === 'on' : !production,
     google: e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET ? { clientId: e.GOOGLE_CLIENT_ID, clientSecret: e.GOOGLE_CLIENT_SECRET } : undefined,
     worker: e.WORKER,

@@ -129,10 +129,26 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
         Object.assign(d, seedState(profile));
       });
     },
+    /**
+     * A real team member signed in (with the server): only the support dashboard, no landlord data at all.
+     * As with the previews, this browser's own data waits aside and comes back on sign out.
+     */
+    signInTeam(email: string, name: string) {
+      mut((d) => {
+        if (!d.profile.sample && (d.profile.onboarded || d.profile.account) && d.profile.account?.provider !== 'admin') {
+          const own = structuredClone(d);
+          if (own.profile.account) own.profile.account.signedIn = false;
+          try { localStorage.setItem(STASH, JSON.stringify(own)); } catch { /* storage blocked: nothing to keep */ }
+        }
+        const next = emptyState({ ...defaultProfile(), onboarded: true, tourDone: true, name, email, account: { provider: 'admin', email, name, signedIn: true, created: today() } });
+        next.banks = [];
+        Object.assign(d, next);
+      });
+    },
     /** Create the account at the end of signup (Google or email link) and start with the user's own empty setup. */
     signUp(p: Partial<Profile>, account: { provider: 'google' | 'email'; email: string; name: string }) {
       mut((d) => {
-        const profile = { ...d.profile, ...p, name: account.name || p.name || '', email: account.email, onboarded: true, sample: false,
+        const profile = { ...d.profile, ...p, name: account.name || p.name || '', email: account.email, onboarded: true, sample: false, tourDone: false,
           account: { ...account, signedIn: true, created: today() } };
         const next = emptyState(profile);
         next.banks = [];

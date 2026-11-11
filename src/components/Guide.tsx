@@ -63,13 +63,24 @@ const STEPS: { sel: string; title: string; body: string; path?: string }[] = [
   { sel: '[data-tour="expenses"]', title: 'Expenses', body: 'Add an expense with your camera: Keyholder reads the receipt. Bank bills are filed for you to confirm.' },
 ];
 
+/** The tour for a brand-new account (no property yet): where to start and where things are. */
+const FIRST_STEPS: typeof STEPS = [
+  { sel: '[data-tour="start-here"]', title: 'Start here', body: 'Add your first property, then your tenants. It takes about 10 minutes, and Keyholder starts tracking your rent.', path: '/today' },
+  { sel: '[data-tour="income"]', title: 'Income', body: 'Every rent payment you receive, with a receipt sent to your tenant.' },
+  { sel: '[data-tour="expenses"]', title: 'Expenses', body: 'Add an expense with your camera: Keyholder reads the receipt and fills in the details.' },
+  { sel: '[data-tour="score"]', title: 'Your setup progress', body: 'Goes up as you add details. Tap it to see what is left.', path: '/today' },
+  { sel: '[data-tour="account"]', title: 'Settings and sign out', body: 'Your profile and settings, and Sign out, are up here. Help is in the menu.', path: '/today' },
+];
+
 export function Tour() {
   const { state, act } = useStore();
   const nav = useNavigate();
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
-  const active = !!state.profile.onboarded && state.properties.length > 0 && state.profile.tourDone === false;
-  const step = STEPS[i];
+  const team = state.profile.account?.provider === 'admin' && !state.profile.sample;
+  const active = !!state.profile.onboarded && state.profile.tourDone === false && !team;
+  const STEPS_NOW = state.properties.length ? STEPS : FIRST_STEPS;
+  const step = STEPS_NOW[Math.min(i, STEPS_NOW.length - 1)];
 
   useEffect(() => { if (active) { setI(0); nav('/today'); } }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,7 +110,7 @@ export function Tour() {
 
   if (!active) return null;
   const done = () => act.setProfile({ tourDone: true });
-  const last = i === STEPS.length - 1;
+  const last = i === STEPS_NOW.length - 1;
   const pad = 8;
   // Put the card below the highlight, else above it, else pinned to the bottom of the screen.
   const room = 240;
@@ -110,7 +121,7 @@ export function Tour() {
     <div className="tour" role="dialog" aria-modal="true" aria-labelledby="tour-title">
       {rect ? <div className="tour-hole" style={{ top: rect.top - pad, left: rect.left - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} /> : <div className="tour-dim" />}
       <div className={`tour-card ${place}`} style={cardTop !== undefined ? { top: cardTop } : undefined}>
-        <p className="tiny soft">Step {i + 1} of {STEPS.length}</p>
+        <p className="tiny soft">Step {i + 1} of {STEPS_NOW.length}</p>
         <h2 id="tour-title">{step.title}</h2>
         <p>{step.body}</p>
         <div className="btn-row">
@@ -187,7 +198,7 @@ function ContactForm() {
   );
 }
 
-export function HelpButton({ compact }: { compact?: boolean }) {
+export function HelpButton({ compact, variant }: { compact?: boolean; variant?: 'more' }) {
   const conn = useConn();
   const [open, setOpen] = useState(false);
   const { act } = useStore();
@@ -195,7 +206,9 @@ export function HelpButton({ compact }: { compact?: boolean }) {
   useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [open]);
   return (
     <>
-      <button className={compact ? 'btn ghost small help-btn' : 'nav-link help-btn'} onClick={() => setOpen(true)}><Icon name="info" size={compact ? 18 : 20} />Help</button>
+      {variant === 'more'
+        ? <button className="more-item help-btn" onClick={() => setOpen(true)}><Icon name="info" size={26} /><span><strong>Help</strong><span>Answers, write to us, the tour</span></span><Icon name="next" /></button>
+        : <button className={compact ? 'btn ghost small help-btn' : 'nav-link help-btn'} onClick={() => setOpen(true)}><Icon name="info" size={compact ? 18 : 20} />Help</button>}
       {open && createPortal(
         <div className="acct-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
           <div className="scrim" onClick={() => setOpen(false)} />

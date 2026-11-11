@@ -7,7 +7,7 @@ import { embedded } from '../components/ui';
 // The mode is decided once at start-up, before the first screen is drawn.
 
 export type ServerUser = { id: string; email: string; name: string; role: 'owner' | 'admin' | 'support'; emailVerified: boolean; hasPassword: boolean; google: boolean };
-export type ServerConfig = { previewLogins: boolean; google: boolean; emailDelivery: boolean; version: string };
+export type ServerConfig = { google: boolean; emailDelivery: boolean; version: string };
 export type Conn = { mode: 'local' | 'server'; user: ServerUser | null; config: ServerConfig | null };
 
 let conn: Conn = { mode: 'local', user: null, config: null };

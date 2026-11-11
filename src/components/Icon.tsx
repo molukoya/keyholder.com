@@ -53,6 +53,7 @@ const P: Record<string, string> = {
   bell: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
   box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
   map: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
+  logout: 'M10 4H5v16h5M15 8l4 4-4 4M19 12H9',
   door: 'M6 21V4h12v17M3 21h18M14 13v.01',
   leaf: 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15zM5 19l8-8',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.3-4.3',

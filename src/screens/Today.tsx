@@ -38,7 +38,7 @@ export function Today() {
           </div>
           <div className="start-art" aria-hidden><SceneEmptyHome /></div>
         </div>
-        <div className="sheet start-here">
+        <div className="sheet start-here" data-tour="start-here">
           <div className="start-head"><h2>Start here</h2><span className="small soft">{n} of 3 done</span></div>
           <div className="start-bar" role="progressbar" aria-valuemin={0} aria-valuemax={3} aria-valuenow={n}><i style={{ width: `${(n / 3) * 100}%` }} /></div>
           <ol className="start-steps">{steps.map((x, i) => (

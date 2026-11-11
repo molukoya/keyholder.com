@@ -97,7 +97,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir }: D
     const token = await createSession(db, u.id, cfg.sessionDays, { ip: ip(req), ua: req.headers['user-agent'] });
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/', maxAge: cfg.sessionDays * 86400 });
   };
-  const publicConfig = () => ({ previewLogins: cfg.previewLogins, google: !!cfg.google, emailDelivery: cfg.email.provider !== 'log', version: VERSION });
+  const publicConfig = () => ({ google: !!cfg.google, emailDelivery: cfg.email.provider !== 'log', version: VERSION });
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
 

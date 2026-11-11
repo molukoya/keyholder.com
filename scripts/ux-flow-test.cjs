@@ -11,11 +11,12 @@ const want = (section) => !ONLY.length || ONLY.includes(section);
 const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}`); };
 
 // A new account: the 6 questions, then the email link.
-async function onboard(pg) {
+async function onboard(pg, skipTour = true) {
   await pg.goto(BASE + '#/start');
   await answerQuestions(pg);
   await pg.fill('#ob-name', 'Alex Morgan'); await pg.fill('#ob-email', 'alex.morgan@example.com'); await pg.click('text=Continue with email'); await pg.click('text=Open the link (preview)');
   await pg.waitForTimeout(300);
+  if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
 // One sign-in form: test / test opens the demo (sample properties), admin / admin the support dashboard.
 async function login(pg, user, pass) {
@@ -216,7 +217,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.keyboard.press('Escape'); await pg.waitForTimeout(150);
       return n + ' shown, ' + n2 + ' after Show all · score ' + before + ' → ' + after;
     });
-    await step(tag, 'B11 Setup % sits by Help at the top right, with a red dot while steps are left', async () => {
+    await step(tag, 'B11 Setup % sits at the top right next to Settings and Sign out, with a red dot while steps are left', async () => {
       const label = await circle().getAttribute('aria-label'); if (!/Setup \d+% done/.test(label)) throw new Error(label);
       if (!(await circle().locator('.setup-dot').count())) throw new Error('no red dot'); return label;
     });
@@ -267,10 +268,15 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     }
     if (want('C')) ok(tag, 'C Every internal link lands on a real page', bad.length === 0, bad.slice(0, 6).join(' | ') || `${pages.length} pages swept`);
     // Navigation bars
-    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Settings (phones: Home, Rentals, Income, Expenses, More); no receipt button', async () => {
-      const labels = tag === 'phone' ? ['Home', 'Rentals', 'Income', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork', 'Settings'];
+    await step(tag, 'C2 Menu: Home, Portfolio, Rentals, Income, Expenses, Paperwork, Help at the bottom; Settings and Sign out at the top right (phones: Home, Rentals, Income, Expenses, More)', async () => {
+      const labels = tag === 'phone' ? ['Home', 'Rentals', 'Income', 'Expenses', 'More'] : ['Home', 'Portfolio', 'Rentals', 'Income', 'Expenses', 'Paperwork'];
       const order = (await pg.locator(tag === 'phone' ? '.bottombar a' : '.rail .nav-link').allTextContents()).join(' ').replace(/\d+/g, '');
-      if (!(tag === 'phone' ? /Home.*Rentals.*Income.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork.*Settings/).test(order)) throw new Error('order: ' + order);
+      if (!(tag === 'phone' ? /Home.*Rentals.*Income.*Expenses.*More/ : /Home.*Portfolio.*Rentals.*Income.*Expenses.*Paperwork/).test(order)) throw new Error('order: ' + order);
+      if (tag !== 'phone' && /Settings/.test(order)) throw new Error('Settings still in the side menu');
+      if (tag !== 'phone' && !(await pg.locator('.rail-foot .help-btn').count())) throw new Error('no Help at the bottom of the side menu');
+      const top = tag === 'phone' ? '.mobile-top' : '.top-tools.desk';
+      await pg.locator(`${top} [aria-label="Settings"]`).click(); await pg.waitForSelector('h1:has-text("Your Keyholder")');
+      if (!(await pg.locator(`${top} [aria-label="Sign out"]`).count())) throw new Error('no Sign out icon at the top right');
       if (await pg.locator('.bottombar .capture, .rail >> text=Add a receipt').count()) throw new Error('receipt still in the menu');
       for (const l of labels) { await pg.locator(tag === 'phone' ? `.bottombar >> text=${l}` : `.rail >> text=${l}`).first().click(); await pg.waitForSelector(`h1:has-text("${l === 'Home' ? 'Home' : l === 'Settings' ? 'Your Keyholder' : l}")`, { state: 'attached' }); }
       if (tag === 'phone') for (const l of ['Portfolio', 'Paperwork', 'Settings']) { await go(pg, 'more'); await pg.locator(`.more-item:has-text("${l}")`).click(); await pg.waitForSelector(`h1:has-text("${l === 'Settings' ? 'Your Keyholder' : l}")`); }
@@ -282,8 +288,11 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const errsD = [];
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsD.push(`D ${e.message}`));
-    await step(tag, 'D1 First visit: website with Start free and Sign in, no demo buttons, no "Open my dashboard"', async () => {
-      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Start free'); await pg.waitForSelector('.lp-hero >> text=Sign in');
+    await step(tag, 'D1 First visit: Sign in + Sign up at the top right, Get started on the banner, no demo buttons, no "Open my dashboard"', async () => {
+      await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h'); await pg.waitForSelector('.lp-hero >> text=Get started');
+      if (await pg.locator('.lp-hero >> text=/^(Sign in|Sign up|Start free)$/').count()) throw new Error('old buttons on the banner');
+      if (tag === 'phone') { if (!(await pg.locator('.lp-signin-xs').isVisible())) throw new Error('no Sign in next to the menu'); }
+      else for (const t of ['Sign in', 'Sign up']) if (!(await pg.locator(`.lp-nav-cta >> text=${t}`).isVisible())) throw new Error(`no ${t} at the top right`);
       for (const p of ['', 'about', 'pricing']) {
         await pg.goto(BASE + '#/welcome/' + p); await pg.waitForTimeout(150);
         if (await pg.locator('text=/Try a demo|sample properties first/i').count()) throw new Error(`demo link on ${p || 'overview'}`);
@@ -307,7 +316,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await menuGo('Overview');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('sideways scroll');
     });
-    await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question'); });
+    await step(tag, 'D5 "Get started" → the first signup question', async () => { await pg.locator('.lp-hero >> text=Get started').click(); await pg.waitForSelector('.q-question'); });
     await step(tag, 'D6 test / test → sample Home, demo banner and tour (6 steps)', async () => {
       await adminIn(pg, false); await pg.waitForSelector('.sample-banner >> text=Demo:'); await pg.waitForSelector('.tour-card >> text=Step 1 of 6');
       for (let i = 2; i <= 6; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 6`); }
@@ -339,8 +348,9 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'rent/tenant/t-maya'); await pg.locator('.crumb:has-text("Back to")').click(); await pg.waitForSelector('h1, .pcard');
       if (tag === 'phone') for (const p of ['portfolio', 'paperwork', 'settings']) { await go(pg, p); await pg.locator('.crumb:has-text("Back to More")').click(); await pg.waitForSelector('h1:has-text("More")'); }
     });
-    await step(tag, 'D16 Help button opens plain answers', async () => {
-      await pg.locator(tag === 'phone' ? '.mobile-top .help-btn' : '.top-tools.desk .help-btn').click(); await pg.waitForSelector('#help-title');
+    await step(tag, 'D16 Help (bottom of the side menu; phones: More → Help) opens plain answers', async () => {
+      if (tag === 'phone') { await go(pg, 'more'); await pg.locator('.more-list .help-btn').click(); } else await pg.locator('.rail-foot .help-btn').click();
+      await pg.waitForSelector('#help-title');
       await pg.locator('.help-list summary').first().click(); await pg.locator('[aria-label="Close help"]').click();
     });
     await step(tag, 'D17 Home is lean: no "Since your last visit", Coming up, Milestones or rent chips', async () => {
@@ -360,10 +370,14 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6'); await pg.waitForSelector('.q-aside');
       await pg.goto(BASE + '#/start');
     });
-    await step(tag, 'E2 After 6 questions: Continue with Google → account picker → signed up', async () => {
+    await step(tag, 'E2 After 6 questions: Continue with Google → account picker → signed up → 5-step tour of the dashboard', async () => {
       await answerQuestions(pg);
       await pg.locator('.acct-google').click(); await pg.waitForSelector('#gp-title');
       await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
+      await pg.waitForSelector('.tour-card >> text=Step 1 of 5'); await pg.waitForSelector('.tour-card >> text=Start here');
+      for (let i = 2; i <= 5; i++) { await pg.locator('.tour-card button.primary').click(); await pg.waitForSelector(`.tour-card >> text=Step ${i} of 5`); }
+      await pg.waitForSelector('.tour-card >> text=Settings and sign out'); await pg.locator('.tour-card >> text=Got it').click(); await pg.waitForTimeout(200);
+      if (await pg.locator('.tour').count()) throw new Error('tour still open');
       const st = await state(pg); if (st.profile.account?.provider !== 'google' || !st.profile.account.signedIn) throw new Error('no google account');
     });
     await step(tag, 'E3 Settings shows the account → Sign out → website', async () => {
@@ -371,7 +385,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
     });
     await step(tag, 'E4 Sign in → Google → back to Home', async () => {
-      if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator('.lp-menu >> text=Sign in').click(); } else await pg.locator('.lp-hero >> text=Sign in').click();
+      if (tag === 'phone') { await pg.locator('.lp-burger').click(); await pg.locator('.lp-menu >> text=Sign in').click(); } else await pg.locator('.lp-nav-cta >> text=Sign in').click();
       await pg.waitForSelector('h1:has-text("Welcome back")');
       await pg.locator('.acct-google').click(); await pg.locator('.acct-list >> text=Alex Morgan').click(); await pg.waitForSelector('text=Start here');
     });
@@ -379,6 +393,37 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
       await login(pg, 'someone@else.ca', 'anything');
       await pg.waitForSelector('text=No Keyholder account for someone@else.ca'); await pg.locator('text=Answer 6 quick questions').click(); await pg.waitForSelector('.q-question');
+    });
+    await step(tag, 'E6 Province: 4 big provinces and Others; the list of the others shows only after tapping Others', async () => {
+      await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
+      await pg.waitForSelector('h1:has-text("Where is your rental property?")');
+      const names = await pg.locator('.choices .choice .t').allTextContents();
+      if (names.length !== 5 || names[4] !== 'Others') throw new Error('choices: ' + names.join(', '));
+      if (await pg.locator('#ob-prov').count()) throw new Error('the list shows before Others');
+      await pg.locator('.choice:has-text("Others")').click(); await pg.waitForSelector('#ob-prov');
+      if (!(await pg.locator('.q-foot button.btn.primary').isDisabled())) throw new Error('Next works before a province is chosen');
+      if (await pg.locator('#ob-city').count()) throw new Error('city shows before a province');
+      await pg.selectOption('#ob-prov', 'NS'); await pg.waitForSelector('#ob-city');
+      if ((await pg.inputValue('#ob-city')) !== 'Halifax') throw new Error('city ' + (await pg.inputValue('#ob-city')));
+      await pg.locator('.choice:has-text("Ontario")').click(); if (await pg.locator('#ob-prov').count()) throw new Error('the list stays after Ontario');
+    });
+    await step(tag, 'E7 Plan page: 6 full sentences with icons, two columns on a computer, no scrolling', async () => {
+      await pg.goto(BASE + '#/start'); await answerQuestions(pg);
+      const items = await pg.locator('.plan-six li').count(); if (items !== 6) throw new Error(items + ' items');
+      if ((await pg.locator('.plan-six li .plan-ic svg').count()) !== 6) throw new Error('icons missing');
+      for (const t of await pg.locator('.plan-six li').allTextContents()) if (!/[.!]$/.test(t.trim())) throw new Error('not a full sentence: ' + t);
+      if (tag !== 'phone') {
+        const cols = await pg.evaluate(() => new Set([...document.querySelectorAll('.plan-six li')].map((l) => Math.round(l.getBoundingClientRect().left))).size);
+        if (cols !== 2) throw new Error(cols + ' columns');
+        const extra = await pg.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+        if (extra > 1) throw new Error(`scrolls ${extra}px`);
+      }
+    });
+    await step(tag, 'E8 Settings: no Bronze, Silver and Gold property cards', async () => {
+      const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+      await onboard(p); await go(p, 'settings'); await p.waitForSelector('h1:has-text("Your Keyholder")');
+      const found = await p.locator('text=/Bronze|Silver|Gold/').count(); await ctx.close();
+      if (found) throw new Error('levels still in Settings');
     });
     ok(tag, 'E errors', errsE.length === 0, errsE.slice(0, 3).join(' | '));
 
@@ -396,7 +441,7 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       }
       await pg.goto(BASE); if ((await pg.locator('.lp-step-ic svg').count()) !== 3) throw new Error('step icons missing');
     });
-    await step(tag, 'F2 Phones: the Start free bar sits at the bottom once the page buttons scroll away', async () => {
+    await step(tag, 'F2 Phones: the Get started bar sits at the bottom once the page buttons scroll away', async () => {
       if (tag !== 'phone') return 'phone only';
       await pg.goto(BASE); await pg.locator('#tour').scrollIntoViewIfNeeded(); await pg.waitForTimeout(800);
       const box = await pg.locator('.lp-sticky').boundingBox();
@@ -537,12 +582,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await pg.waitForSelector('.rent-card, .start-steps'); await go(pg, 'rentals'); await pg.waitForSelector('text=Oak house');
       if (await pg.locator('text=Maple triplex').count()) throw new Error('sample left behind in the account');
     });
-    await step(tag, 'H3 An old demo left in the browser is a visitor: Sign in and Start free both work', async () => {
+    await step(tag, 'H3 An old demo left in the browser is a visitor: Sign in and Get started both work', async () => {
       await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); s.profile.sample = true; delete s.profile.account; localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
       await pg.goto(BASE + '#/welcome'); await pg.reload(); await pg.waitForSelector('.lp-hero-h');
       if (await pg.locator('text=Open my dashboard').count()) throw new Error('"Open my dashboard" shown to an old demo');
-      await pg.locator('.lp-hero >> text=Sign in').click(); await pg.waitForSelector('h1:has-text("Welcome back")');
-      await pg.goto(BASE + '#/welcome'); await pg.locator('.lp-hero >> text=Start free').click(); await pg.waitForSelector('.q-question');
+      await pg.locator(tag === 'phone' ? '.lp-signin-xs' : '.lp-nav-cta >> text=Sign in').click(); await pg.waitForSelector('h1:has-text("Welcome back")');
+      await pg.goto(BASE + '#/welcome'); await pg.locator('.lp-hero >> text=Get started').click(); await pg.waitForSelector('.q-question');
     });
     await step(tag, 'H4 Shared lease: both people listed with their own email; the reminder goes to both', async () => {
       await adminIn(pg); await go(pg, 'rent/tenant/t-patel');
@@ -591,13 +636,17 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await adminIn(pg); if (!(await pg.locator(tag === 'phone' ? '.mobile-top .keymark.km-b' : '.rail .keymark.km-b').count())) throw new Error('app logo');
       await pg.locator('.sample-banner >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
     });
-    const bar = tag === 'phone' ? '.lp-sticky' : '.lp-nav-cta';
-    await step(tag, `I2 ${tag === 'phone' ? 'Bottom bar' : 'Menu-bar buttons'} hide while the page's own Start free / Sign in show`, async () => {
+    await step(tag, `I2 ${tag === 'phone' ? "Bottom Get started bar hides while the page's own Get started shows" : 'Sign in and Sign up stay at the top right all the way down'}`, async () => {
       await pg.goto(BASE + '#/welcome'); await pg.waitForTimeout(500);
-      if (!(await hidden(bar))) throw new Error('shown at the top, next to the page buttons');
-      await scrollTo('#tour'); if (await hidden(bar)) throw new Error('not shown by the tour');
-      await scrollTo('.lp-cta-card'); if (!(await hidden(bar))) throw new Error('shown next to the closing card');
-      if (tag !== 'phone') { await pg.goto(BASE + '#/welcome/provinces'); await pg.waitForTimeout(500); if (await hidden(bar)) throw new Error('hidden at the top of Provinces'); }
+      if (tag === 'phone') {
+        if (!(await hidden('.lp-sticky'))) throw new Error('shown at the top, next to the page button');
+        await scrollTo('#tour'); if (await hidden('.lp-sticky')) throw new Error('not shown by the tour');
+        await scrollTo('.lp-cta-card'); if (!(await hidden('.lp-sticky'))) throw new Error('shown next to the closing card');
+      } else {
+        for (const sel of ['#tour', '.lp-cta-card']) { if (await hidden('.lp-nav-cta')) throw new Error('hidden before ' + sel); await scrollTo(sel); }
+        if (await hidden('.lp-nav-cta')) throw new Error('hidden next to the closing card');
+        await pg.goto(BASE + '#/welcome/pricing'); await pg.waitForTimeout(500); if (await hidden('.lp-nav-cta')) throw new Error('hidden on Pricing');
+      }
     });
     await step(tag, 'I3 The menu lights up Features while the tour is on screen', async () => {
       if (tag === 'phone') return 'computer menu';
@@ -610,11 +659,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if ((await pg.locator('.lp-tile.on').textContent()) !== 'BC') throw new Error('selected ' + (await pg.locator('.lp-tile.on').textContent()));
       await pg.waitForSelector('.lp-map-hint >> text=time zone');
     });
-    await step(tag, 'I5 Someone with an account in this browser gets Sign in as the main button', async () => {
+    await step(tag, 'I5 After signing out: Sign in and Sign up at the top right, one Get started on the banner', async () => {
       await onboard(pg); await pg.waitForSelector('text=Start here');
       await go(pg, 'settings'); await pg.locator('#account >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
-      const first = await pg.locator('.lp-hero .btn-row .btn').first().evaluate((x) => x.textContent + (x.classList.contains('primary') ? ' (main)' : ''));
-      if (first !== 'Sign in (main)') throw new Error('first button: ' + first);
+      const hero = (await pg.locator('.lp-hero [data-cta] .btn').allTextContents()).join('|');
+      if (hero !== 'Get started') throw new Error('banner buttons: ' + hero);
+      if (tag !== 'phone') { const top = (await pg.locator('.lp-nav-cta .btn').allTextContents()).join('|'); if (top !== 'Sign in|Sign up') throw new Error('top right: ' + top); }
     });
     ok(tag, 'I errors', errsI.length === 0, errsI.slice(0, 3).join(' | '));
 
