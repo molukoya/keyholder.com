@@ -11,7 +11,11 @@ import { hashPassword, newToken, normEmail, sha256, verifyPassword } from './sec
 // The server's building blocks: people, sign-in sessions, email-link tokens, the audit log and each
 // landlord's saved data. Routes (server/app.ts) and jobs (server/jobs.ts) call these.
 
-export type Role = 'owner' | 'admin' | 'support';
+export type Role = 'owner' | 'super' | 'admin' | 'support';
+/** The Keyholder team: the super user, admins and support staff. */
+export const isTeam = (r: Role) => r === 'super' || r === 'admin' || r === 'support';
+/** Everything except the team, price, promotions, banks and API keys (those are the super user's). */
+export const isAdmin = (r: Role) => r === 'super' || r === 'admin';
 export interface User { id: string; email: string; name: string; role: Role; password_hash: string | null; google_sub: string | null; email_verified_at: Date | null; created_at: Date; disabled_at: Date | null }
 export const publicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, role: u.role, emailVerified: !!u.email_verified_at, hasPassword: !!u.password_hash, google: !!u.google_sub });
 
@@ -58,15 +62,18 @@ export async function ensureAdmin(db: Db, cfg: Config): Promise<'created' | 'upd
     on conflict (key) do update set value = excluded.value, updated_at = now()`, [await hashPassword(pw)]);
   const u = await userByEmail(db, cfg.admin.email);
   if (!u) {
-    await createUser(db, { email: cfg.admin.email, name: cfg.admin.name, password: pw, role: 'admin', verified: true });
+    await createUser(db, { email: cfg.admin.email, name: cfg.admin.name, password: pw, role: 'super', verified: true });
+    await db.query(`update users set role = 'admin' where role = 'super' and lower(email) <> lower($1)`, [cfg.admin.email]);
     await remember(db);
     await audit(db, { actor: 'system', scope: 'system', action: 'Admin created', detail: cfg.admin.email });
     return 'created';
   }
-  if (u.role !== 'admin') {
-    await db.query(`update users set role = 'admin' where id = $1`, [u.id]);
-    await audit(db, { actor: 'system', scope: 'system', action: 'Admin role given', detail: cfg.admin.email });
+  // ADMIN_EMAIL is the super user; there is only one (an earlier one, if ADMIN_EMAIL changed, becomes an admin).
+  if (u.role !== 'super') {
+    await db.query(`update users set role = 'super' where id = $1`, [u.id]);
+    await audit(db, { actor: 'system', scope: 'system', action: 'Super user role given', detail: cfg.admin.email });
   }
+  await db.query(`update users set role = 'admin' where role = 'super' and id <> $1`, [u.id]);
   // The same ADMIN_PASSWORD as last time: leave the password alone (it may have been changed in the dashboard).
   if (applied && (await verifyPassword(pw, applied))) return 'unchanged';
   // A new ADMIN_PASSWORD (or the first start with this rule): it becomes the team password.

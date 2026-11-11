@@ -221,3 +221,37 @@
 /* Live data (a real team member on the Keyholder server) */
 .sp-sample.live { background: var(--mint, #DCFCE7); color: var(--mint-ink, #166534); }
 .sp-loading { min-height: 60vh; display: grid; place-items: center; text-align: center; color: var(--ink-2, #475467); }
+
+/* Super user: Price & promotions, Banks, Connections */
+.sp-price-now { margin: 4px 0 8px; font-size: 16px; color: var(--ink-soft); }
+.sp-price-now strong { font-family: var(--font-display); font-size: 34px; color: var(--ink); margin-right: 6px; }
+.sp-inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 14px; }
+.sp-inline-form .field { margin: 0; flex: 0 1 260px; }
+.sp-promo-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; margin-top: 16px; }
+.sp-promo-form .field { margin: 0; }
+.sp-promo-form > .btn { justify-self: start; }
+.sp-promo-form > .acct-error { grid-column: 1 / -1; margin: 0; }
+.sp-code { font-family: var(--font-mono); letter-spacing: .04em; }
+.sp-bank-list { columns: 2; column-gap: 32px; }
+.sp-bank-list li { break-inside: avoid; }
+.sp-bank-list li:nth-child(2) { border-top: 0; }
+.sp-keys { display: grid; gap: 14px; margin-top: 8px; }
+.sp-key { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px 16px; align-items: center; padding-top: 12px; border-top: 1px solid var(--rule); }
+.sp-key:first-child { border-top: 0; padding-top: 0; }
+.sp-key-now { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sp-key-now > span { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; }
+.sp-key-now code { font-family: var(--font-mono); font-size: 13px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+.sp-key-edit { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.sp-key-edit .input { flex: 1; min-width: 0; }
+.sp-test { display: inline-flex; align-items: center; gap: 6px; }
+.sp-test.ok { color: var(--good, #067647); }
+.sp-test.bad { color: var(--bad, #B42318); }
+/* The save bar stays in view only while there are changes to save. */
+.sp-conn-save.on { position: sticky; bottom: 12px; z-index: 2; box-shadow: 0 10px 30px -18px rgba(16, 24, 40, .45); }
+@media (max-width: 900px) {
+  .sp-promo-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sp-bank-list { columns: 1; }
+  .sp-bank-list li:nth-child(2) { border-top: 1px solid var(--rule); }
+  .sp-key { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) { .sp-promo-form { grid-template-columns: minmax(0, 1fr); } .sp-inline-form .field { flex-basis: 100%; } }

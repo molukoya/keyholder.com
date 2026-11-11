@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { fmtPrice, useUnitPrice } from '../data/pricing';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Province } from '../data/types';
@@ -427,6 +428,7 @@ function homeProvince(own?: Province): { p: Province; guessed: boolean } {
 
 /** About: who Keyholder is for, the rules for each province, and the questions people ask. */
 function About({ section }: { section: string }) {
+  const cents = useUnitPrice();
   useEffect(() => { if (section) requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ block: 'start' })); }, [section]);
   return (
     <>
@@ -445,7 +447,7 @@ function About({ section }: { section: string }) {
         <div className="lp-wrap lp-narrow">
           <SecHead kicker="Questions" title="Straight answers." />
           <div className="lp-faqs reveal">
-            {FAQ.map(([ic, q, a], i) => <details key={q} className="lp-faq"><summary><span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={ic} size={18} /></span>{q}</summary><p>{a}</p></details>)}
+            {FAQ.map(([ic, q, a], i) => <details key={q} className="lp-faq"><summary><span className={`lp-tile-ic ${TONES[i % TONES.length]}`}><Icon name={ic} size={18} /></span>{q}</summary><p>{a.replace('{price}', fmtPrice(cents))}</p></details>)}
           </div>
         </div>
       </section>
@@ -490,6 +492,7 @@ function ProvinceRules() {
 
 // ================================================================ Pricing
 function Pricing({ start }: { start: () => void }) {
+  const cents = useUnitPrice();
   return (
     <>
       <PageHead kicker="Pricing · early access" icon="cash" title={<>Simple pricing. <em>Free to start.</em></>} aside={<Photo src={keysPhoto} alt="House keys next to a small model house on a table" className="aside" />}>Early-access prices are not final and will be confirmed before you are ever charged.</PageHead>
@@ -507,7 +510,7 @@ function Pricing({ start }: { start: () => void }) {
               <span className="lp-flag">Most landlords pick this</span>
               <span className="lp-tile-ic big lilac"><Icon name="users" size={22} /></span>
               <h3>Landlord</h3>
-              <p className="lp-amt"><CountUp to={8} prefix="$" /><span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
+              <p className="lp-amt">{cents % 100 ? fmtPrice(cents) : <CountUp to={cents / 100} prefix="$" />}<span>per unit, a month</span></p><p className="lp-per">Automation for 2 to 10 units</p>
               <ul><li>Everything in Starter</li><li>Several banks: rent, bills and mortgage read for you</li><li>Notices and forms for your province</li><li>Applications and tenant screening tools</li><li>Silver and Gold insights, full tax pack</li></ul>
               <button className="btn primary lp-big" onClick={start} data-cta>Get started</button>
             </div>
@@ -527,7 +530,7 @@ function Pricing({ start }: { start: () => void }) {
 const FAQ: [string, string, string][] = [
   ['sparkle', 'What does Keyholder do automatically?', 'It checks your banks for rent and bills, writes receipts and reminders, files your costs, estimates your property value each month and keeps your tax numbers up to date. Receipts and reminders go out with one tap, or automatically once you switch that on. Legal notices and choosing a tenant always need your approval.'],
   ['heart', "I'm new to being a landlord. Is this for me?", 'Yes. Keyholder is made for people with one or a few rentals, including a basement suite in your own home, where shared costs like heat are split for you. It explains each step in plain words.'],
-  ['cash', 'What does it cost?', 'Free for one rental unit. For 2 to 10 units, it is planned at $8 per unit a month. Early-access prices are not final, and you will never be charged without agreeing first.'],
+  ['cash', 'What does it cost?', 'Free for one rental unit. For 2 to 10 units, it is planned at {price} per unit a month. Early-access prices are not final, and you will never be charged without agreeing first.'],
   ['lock', 'Is my bank information safe?', 'Yes. Keyholder can only look at deposits and bills. It can never move money, and it never sees your bank password. You can also skip the bank and tap "Mark paid" yourself.'],
   ['bank', 'Which banks work?', 'RBC, TD, BMO, Scotiabank, CIBC, National Bank, Desjardins, Tangerine and most credit unions. Connect as many as you like, view only.'],
   ['star', 'What do Bronze, Silver and Gold mean?', 'Your property card gets more useful as you add details. Bronze needs only the rent. Silver adds what you paid, so you see your gain and how you compare with a GIC. Gold adds your mortgage and buying costs for full tax numbers. It is always free.'],

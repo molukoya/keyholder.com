@@ -8,6 +8,7 @@ import { buildApp } from './app';
 import { dailyRun } from './jobs';
 import { sendDue } from './email';
 import { ensureAdmin } from './services';
+import { Keys } from './keys';
 
 // The whole API against a real (embedded) Postgres, as the app uses it.
 
@@ -17,6 +18,7 @@ const googleCalls: string[] = [];
 const cfg = loadConfig({
   NODE_ENV: 'test', PGLITE_DIR: 'memory://', LOG_LEVEL: 'silent', APP_URL: 'http://localhost:8080',
   ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', WORKER: 'off',
+  KEYS_SECRET: 'unit-test-keys-secret-0123456789',
 });
 
 beforeAll(async () => {
@@ -236,7 +238,7 @@ describe('support', () => {
   it('the team can sign in with the username "admin" and the team password (not with "admin" / "admin")', async () => {
     const r = await call('POST', '/api/auth/login', { body: { email: 'admin', password: ADMIN.password } });
     expect(r.status).toBe(200);
-    expect(r.body.user).toMatchObject({ email: ADMIN.email, role: 'admin' });
+    expect(r.body.user).toMatchObject({ email: ADMIN.email, role: 'super' });
     expect((await call('POST', '/api/auth/login', { body: { email: 'Admin', password: 'admin' } })).status).toBe(401);
   });
 
@@ -251,6 +253,130 @@ describe('support', () => {
   });
 });
 
+describe('the super user', () => {
+  const login = async (email: string, password: string) => (await call('POST', '/api/auth/login', { body: { email, password } })).cookie!;
+  const snap = async (cookie: string) => (await call('GET', '/api/admin/support', { cookie })).body;
+  const put = (cookie: string, next: unknown, log?: { action: string; detail: string }) => call('PUT', '/api/admin/support', { cookie, body: { next, log } });
+  let sup = '', ava = '', nadia = '';
+
+  it('ADMIN_EMAIL is the super user; only the super user adds team members (Admin or Support)', async () => {
+    sup = await login(ADMIN.email, ADMIN.password);
+    const s = await snap(sup);
+    expect(s.myRole).toBe('super');
+    expect(s.team[0]).toMatchObject({ name: 'You', role: 'Super user' });
+    s.team.push({ id: 'new-ava', name: 'Ava Admin', email: 'ava@keyholder.ca', role: 'Admin' });
+    expect((await put(sup, s, { action: 'Team member added', detail: 'Ava' })).status).toBe(200);
+    const token = linkToken((await latestMail('ava@keyholder.ca', 'invite')).text_body);
+    const r = await call('POST', '/api/auth/reset', { body: { token, password: 'ava-the-admin-2026' } });
+    expect(r.body.user.role).toBe('admin');
+    ava = r.cookie!;
+    nadia = await login('nadia@keyholder.ca', 'nadia-support-2026');
+    expect((await snap(ava)).myRole).toBe('admin');
+    expect((await snap(nadia)).myRole).toBe('support');
+    // An admin cannot change the team, even quietly (without a log line).
+    const a = await snap(ava);
+    expect((await put(ava, { ...a, team: a.team.filter((m: { role: string }) => m.role !== 'Support') }, { action: 'Team member removed', detail: 'Nadia' })).status).toBe(403);
+    await put(ava, { ...a, team: a.team.filter((m: { role: string }) => m.role !== 'Support') });
+    expect((await snap(sup)).team.some((m: { email: string }) => m.email === 'nadia@keyholder.ca')).toBe(true);
+    // Nobody removes or demotes the super user.
+    const s2 = await snap(sup);
+    await put(sup, { ...s2, team: s2.team.map((m: { role: string }) => ({ ...m, role: m.role === 'Super user' ? 'Support' : m.role })) });
+    expect((await call('GET', '/api/session', { cookie: sup })).body.user.role).toBe('super');
+  });
+
+  it('only the super user changes the price; a new price applies to new subscribers only', async () => {
+    const before = await snap(sup);
+    const alexC = before.customers.find((c: { email: string }) => c.email === 'Alex@Morgan.ca');
+    expect(alexC).toMatchObject({ plan: 'landlord', unitPrice: 800 });
+    const a = await snap(ava);
+    expect((await put(ava, { ...a, platform: { ...a.platform, unitCents: 100 } }, { action: 'Price changed', detail: 'x' })).status).toBe(403);
+    await put(ava, { ...a, platform: { ...a.platform, unitCents: 100 } });
+    expect((await call('GET', '/api/pricing')).body.unitCents).toBe(800);
+    expect((await put(sup, { ...before, platform: { ...before.platform, unitCents: 950 } }, { action: 'Price changed', detail: '$8 → $9.50' })).status).toBe(200);
+    expect((await call('GET', '/api/pricing')).body.unitCents).toBe(950);
+    const after = await snap(sup);
+    expect(after.customers.find((c: { id: string }) => c.id === alexC.id).unitPrice).toBe(800);
+    // A landlord who subscribes now pays the new price.
+    const gina = after.customers.find((c: { email: string; plan: string }) => c.email !== 'Alex@Morgan.ca' && c.plan === 'starter');
+    if (gina) {
+      after.customers.find((c: { id: string }) => c.id === gina.id).plan = 'landlord';
+      await put(sup, after, { action: 'Plan changed', detail: gina.name });
+      expect((await snap(sup)).customers.find((c: { id: string }) => c.id === gina.id).unitPrice).toBe(950);
+    }
+  });
+
+  it('promotions: the super user adds, pauses and ends codes; bad or repeated codes are refused; others cannot', async () => {
+    const s = await snap(sup);
+    const promo = (code: string, extra = {}) => ({ id: `p-${code}`, code, kind: 'percent', value: 25, months: 3, uses: 0, status: 'active', created: new Date().toISOString(), ...extra });
+    s.platform.promotions = [promo('SPRING25'), promo('x'), promo('BIG', { value: 250 }), promo('TENOFF', { kind: 'amount', value: 1000, months: 2, maxUses: 50, endsOn: '2027-01-31' })];
+    expect((await put(sup, s, { action: 'Promotion added', detail: 'SPRING25' })).status).toBe(200);
+    let list = (await snap(sup)).platform.promotions;
+    expect(list.map((p: { code: string }) => p.code).sort()).toEqual(['SPRING25', 'TENOFF']);
+    expect(list.find((p: { code: string }) => p.code === 'TENOFF')).toMatchObject({ kind: 'amount', value: 1000, months: 2, maxUses: 50, endsOn: '2027-01-31', uses: 0, status: 'active' });
+    const again = await snap(sup);
+    again.platform.promotions.unshift(promo('spring25'));
+    await put(sup, again, { action: 'Promotion added', detail: 'spring25' });
+    expect((await snap(sup)).platform.promotions.filter((p: { code: string }) => p.code === 'SPRING25')).toHaveLength(1);
+    const n = await snap(nadia);
+    n.platform.promotions.unshift(promo('NADIA50'));
+    expect((await put(nadia, n, { action: 'Promotion added', detail: 'NADIA50' })).status).toBe(403);
+    await put(nadia, n);
+    expect((await snap(sup)).platform.promotions.some((p: { code: string }) => p.code === 'NADIA50')).toBe(false);
+    const p = await snap(sup);
+    p.platform.promotions.find((x: { code: string }) => x.code === 'SPRING25').status = 'paused';
+    await put(sup, p, { action: 'Promotion paused', detail: 'SPRING25' });
+    list = (await snap(sup)).platform.promotions;
+    expect(list.find((x: { code: string }) => x.code === 'SPRING25').status).toBe('paused');
+  });
+
+  it('banks: the super user turns single banks off (the app is told) or all of them', async () => {
+    const s = await snap(sup);
+    expect(s.platform.banks).toEqual({ enabled: true, off: [] });
+    s.platform.banks = { enabled: true, off: ['TD'] };
+    await put(sup, s, { action: 'Bank turned off', detail: 'TD' });
+    expect((await call('GET', '/api/session')).body.config).toMatchObject({ banks: false, banksOff: ['TD'] });
+    const a = await snap(ava);
+    expect((await put(ava, { ...a, platform: { ...a.platform, banks: { enabled: false, off: [] } } }, { action: 'Bank connection turned off', detail: 'all' })).status).toBe(403);
+    expect((await snap(sup)).platform.banks).toEqual({ enabled: true, off: ['TD'] });
+  });
+
+  it('API keys: super user only, password needed, stored encrypted and never sent back in full; they take over from Render', async () => {
+    expect((await call('GET', '/api/admin/connections', { cookie: ava })).status).toBe(403);
+    const c = (await call('GET', '/api/admin/connections', { cookie: sup })).body;
+    expect(c.canSave).toBe(true);
+    const g = c.services.find((x: { id: string }) => x.id === 'google').fields;
+    expect(g.find((f: { name: string }) => f.name === 'google.clientId')).toMatchObject({ source: 'render', value: 'gid' });
+    expect(g.find((f: { name: string }) => f.name === 'google.clientSecret')).toMatchObject({ source: 'render', last4: 'cret' });
+    expect(JSON.stringify(c)).not.toContain('gsecret');
+    const save = (password: string, values: Record<string, string | null>) => call('PUT', '/api/admin/connections', { cookie: sup, body: { password, values } });
+    expect((await save('wrong-password', { 'stripe.secretKey': 'sk_test_abcdef123456' })).status).toBe(400);
+    expect((await save(ADMIN.password, { 'email.provider': 'resend' })).body.error).toMatch(/Resend API key/);
+    expect((await save(ADMIN.password, { 'email.provider': 'carrier-pigeon' })).status).toBe(400);
+    const r = await save(ADMIN.password, { 'stripe.secretKey': 'sk_test_abcdef123456', 'google.clientId': 'new-gid.apps.googleusercontent.com' });
+    expect(r.status).toBe(200);
+    expect(JSON.stringify(r.body)).not.toContain('sk_test_abcdef123456');
+    expect(r.body.services.find((x: { id: string }) => x.id === 'stripe').fields.find((f: { name: string }) => f.name === 'stripe.secretKey')).toMatchObject({ source: 'dashboard', last4: '3456', updatedBy: ADMIN.email });
+    const row = (await db.query<{ ciphertext: string }>(`select ciphertext from secrets where name = 'stripe.secretKey'`))[0];
+    expect(row.ciphertext).not.toContain('sk_test');
+    // The new Google client ID is used right away.
+    const start = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
+    expect(start.headers.location).toContain('client_id=new-gid.apps.googleusercontent.com');
+    // Test a service: Stripe answers with the keys in effect.
+    expect((await call('POST', '/api/admin/connections/test', { cookie: sup, body: { service: 'stripe' } })).body).toMatchObject({ ok: true });
+    expect(googleCalls.some((u) => u.includes('api.stripe.com/v1/balance'))).toBe(true);
+    // Every change is in the audit log.
+    expect((await snap(sup)).audit.some((a: { action: string; detail: string }) => a.action === 'API key changed' && /stripe: Secret key changed \(…3456\)/.test(a.detail))).toBe(true);
+    // Without the same KEYS_SECRET, the saved keys cannot be read.
+    const other = new Keys(loadConfig({ NODE_ENV: 'test', PGLITE_DIR: 'memory://', KEYS_SECRET: 'a-different-keys-secret-value' }));
+    await other.refresh(db, true);
+    expect(other.get('stripe.secretKey')).toBeUndefined();
+    // Removing a saved key goes back to Render's value.
+    await save(ADMIN.password, { 'google.clientId': null });
+    const start2 = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
+    expect(start2.headers.location).toContain('client_id=gid&');
+  });
+});
+
 describe('Google sign-in', () => {
   it('creates the account from Google and opens the app', async () => {
     const start = await app.inject({ method: 'GET', url: '/api/auth/google/start?intent=signup' });
@@ -262,7 +388,7 @@ describe('Google sign-in', () => {
     expect(cb.headers.location).toBe('http://localhost:8080/#/auth/google?intent=signup');
     const cookie = ([cb.headers['set-cookie']].flat() as string[]).find((c) => c.startsWith('kh_session='))!.split(';')[0];
     expect((await call('GET', '/api/session', { cookie })).body.user).toMatchObject({ email: 'gina@gmail.com', google: true, emailVerified: true });
-    expect(googleCalls.length).toBe(2);
+    expect(googleCalls.filter((u) => u.includes('google')).length).toBe(2);
   });
 
   it('refuses a callback with the wrong state', async () => {

@@ -38,7 +38,7 @@ Status: ☐ to do · ◐ in progress · ☑ done
 
 ## Phase 2: super user and team (no outside services)
 
-### R6. Super user ☐
+### R6. Super user ☑
 - The account set as `ADMIN_EMAIL` in Render becomes the **super user** (the email stays in Render, never
   in the code).
 - The super user has every admin power plus R7 to R10.
@@ -47,22 +47,23 @@ Status: ☐ to do · ◐ in progress · ☑ done
   - **Support**: today's Support powers.
 - Nobody can remove the super user or change the super user's powers.
 
-### R7. Premium price ☐
+### R7. Premium price ☑
 - The super user sets the Landlord plan price (today $8 per unit a month) in the dashboard.
 - The website's Pricing page and answers update automatically.
 - A new price applies to **new subscribers only**; existing subscribers keep theirs.
 
-### R8. Promotions ☐
+### R8. Promotions ☑
 - Promo codes: % or $ off, for how many months, end date, maximum uses. Pause or end a code.
 - Landlords enter a code when they upgrade; the dashboard shows how many times each was used.
-- With Stripe on (R11), codes apply at checkout.
+- With Stripe on (R11), codes apply at checkout. (Phase 2 built creating, pausing and ending codes; the use count
+  starts once checkout exists.)
 
-### R9. Turn banks off ☐
+### R9. Turn banks off ☑
 - One switch turns bank connection off for everyone.
 - Single banks can be turned off (e.g. one bank's connection is broken); landlords then see
   "Not available right now" for that bank.
 
-### R10. API keys in the dashboard ☐
+### R10. API keys in the dashboard ☑
 - "Connections" page, super user only: Google sign-in, email (Resend), Stripe, bank service (Plaid).
   Each shows its status, a Test button, and lets you enter or replace keys.
 - Keys are stored encrypted with `KEYS_SECRET` (a new Render setting). After saving only the last 4

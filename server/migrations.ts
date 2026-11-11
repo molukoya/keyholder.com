@@ -172,4 +172,35 @@ create table job_runs (
 );
 `,
   },
+  {
+    id: '002_super_user',
+    sql: `
+alter table users drop constraint if exists users_role_check;
+alter table users add constraint users_role_check check (role in ('owner', 'super', 'admin', 'support'));
+alter table accounts add column if not exists unit_price_cents integer;
+
+create table promotions (
+  id uuid primary key,
+  code text not null,
+  kind text not null check (kind in ('percent', 'amount')),
+  value integer not null check (value > 0),
+  months integer not null default 1 check (months between 1 and 36),
+  ends_on date,
+  max_uses integer check (max_uses is null or max_uses > 0),
+  uses integer not null default 0,
+  status text not null default 'active' check (status in ('active', 'paused', 'ended')),
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create unique index promotions_code_key on promotions (upper(code));
+
+create table secrets (
+  name text primary key,
+  ciphertext text not null,
+  last4 text not null default '',
+  updated_by text not null default '',
+  updated_at timestamptz not null default now()
+);
+`,
+  },
 ];

@@ -5,19 +5,20 @@ import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { BarChart, Spark, Status } from '../support/charts';
-import { customerOf, fmtMoney, isLive, live, loadLive, mrr, timeLeft, useSupport, useSupportToasts, within, type SupportState } from '../support/store';
+import { customerOf, fmtMoney, isLive, isSuper, live, loadLive, mrr, timeLeft, useSupport, useSupportToasts, within, type SupportState } from '../support/store';
 import { isStaff, useConn } from '../data/api';
 import { Inbox, TicketPage } from '../support/Inbox';
 import { CustomerPage, Customers } from '../support/Customers';
 import { Growth, Revenue } from '../support/Business';
 import { Announcements, Health, Rules } from '../support/Platform';
 import { Privacy, Team } from '../support/Admin';
+import { Banks, Connections, Pricing } from '../support/Super';
 
 // The support dashboard. Grouped by how often it is used: Today, Support, Business, Platform, Admin.
 // admin / admin shows sample support data; a real team member signed in to the Keyholder server sees
 // live data (the same screens, filled by the server).
 
-const NAV: { group: string; items: { to: string; label: string; icon: string; badge?: (s: SupportState) => number }[] }[] = [
+const NAV: { group: string; only?: (s: SupportState) => boolean; items: { to: string; label: string; icon: string; badge?: (s: SupportState) => number }[] }[] = [
   { group: 'Today', items: [{ to: '/support', label: 'Overview', icon: 'home' }] },
   { group: 'Support', items: [
     { to: '/support/inbox', label: 'Inbox', icon: 'mail', badge: (s) => s.tickets.filter((t) => t.status === 'open').length },
@@ -35,6 +36,12 @@ const NAV: { group: string; items: { to: string; label: string; icon: string; ba
   { group: 'Admin', items: [
     { to: '/support/privacy', label: 'Privacy & audit', icon: 'shield', badge: (s) => s.requests.filter((r) => r.status === 'to do').length },
     { to: '/support/team', label: 'Team & settings', icon: 'settings' },
+  ] },
+  // The super user's own pages (the ADMIN_EMAIL account; admin / admin in the preview).
+  { group: 'Super user', only: isSuper, items: [
+    { to: '/support/pricing', label: 'Price & promotions', icon: 'cash' },
+    { to: '/support/banks', label: 'Banks', icon: 'bank' },
+    { to: '/support/connections', label: 'Connections', icon: 'key' },
   ] },
 ];
 
@@ -64,7 +71,7 @@ function SupportShell() {
       <aside className="sp-rail" aria-label="Support">
         <Link to="/support" className="sp-brand"><Brand size={26} /><span className="sp-badge-admin">Support</span></Link>
         <nav className="sp-nav">
-          {NAV.map((g) => (
+          {NAV.filter((g) => !g.only || g.only(s)).map((g) => (
             <div key={g.group} className="sp-nav-group">
               <p>{g.group}</p>
               {g.items.map((i) => {
@@ -98,6 +105,9 @@ function SupportShell() {
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/team" element={<Team />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/banks" element={<Banks />} />
+            <Route path="/connections" element={<Connections />} />
             <Route path="*" element={<Navigate to="/support" replace />} />
           </Routes>
         </main>

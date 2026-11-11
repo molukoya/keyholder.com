@@ -29,6 +29,8 @@ const Env = z.object({
   ADMIN_NAME: z.string().default('Keyholder Admin'),
   /** Lets local tools read sent emails at /api/dev/outbox. Never on in production. */
   DEV_TOOLS: z.string().optional(),
+  /** Locks the API keys saved on the dashboard's Connections page (encrypted). A long random value; never change it once keys are saved. */
+  KEYS_SECRET: z.string().min(16).optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   /** "inline" runs the email sender and daily jobs inside the web process; "off" leaves them to `npm run worker`. */
@@ -40,6 +42,10 @@ const Env = z.object({
 });
 
 export type Config = ReturnType<typeof loadConfig>;
+
+/** Settings that are API keys: they can also be set on the dashboard (Connections), see server/keys.ts. */
+const KEY_ENV = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'EMAIL_PROVIDER', 'RESEND_API_KEY', 'POSTMARK_TOKEN', 'EMAIL_FROM',
+  'STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PLAID_CLIENT_ID', 'PLAID_SECRET', 'PLAID_ENV'];
 
 export function loadConfig(env: Record<string, string | undefined> = process.env) {
   const e = Env.parse(env);
@@ -62,6 +68,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     admin: e.ADMIN_EMAIL && e.ADMIN_PASSWORD ? { email: e.ADMIN_EMAIL, password: e.ADMIN_PASSWORD, name: e.ADMIN_NAME } : undefined,
     devTools: e.DEV_TOOLS ? e.DEV_TOOLS === 'on' : !production,
     google: e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET ? { clientId: e.GOOGLE_CLIENT_ID, clientSecret: e.GOOGLE_CLIENT_SECRET } : undefined,
+    keysSecret: e.KEYS_SECRET,
+    keysEnv: Object.fromEntries(KEY_ENV.map((k) => [k, env[k]])) as Record<string, string | undefined>,
     worker: e.WORKER,
     dailyHour: e.DAILY_HOUR,
     trustProxy: e.TRUST_PROXY || production,

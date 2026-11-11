@@ -738,6 +738,20 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'support/rules'); await pg.locator('tr', { hasText: 'Alberta' }).locator('text=Checked today').click(); await pg.waitForTimeout(200);
       if (!(await pg.locator('tr', { hasText: 'Alberta' }).locator('text=Verified').count())) throw new Error('Alberta not verified');
     });
+    await step(tag, 'J7b Super user (admin / admin): a new price shows on the website; a promo code; a bank turned off cannot be picked in the sample app', async () => {
+      const groups = await pg.locator('.sp-nav-group > p').allTextContents(); if (!groups.includes('Super user')) throw new Error('no Super user group');
+      await go(pg, 'support/pricing'); await pg.fill('#sp-price', '12'); await pg.locator('#price >> text=Save price').click(); await pg.waitForSelector('#price >> text=$12.00');
+      await pg.fill('#promo-code', 'PREVIEW10'); await pg.fill('#promo-value', '10'); await pg.locator('#promotions >> text=Add code').click(); await pg.waitForSelector('#promotions >> text=PREVIEW10');
+      await go(pg, 'support/banks'); await pg.locator('.sp-bank-list li:has-text("RBC") >> text=Turn off').click(); await pg.waitForSelector('.sp-bank-list li:has-text("RBC") >> text=Turn on');
+      await go(pg, 'support/connections'); await pg.waitForSelector('text=there is no server here');
+      if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('sideways scroll');
+      await go(pg, 'welcome/pricing'); await pg.locator('.lp-price.best').scrollIntoViewIfNeeded(); await pg.waitForSelector('.lp-price.best >> text=$12');
+      await go(pg, 'today'); if (await pg.locator('.tour-card').count()) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
+      await go(pg, 'settings'); await pg.locator('#rent-tracking >> text=Add another bank').click(); await pg.waitForSelector('.drawer');
+      if (!(await pg.locator('.drawer .choice:has-text("RBC")').isDisabled())) throw new Error('RBC can still be picked');
+      await pg.waitForSelector('.drawer .choice:has-text("RBC") >> text=Not available right now');
+      await pg.keyboard.press('Escape'); await go(pg, 'support');
+    });
     await step(tag, 'J8 Sign out returns to the website, and the dashboard is closed again', async () => {
       if (tag === 'phone') await go(pg, 'support');
       await pg.locator('.sp-rail-foot >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');

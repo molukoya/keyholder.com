@@ -8,7 +8,7 @@ import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, recordsStart, rentalPortion, taxPack } from '../lib/finance';
 import { BANK_CHECK_HOURS, CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
-import { banksOn } from '../data/api';
+import { banksOff, banksOn, serverMode } from '../data/api';
 import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm, MortgageForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
@@ -167,7 +167,7 @@ export function RentTracking() {
         </button>
         <button role="radio" aria-checked={!manual} className={`choice big${soon ? ' soon' : ''}`} disabled={soon} onClick={() => manual && setConnect(true)}>
           <Icon name="bank" size={28} />
-          <span className="t">Check my banks for me{soon && <span className="soon-tag">Coming soon</span>}</span>
+          <span className="t">Check my banks for me{soon && <span className="soon-tag">{serverMode() ? 'Coming soon' : 'Not available right now'}</span>}</span>
           <span className="s">{soon ? 'Keyholder will spot rent, bills and mortgage payments in your bank. Until then, tap "Mark paid" when rent comes in.' : `Any Canadian banks or credit unions. Rent, bills and mortgage payments, every ${BANK_CHECK_HOURS} hours.`}</span>
         </button>
       </div>
@@ -222,12 +222,19 @@ function ConnectBank({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('');
   const [working, setWorking] = useState(false);
   const matches = q.trim() ? [...POPULAR_BANKS, ...OTHER_BANKS].filter((b) => b.toLowerCase().includes(q.trim().toLowerCase())) : [];
+  // Banks turned off by Keyholder (Support → Banks) cannot be picked for now.
+  const off = new Set(banksOff());
+  const choice = (b: string) => (
+    <button key={b} className="choice" aria-pressed={bank === b} disabled={off.has(b)} onClick={() => setBank(b)}>
+      <span className="t">{b}</span>{off.has(b) && <span className="s">Not available right now</span>}
+    </button>
+  );
   if (working) return <Drawer title="Connecting" onClose={onClose}><Empty title={`Connecting to ${bank}…`}>This takes a few seconds.</Empty></Drawer>;
   return (
     <Drawer title="Which bank gets your rent?" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!bank} onClick={() => { setWorking(true); setTimeout(() => { act.connectBank(bank!); onClose(); }, 900); }}>{bank ? `Connect ${bank}` : 'Choose a bank'}</button></>}>
-      <div className="choices">{POPULAR_BANKS.map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>
+      <div className="choices">{POPULAR_BANKS.map(choice)}</div>
       <Field label="Somewhere else?" htmlFor="cb-q"><input id="cb-q" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type your bank or credit union" /></Field>
-      {matches.length > 0 && <div className="choices">{matches.slice(0, 6).map((b) => <button key={b} className="choice" aria-pressed={bank === b} onClick={() => setBank(b)}><span className="t">{b}</span></button>)}</div>}
+      {matches.length > 0 && <div className="choices">{matches.slice(0, 6).map(choice)}</div>}
       <div className="callout pine" style={{ marginTop: 16 }}>You sign in on your bank's page. We never see your password or move money.</div>
       <p className="tiny soft">Preview only: no real bank is contacted.</p>
     </Drawer>
