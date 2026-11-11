@@ -7,7 +7,8 @@ services:
     name: keyholder
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build && npm test
+    # --include=dev: Render sets NODE_ENV=production during the build too, which would skip the build tools.
+    buildCommand: npm ci --include=dev && npm run build && npm test
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
