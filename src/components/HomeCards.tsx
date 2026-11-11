@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { AppState } from '../data/types';
 import { useStore } from '../data/store';
 import { Icon } from './Icon';
@@ -65,16 +65,12 @@ export function RentCard({ headline }: { headline: React.ReactNode }) {
   );
 }
 
-/** The single most important thing to do right now. */
+/** The single most important thing to do right now (nothing shows when nothing needs you). */
 export function NextStep() {
   const { state, today } = useStore();
   const card = useMemo(() => allJourneyCards(state, today).filter((c) => !isHidden(state, prefKey(c), today)).sort((a, b) => a.priority - b.priority)[0], [state, today]);
-  if (!card) return (
-    <section className="next-card done">
-      <span className="tile-ic mint big"><Icon name="check" size={24} /></span>
-      <div><p className="next-k">All caught up</p><h3>Nothing needs you right now.</h3></div>
-    </section>
-  );
+  // Nothing to do: no card at all (less to read).
+  if (!card) return null;
   return (
     <section className={`next-card${card.urgent ? ' urgent' : ''}`}>
       <span className={`tile-ic big ${card.urgent ? 'rose' : 'lilac'}`}><Icon name={card.urgent ? 'bell' : 'sparkle'} size={24} /></span>
@@ -84,25 +80,6 @@ export function NextStep() {
         <p className="next-text">{card.text}</p>
       </div>
       <div className="next-act"><StepButton c={card} /></div>
-    </section>
-  );
-}
-
-/** Four things people do most. */
-export function QuickActions({ onPay, onReceipt }: { onPay: () => void; onReceipt: () => void }) {
-  const nav = useNavigate();
-  const items: [string, string, string, () => void][] = [
-    ['cash', 'Mark rent paid', 'mint', onPay],
-    ['camera', 'Add a receipt', 'peach', onReceipt],
-    ['home', 'Add a property', 'sky', () => nav('/rentals')],
-    ['print', 'Tax summary', 'sun', () => nav('/taxes')],
-  ];
-  return (
-    <section className="side-card" aria-label="Quick actions">
-      <h2 className="side-title">Quick actions</h2>
-      <div className="quick-grid">
-        {items.map(([ic, label, tone, run]) => <button key={label} className="quick" onClick={run}><span className={`tile-ic ${tone}`}><Icon name={ic} size={20} /></span>{label}</button>)}
-      </div>
     </section>
   );
 }

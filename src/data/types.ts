@@ -225,6 +225,8 @@ export interface Expense {
   /** Shared costs are split by the rental share; direct costs count 100% (PS-6). */
   scope: 'shared' | 'direct' | 'personal';
   receiptImage?: string; // data URL (stage 1 only)
+  /** Paid in cash with no store receipt: the expense itself is the record (date, who, what, how much). */
+  cashNoReceipt?: boolean;
   note?: string;
   ccaClass?: CCAClass; // P3, capital items
   recurring?: boolean;

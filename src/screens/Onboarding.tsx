@@ -9,7 +9,7 @@ import { EmailLink, GoogleButton, GooglePicker, googleOn, PENDING_SIGNUP, startG
 import { serverMode } from '../data/api';
 import { QGoal, QHard, QPay, QTax, QWhat, QWhere, SceneWelcome } from '../components/Art';
 
-// Signup: your first name, six short questions in plain words (one per screen, using your name along the way),
+// Signup: your first and last name, six short questions in plain words (one per screen, using your name along the way),
 // then "Turn on your automation" (Google or email). Addresses: /start (name), /start/1 to /start/6, /start/7 (plan).
 
 const HARD = [
@@ -39,7 +39,7 @@ export function Onboarding() {
   const nav = useNavigate();
   const loc = useLocation();
   // The step lives in the address (/start/2) so the browser's back button goes to the previous question.
-  // Step 0 asks for a first name; steps 1 to 6 are the questions.
+  // Step 0 asks for your name; steps 1 to 6 are the questions.
   const step = Math.max(0, Number(loc.pathname.split('/')[2]) || 0);
   const setStep = (n: number) => (n < 0 ? nav('/welcome') : nav(n === 0 ? '/start' : `/start/${n}`));
   const exit = () => nav('/welcome');
@@ -55,7 +55,10 @@ export function Onboarding() {
 
   const tone: Tone = a.dreads?.includes('awkward') ? 'gentle' : a.dreads?.includes('chasing') ? 'standard' : 'gentle';
   const answers = (): Partial<Profile> => ({ ...a, reminderTone: tone, rentArrival: a.rentMethod === 'etransfer' || a.rentMethod === 'mix' ? 'bank' : 'manual' });
-  const first = (a.name ?? '').trim().split(/\s+/)[0] ?? '';
+  // Step 0 asks for first and last name; the app greets by first name and signs with the full name.
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const first = firstName.trim().split(/\s+/)[0] ?? '';
   // A Google account's full name wins when it starts with the name typed here; otherwise keep what they typed.
   const nameFor = (w: Who) => (!first || w.name.toLowerCase().startsWith(first.toLowerCase()) ? w.name : (a.name ?? '').trim());
 
@@ -132,7 +135,9 @@ export function Onboarding() {
     },
   ];
 
-  if (step === 0) return <NameStep name={a.name ?? ''} onName={(name) => set({ name })} onNext={() => setStep(1)} onBack={exit} onExit={exit} total={steps.length} />;
+  if (step === 0) return <NameStep first={firstName} last={lastName}
+    onName={(f, l) => { setFirstName(f); setLastName(l); set({ name: `${f.trim()} ${l.trim()}`.trim() }); }}
+    onNext={() => setStep(1)} onBack={exit} onExit={exit} total={steps.length} />;
   if (step > steps.length) return <SavePlan a={a} first={first} onBack={() => setStep(steps.length)} onExit={exit}
     onAccount={(w, emails) => act.signUp({ ...answers(), emailUpdates: emails }, { ...w, name: nameFor(w) })}
     onGoogle={(emails) => { try { sessionStorage.setItem(PENDING_SIGNUP, JSON.stringify({ profile: { ...answers(), emailUpdates: emails }, name: (a.name ?? '').trim() })); } catch { /* blocked */ } startGoogle('signup'); }} />;
@@ -167,9 +172,9 @@ export function Onboarding() {
   );
 }
 
-/** Step 0: a first name, so the questions and the app can greet people by name. */
-function NameStep({ name, onName, onNext, onBack, onExit, total }: { name: string; onName: (n: string) => void; onNext: () => void; onBack: () => void; onExit: () => void; total: number }) {
-  const ok = !!name.trim();
+/** Step 0: first and last name. The questions and Home greet by first name; receipts and letters use the full name. */
+function NameStep({ first, last, onName, onNext, onBack, onExit, total }: { first: string; last: string; onName: (first: string, last: string) => void; onNext: () => void; onBack: () => void; onExit: () => void; total: number }) {
+  const ok = !!first.trim() && !!last.trim();
   return (
     <div className="q-wrap">
       <div className="q-top">
@@ -181,13 +186,17 @@ function NameStep({ name, onName, onNext, onBack, onExit, total }: { name: strin
         <div className="q-head">
           <div>
             <p className="q-count">Let's get started</p>
-            <h1 className="q-question">What's your first name?</h1>
-            <p className="q-aside"><Icon name="info" size={16} />So we know what to call you. Then {total} quick questions about your rental.</p>
+            <h1 className="q-question">What's your name?</h1>
+            <p className="q-aside"><Icon name="info" size={16} />Your full name goes on receipts and letters. Then {total} quick questions about your rental.</p>
           </div>
           <div className="q-pic"><SceneWelcome /></div>
         </div>
-        <label htmlFor="ob-first" className="sr-only">Your first name</label>
-        <input id="ob-first" className="input q-name" value={name} onChange={(e) => onName(e.target.value)} placeholder="First name" autoComplete="given-name" autoCapitalize="words" autoFocus />
+        <div className="q-names">
+          <div className="field"><label htmlFor="ob-first">First name</label>
+            <input id="ob-first" className="input q-name" value={first} onChange={(e) => onName(e.target.value, last)} autoComplete="given-name" autoCapitalize="words" autoFocus /></div>
+          <div className="field"><label htmlFor="ob-last">Last name</label>
+            <input id="ob-last" className="input q-name" value={last} onChange={(e) => onName(first, e.target.value)} autoComplete="family-name" autoCapitalize="words" /></div>
+        </div>
         <div className="q-foot">
           <button type="button" className="btn ghost" onClick={onBack}><Icon name="back" size={16} />Back to website</button>
           <button className="btn primary" disabled={!ok}>Next</button>

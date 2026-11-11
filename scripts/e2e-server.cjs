@@ -25,7 +25,7 @@ const outbox = async (to) => (await (await fetch(`${BASE}api/dev/outbox?to=${enc
 async function until(fn, ms = 6000, what = 'condition') { const end = Date.now() + ms; let last; while (Date.now() < end) { try { last = await fn(); if (last) return last; } catch { /* retry */ } await wait(200); } throw new Error(`timed out waiting for ${what}`); }
 
 async function answerQuestions(pg, first) {
-  await pg.fill('#ob-first', first); await pg.click('.q-foot >> text=Next');
+  await pg.fill('#ob-first', first); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=2 to 5 rental units'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Interac e-Transfer'); await pg.click('.q-foot >> text=Next');

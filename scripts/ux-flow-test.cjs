@@ -27,7 +27,7 @@ async function adminIn(pg, skipTour = true) {
   if (skipTour) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
 }
 async function answerQuestions(pg) {
-  await pg.fill('#ob-first', 'Alex'); await pg.click('.q-foot >> text=Next');
+  await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=2 to 5 rental units'); await pg.click('.q-foot >> text=Next');
   await pg.click('text=Interac e-Transfer'); await pg.click('.q-foot >> text=Next');
@@ -86,11 +86,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await row('Rita').locator('.row-act button.btn', { hasText: /^Inspection$/ }).click(); await pg.waitForTimeout(200); await approve(pg);
       const t = await row('Rita').locator('.row-act').textContent(); if (/Inspection/.test(t)) throw new Error('still inspection'); return 'now: ' + t.replace('⋯', '').trim();
     });
-    await step(tag, 'A8 Rent paid → row says "Send receipt" → send → Paid', async () => {
+    await step(tag, 'A8 Rent paid → row says "Send receipt" → send → caught up (no pill, paid date)', async () => {
       await go(pg, 'rent/tenant/' + (await state(pg)).tenants[0].id); await pg.click('.page-head >> text=Confirm rent'); await pg.locator('.drawer-foot >> text=Mark paid').click(); await pg.waitForTimeout(250);
       await go(pg, 'today'); const t = await row('Rita').locator('.row-act .btn').first().textContent(); if (t !== 'Send receipt') throw new Error('button: ' + t);
       await row('Rita').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
-      const st = await row('Rita').locator('.status').textContent(); if (!/paid/i.test(st)) throw new Error('status: ' + st); return st;
+      if (await row('Rita').locator('.status').count()) throw new Error('pill still shown when caught up: ' + (await row('Rita').locator('.status').textContent()));
+      return 'caught up, no pill · ' + (await row('Rita').locator('.paid-on').textContent());
     });
     await step(tag, 'A9 Paperwork → Rental income shows the payment and receipt', async () => { await go(pg, 'paperwork/income'); await pg.waitForSelector('td:has-text("Rita Gomez")'); });
     await step(tag, 'A10 Add a receipt (expense) from the main button', async () => {
@@ -141,16 +142,18 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.locator('.journey-track, .jcard').count()) throw new Error('journey stages still shown');
       return JSON.stringify(got);
     });
-    await step(tag, 'B2 Sam: Confirm → same row says "Send receipt" → send → Paid', async () => {
+    await step(tag, 'B2 Sam: Confirm → same row says "Send receipt" → send → caught up (no pill)', async () => {
       await row('Sam').locator('.row-act >> text=Confirm').click(); await pg.waitForTimeout(250);
       if ((await btn('Sam')) !== 'Send receipt') throw new Error('button: ' + (await btn('Sam')));
       await row('Sam').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
-      return (await row('Sam').locator('.status').textContent()) + ' · ' + ((await row('Sam').locator('.row-act').textContent()) || '').replace('⋯', '').trim();
+      if (await row('Sam').locator('.status').count()) throw new Error('pill still shown when caught up');
+      return 'caught up · ' + ((await row('Sam').locator('.row-act').textContent()) || '').replace('⋯', '').trim();
     });
-    await step(tag, 'B3 Maya: Send receipt → row shows Paid with no to-do (raise rent is not a to-do)', async () => {
+    await step(tag, 'B3 Maya: Send receipt → caught up: no pill, no to-do (raise rent is not a to-do)', async () => {
       await row('Maya').locator('text=Send receipt').click(); await pg.waitForTimeout(250);
       if (await row('Maya').locator('.row-act .btn').count()) throw new Error('button: ' + (await btn('Maya')));
-      return (await row('Maya').locator('.status').textContent()).trim();
+      if (await row('Maya').locator('.status').count()) throw new Error('pill still shown when caught up');
+      return 'caught up · ' + (await row('Maya').locator('.paid-on').textContent());
     });
     await step(tag, 'B3b Rentals: below-market suggestion → Raise rent → N1 prepared', async () => {
       await go(pg, 'rentals'); const sg = pg.locator('.unit-row', { hasText: 'Maya' }).locator('.suggest');
@@ -310,9 +313,9 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'today'); await pg.waitForSelector('.lp-hero-h'); // the dashboard is closed again
     });
     await step(tag, 'D12 Signup: Back on the first screen returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.waitForSelector('.q-question'); await pg.locator('.q-foot >> text=Back to website').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
-    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
+    await step(tag, 'D13 Signup: Exit on any question returns to the website', async () => { await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.locator('.q-exit').click(); await pg.waitForSelector('.lp-hero-h, .lp-h1'); });
     await step(tag, 'D14 Signup: browser back goes to the previous question', async () => {
-      await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.waitForSelector('h1:has-text("What are you renting out?")');
+      await pg.goto(BASE + '#/start'); await pg.fill('#ob-first', 'Alex'); await pg.fill('#ob-last', 'Morgan'); await pg.click('.q-foot >> text=Next'); await pg.click('text=Ontario'); await pg.click('.q-foot >> text=Next'); await pg.waitForSelector('h1:has-text("What are you renting out?")');
       await pg.goBack(); await pg.waitForSelector('h1:has-text("Where is your rental property?")');
     });
     await step(tag, 'D15 Detail pages and More pages have a Back link', async () => {
@@ -334,9 +337,10 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
     const errsE = [];
     pg = await (await b.newContext({ viewport: vp })).newPage();
     pg.on('pageerror', (e) => errsE.push(`E ${e.message}`));
-    await step(tag, 'E1 Signup asks your first name, then greets you: "Nice to meet you, Alex! Question 1 of 6"', async () => {
-      await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("What\'s your first name?")');
-      await pg.fill('#ob-first', 'Alex'); await pg.keyboard.press('Enter');
+    await step(tag, 'E1 Signup asks first and last name (both needed), then greets you: "Nice to meet you, Alex! Question 1 of 6"', async () => {
+      await pg.goto(BASE + '#/start'); await pg.waitForSelector('h1:has-text("What\'s your name?")');
+      await pg.fill('#ob-first', 'Alex'); if (!(await pg.locator('.q-foot button.btn.primary').isDisabled())) throw new Error('Next works without a last name');
+      await pg.fill('#ob-last', 'Morgan'); await pg.keyboard.press('Enter');
       await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6'); await pg.waitForSelector('.q-aside');
       await pg.goto(BASE + '#/start');
     });
@@ -390,10 +394,23 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const t = (await pg.locator('.rent-row .who').first().textContent()).trim(); if (t !== 'Maya · Unit A') throw new Error('title: ' + t);
       if (await pg.locator('.rent-row .where').count()) throw new Error('unit details still shown');
     });
-    await step(tag, 'F4 Quick actions open the right forms', async () => {
-      await pg.locator('.quick:has-text("Add a receipt")').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
-      await pg.locator('.quick:has-text("Mark rent paid")').click(); await pg.waitForSelector('.drawer'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
-      await pg.locator('.quick:has-text("Tax summary")').click(); await pg.waitForSelector('h1:has-text("Taxes")');
+    await step(tag, 'F4 No Quick actions; a row still unpaid keeps its pill; dark mode keeps the rent card dark', async () => {
+      if (await pg.locator('.quick, [aria-label="Quick actions"]').count()) throw new Error('Quick actions still shown');
+      if (!(await row('Jordan').locator('.status').count())) throw new Error('late row lost its pill');
+      await pg.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+      const bg = await pg.locator('.rent-card').evaluate((e) => getComputedStyle(e).backgroundImage);
+      await pg.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      if (/255, 255, 255/.test(bg)) throw new Error('rent card white in dark mode: ' + bg);
+    });
+    await step(tag, 'F4b Taxes: add a regular cost paid in cash (no receipt); a later "From" date explains the part year', async () => {
+      await go(pg, 'taxes'); await pg.waitForSelector('.regular-costs');
+      await pg.locator('.rc-item', { hasText: 'Snow removal' }).click(); await pg.waitForSelector('.cash-note');
+      if (!(await pg.locator('#ex-cash').isChecked())) throw new Error('cash box not ticked');
+      await pg.fill('#ex-amt', '60'); await pg.locator('.drawer-foot >> text=Save').click(); await pg.waitForTimeout(300);
+      await pg.waitForSelector('.rc-item:has-text("Snow removal") .rc-n.done');
+      if (await pg.locator('.tax-start').count()) throw new Error('part-year note shown for records starting in January');
+      const y = new Date().getFullYear(); await pg.fill('#tax-from', `${y}-06-01`); await pg.waitForSelector('.tax-start >> text=Started part way through the year');
+      await pg.waitForSelector('text=paid in cash with no receipt');
     });
     await step(tag, 'F5 Tenant rows show avatars; empty states have pictures', async () => {
       await go(pg, 'today'); if (!(await pg.locator('.rent-row .avatar').count())) throw new Error('no avatars');

@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { fmtDay, periodOf } from '../lib/dates';
 import { activeLeases, hasSpace, leaseLedger } from '../lib/finance';
 import { RentRows } from '../components/Journey';
 import { trayItems } from '../lib/tray';
-import { ExpenseForm, PaymentForm } from '../components/forms';
 import { BankStatus } from '../components/domain';
 import { SceneEmptyHome } from '../components/Art';
-import { Greeting, MonthReview, NextStep, QuickActions, RentCard } from '../components/HomeCards';
+import { Greeting, MonthReview, NextStep, RentCard } from '../components/HomeCards';
 import type { Lease, Tenant, Unit } from '../data/types';
 import type { LedgerLine } from '../lib/finance';
 
@@ -16,8 +15,6 @@ import type { LedgerLine } from '../lib/finance';
 
 export function Today() {
   const { state, today } = useStore();
-  const [pay, setPay] = useState(false);
-  const [receipt, setReceipt] = useState(false);
   const p = periodOf(today);
   const todo = useMemo(() => trayItems(state, today), [state, today]);
   const pending = new Set(todo.flatMap((t) => (t.kind === 'match' && t.suggestion ? [t.suggestion.leaseId] : [])));
@@ -90,13 +87,10 @@ export function Today() {
           <RentRows />
         </div>
         <aside className="home-side" aria-label="More for this month">
-          <QuickActions onPay={() => setPay(true)} onReceipt={() => setReceipt(true)} />
           <MonthReview />
         </aside>
       </div>
 
-      {pay && <PaymentForm onClose={() => setPay(false)} />}
-      {receipt && <ExpenseForm onClose={() => setReceipt(false)} />}
     </div>
   );
 }

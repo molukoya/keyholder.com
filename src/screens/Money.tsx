@@ -6,7 +6,7 @@ import { bankToSort, readWithdrawal } from '../lib/bankrules';
 import { useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
-import { picture, rentalPortion, taxPack } from '../lib/finance';
+import { picture, recordsStart, rentalPortion, taxPack } from '../lib/finance';
 import { BANK_CHECK_HOURS, CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
 import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm, MortgageForm } from '../components/forms';
@@ -123,7 +123,7 @@ export function Expenses() {
                   return (
                     <tr key={e.id} className="click" onClick={() => setForm(e)} tabIndex={0} onKeyDown={(k) => k.key === 'Enter' && setForm(e)}>
                       <td className="date">{fmtDate(e.date)}</td>
-                      <td style={{ width: 48 }}>{e.receiptImage ? <img src={e.receiptImage} alt="" className="thumb" /> : <span className="tiny faint" title="No receipt photo">no photo</span>}</td>
+                      <td style={{ width: 48 }}>{e.receiptImage ? <img src={e.receiptImage} alt="" className="thumb" /> : e.cashNoReceipt ? <span className="tiny soft" title="Paid in cash, no receipt: this entry is the record">cash</span> : <span className="tiny faint" title="No receipt photo">no photo</span>}</td>
                       <td><span className="exp-cell"><CategoryIcon id={e.category} /><span><strong>{e.vendor || 'Unknown vendor'}</strong><span className="tiny soft" style={{ display: 'block' }}>{category(e.category).label} · {p?.nickname}{e.unitId ? ` · Unit ${state.units.find((u) => u.id === e.unitId)?.label}` : ''}{e.note ? ` · ${e.note}` : ''}</span></span></span></td>
                       <td>{e.kind === 'capital' && <span className="pill" style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}>Improvement</span>}{e.scope === 'personal' && <span className="pill">Personal</span>}</td>
                       <td className="num">{fmt(e.amount)}{portion !== e.amount && <div className="tiny soft">{fmt(portion)} rental</div>}</td>
@@ -338,6 +338,48 @@ export function BenchmarkRuler({ value, band, unit = '%', compact, labels, highe
 }
 
 // =====================================================================================
+// Regular costs landlords often forget, many of them paid in cash. One tap adds one, marked
+// "paid in cash, no receipt" (the entry is the record), except driving, which needs a trip log.
+const REGULAR: { label: string; cat: ExpenseCategory; how: string; cash: boolean }[] = [
+  { label: 'Snow removal', cat: 'repairs', how: 'Each visit, or the season', cash: true },
+  { label: 'Lawn care and yard work', cat: 'repairs', how: 'Mowing, leaves, weeding', cash: true },
+  { label: 'Cleaning between tenants', cat: 'repairs', how: 'Move-out clean', cash: true },
+  { label: 'Small repairs and handyman', cat: 'repairs', how: 'Fixed like for like', cash: true },
+  { label: 'Pest control', cat: 'repairs', how: 'Visits and traps', cash: true },
+  { label: 'Garbage and junk removal', cat: 'repairs', how: 'Dump runs, bulky pickup', cash: true },
+  { label: 'Keys and lock changes', cat: 'repairs', how: 'New keys for a new tenant', cash: true },
+  { label: 'Smoke alarm batteries and filters', cat: 'supplies', how: 'Batteries, furnace filters, bulbs', cash: true },
+  { label: 'Stamps and printing', cat: 'office', how: 'Notices and letters', cash: true },
+  { label: 'Driving to the property', cat: 'vehicle', how: 'Keep a trip log: date, km, why', cash: false },
+];
+
+function RegularCosts({ prop, year }: { prop: Property; year: number }) {
+  const { state, today } = useStore();
+  const [add, setAdd] = useState<(typeof REGULAR)[number] | null>(null);
+  const [all, setAll] = useState(false);
+  const mine = state.expenses.filter((e) => e.propertyId === prop.id && e.date.startsWith(String(year)));
+  return (
+    <section className="sheet regular-costs" aria-labelledby="rc-title">
+      <h2 id="rc-title" style={{ marginBottom: 4 }}>Regular costs you may be missing</h2>
+      <p className="small soft" style={{ marginTop: 0 }}>Paid someone in cash? It still counts if you keep a record. Tap one to add it.</p>
+      <ul className="rc-list">{REGULAR.slice(0, all ? REGULAR.length : 6).map((r) => {
+        const n = mine.filter((e) => e.category === r.cat && e.vendor.toLowerCase().startsWith(r.label.toLowerCase())).length;
+        return (
+          <li key={r.label}><button className="rc-item" onClick={() => setAdd(r)}>
+            <CategoryIcon id={r.cat} />
+            <span><strong>{r.label}</strong><span className="tiny soft">{r.how}</span></span>
+            <span className={`rc-n${n ? ' done' : ''}`}>{n ? <><Icon name="check" size={14} />{n}</> : <Icon name="plus" size={16} />}</span>
+          </button></li>
+        );
+      })}</ul>
+      {!all && <button className="btn ghost small" onClick={() => setAll(true)}>Show {REGULAR.length - 6} more</button>}
+      <p className="tiny soft" style={{ marginBottom: 0 }}>For each one, keep the date, who you paid, what for and how much: Keyholder saves that as your record. A short signed note from the person you paid is best. Not sure if something counts? Ask your accountant.</p>
+      {add && <ExpenseForm onClose={() => setAdd(null)} prefill={{ propertyId: prop.id, vendor: add.label, category: add.cat, scope: category(add.cat).sharedByDefault ? 'shared' : 'direct', ...(add.cash ? { cashNoReceipt: true } : {}), ...(String(year) < today.slice(0, 4) ? { date: `${year}-12-31` } : {}) }} />}
+    </section>
+  );
+}
+
+// =====================================================================================
 // Phase 3 — Tax Pack (T776)
 // =====================================================================================
 function TaxPackPage() {
@@ -347,23 +389,44 @@ function TaxPackPage() {
   const thisYear = Number(today.slice(0, 4));
   const [year, setYear] = useState(Number(today.slice(5, 7)) <= 4 ? thisYear - 1 : thisYear);
   const p = props.find((x) => x.id === pid);
-  const pack = useMemo(() => (p ? taxPack(state, p, year) : null), [state, p, year]);
+  // Started part way through the year? The spreadsheet covers from the first day with records (changeable).
+  const [fromPick, setFromPick] = useState('');
+  const yearStart = `${year}-01-01`, yearEnd = `${year}-12-31`;
+  const started = p ? recordsStart(state, p, year) : yearStart;
+  const from = fromPick && fromPick.startsWith(String(year)) ? fromPick : started;
+  // Only worth a note when records start more than a month into the year.
+  const partYear = from >= `${year}-02-01`;
+  const until = year === thisYear ? today : yearEnd;
+  const pack = useMemo(() => (p ? taxPack(state, p, year, from) : null), [state, p, year, from]);
   if (!p || !pack) return <div className="sheet"><Empty title="Add a property to build a Tax Pack." /></div>;
   const fixes = pack.preflight.filter((x) => x.severity === 'fix').length;
 
   const exportCsv = () => {
-    const rows = [['Line', 'Description', 'Amount']];
+    const units = new Set(state.units.filter((u) => u.propertyId === p.id).map((u) => u.id));
+    const leases = state.leases.filter((l) => units.has(l.unitId));
+    const rows: string[][] = [
+      ['Keyholder tax spreadsheet', p.nickname],
+      ['Covers', `${from} to ${until}`],
+    ];
+    if (partYear) rows.push(['Note', `Records in Keyholder start on ${from}. Rent and costs before that date are not included.`]);
+    rows.push([], ['Line', 'Description', 'Amount']);
     rows.push(['8141', 'Gross rents', (pack.grossRents / 100).toFixed(2)]);
     for (const l of pack.lines) rows.push([l.t776, l.craLabel, (l.amount / 100).toFixed(2)]);
     rows.push(['9936', 'Capital cost allowance', (pack.ccaClaimed / 100).toFixed(2)]);
     rows.push(['', 'Net income', (pack.netIncome / 100).toFixed(2)]);
-    rows.push([], ['Date', 'Vendor', 'Category', 'T776 line', 'Kind', 'Amount', 'Rental portion']);
-    for (const e of state.expenses.filter((x) => x.propertyId === p.id && x.date.startsWith(String(year)))) {
+    rows.push([], ['Rent received'], ['Date', 'Tenant', 'For', 'Amount']);
+    for (const pay of state.payments.filter((x) => !x.voided && leases.some((l) => l.id === x.leaseId) && x.date >= from && x.date <= yearEnd).sort((a, b) => a.date.localeCompare(b.date))) {
+      const t = state.tenants.find((x) => x.id === leases.find((l) => l.id === pay.leaseId)?.tenantId);
+      rows.push([pay.date, t?.names.join(' & ') ?? '', pay.period, (pay.amount / 100).toFixed(2)]);
+    }
+    rows.push([], ['Costs'], ['Date', 'Paid to', 'Category', 'T776 line', 'Kind', 'Amount', 'Rental portion', 'Record']);
+    for (const e of state.expenses.filter((x) => x.propertyId === p.id && x.date >= from && x.date <= yearEnd).sort((a, b) => a.date.localeCompare(b.date))) {
       const c = category(e.category);
-      rows.push([e.date, e.vendor, c.label, c.t776, e.kind, (e.amount / 100).toFixed(2), (rentalPortion(e, p.rentalSharePct) / 100).toFixed(2)]);
+      rows.push([e.date, e.vendor, c.label, c.t776, e.kind, (e.amount / 100).toFixed(2), (rentalPortion(e, p.rentalSharePct) / 100).toFixed(2),
+        e.receiptImage ? 'Receipt photo' : e.cashNoReceipt ? 'Paid in cash, no receipt (this entry is the record)' : 'No receipt yet']);
     }
     const blob = new Blob([rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `keyholder-tax-pack-${p.nickname.replace(/\W+/g, '-')}-${year}.csv`; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `keyholder-tax-${p.nickname.replace(/\W+/g, '-')}-${from}-to-${until}.csv`; a.click();
   };
 
   const fixList = pack.preflight;
@@ -374,8 +437,18 @@ function TaxPackPage() {
           {props.length > 1 && <select className="input" style={{ width: 'auto' }} value={pid} onChange={(e) => setPid(e.target.value)} aria-label="Property">{props.map((x) => <option key={x.id} value={x.id}>{x.nickname}</option>)}</select>}
           <Seg label="Tax year" value={year} onChange={setYear} options={[{ id: thisYear - 1, label: String(thisYear - 1) }, { id: thisYear, label: `${thisYear} so far` }]} />
         </div>
-        {!embedded && <div className="btn-row"><button className="btn" onClick={exportCsv}><Icon name="download" size={16} />Spreadsheet</button><button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Print for accountant</button></div>}
+        <div className="btn-row tax-tools">
+          <label className="tax-from" htmlFor="tax-from">From<input id="tax-from" type="date" className="input" value={from} min={yearStart} max={yearEnd} onChange={(e) => setFromPick(e.target.value)} /></label>
+          <button className="btn" onClick={exportCsv} disabled={embedded} title={embedded ? 'Downloads work on the Keyholder website' : undefined}><Icon name="download" size={16} />Spreadsheet</button>
+          {!embedded && <button className="btn primary" onClick={() => window.print()}><Icon name="print" size={16} />Print for accountant</button>}
+        </div>
       </div>
+      {partYear && (
+        <div className="callout tax-start" role="note">
+          <Icon name="calendar" size={18} />
+          <p><strong>Started part way through the year? That's fine.</strong> Your spreadsheet starts on {fmtDate(from)}{year === thisYear ? '' : ` and ends ${fmtDate(until)}`}, the day your records start. Costs from before then count too: add them any time with their real date{fromPick ? '' : ', and the start moves back'}.</p>
+        </div>
+      )}
 
       <div className="sheet">
         <h2 style={{ marginBottom: 8 }}>{fixes ? `${fixes} thing${fixes > 1 ? 's' : ''} to fix` : fixList.length ? 'Almost ready' : 'Ready for your accountant'}</h2>
@@ -390,8 +463,11 @@ function TaxPackPage() {
         {fixes > 0 && <Link to="/paperwork/expenses" className="btn" style={{ marginTop: 12 }}>Go to expenses</Link>}
       </div>
 
+      <RegularCosts prop={p} year={year} />
+
       <div className="sheet print-me">
         <h2 style={{ marginBottom: 4 }}>{year} rental income · {p.nickname}</h2>
+        {partYear && <p className="small" style={{ margin: '0 0 4px' }}>From {fmtDate(from)} (when your records start)</p>}
         <p className="small soft" style={{ marginTop: 0 }}>Line numbers match CRA form T776.</p>
         <table className="ledger tax-totals">
           <tbody>

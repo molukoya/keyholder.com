@@ -152,7 +152,8 @@ function RentLine({ unit, lease, card, free }: { unit: Unit; lease?: Lease; card
           <span className="who-text" title={`${prop?.nickname} · ${free ? roomsLine(state, unit, today) : 'empty'}`}><span className="who">{free ? `${unit.label} · ${free} free` : `Unit ${unit.label}`}</span></span>
         </Link>
       )}
-      <StatusPill tone={st.tone}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</StatusPill>
+      {/* All caught up for the month (paid, nothing left to do): no pill, the paid date on the right says it. */}
+      {line?.state === 'paid' && st.label === 'Rent paid' && !visible ? <span className="status-gap" aria-hidden /> : <StatusPill tone={st.tone}>{st.tone === 'paid' && <Icon name="check" size={16} />}{st.label}</StatusPill>}
       <span className="row-act">
         {visible ? <StepButton c={visible} /> : fallback}
         {visible && <RowMenu k={prefKey(visible)} />}

@@ -59,7 +59,7 @@ export function scoreItems(state: AppState, today: string): ScoreItem[] {
     add({ id: `${p.id}-mortgage`, text: `Add the mortgage for ${p.nickname}`, points: 6, done: !!p.mortgageFree || state.mortgages.some((m) => m.propertyId === p.id), propertyId: p.id, to: `/rent/property/${p.id}/mortgage`, levelUp: 'gold' });
     const exps = state.expenses.filter((e) => e.propertyId === p.id);
     if (exps.length) {
-      const withPhoto = exps.filter((e) => e.receiptImage).length;
+      const withPhoto = exps.filter((e) => e.receiptImage || e.cashNoReceipt).length;
       add({ id: `${p.id}-photos`, text: `Add photos to ${exps.length - withPhoto} receipt${exps.length - withPhoto === 1 ? '' : 's'} at ${p.nickname}`, points: 4, done: withPhoto / exps.length, propertyId: p.id, to: '/money/expenses' });
       const typed = exps.filter((e) => e.category !== 'other').length;
       add({ id: `${p.id}-types`, text: `Pick a type for ${exps.length - typed} expense${exps.length - typed === 1 ? '' : 's'} at ${p.nickname}`, points: 2, done: typed / exps.length, propertyId: p.id, to: '/money/expenses' });

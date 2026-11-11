@@ -68,7 +68,7 @@ export function Settings() {
         <h2 className="section-title">You</h2>
         <div className="sheet">
           <div className="grid2">
-            <Field label="Name on receipts" htmlFor="st-n"><input id="st-n" className="input" value={p.name} onChange={(e) => act.setProfile({ name: e.target.value })} /></Field>
+            <Field label="Name on receipts" htmlFor="st-n" hint={p.name.trim() && !/\s/.test(p.name.trim()) ? 'Add your last name: receipts and letters show your full name' : 'First and last name'}><input id="st-n" className="input" value={p.name} onChange={(e) => act.setProfile({ name: e.target.value })} /></Field>
             <Field label="Email" htmlFor="st-e" hint="Tenant replies go here"><input id="st-e" type="email" className="input" value={p.email} onChange={(e) => act.setProfile({ email: e.target.value })} /></Field>
             <Field label="Province" htmlFor="st-p" hint={`Rules pack ${PACK_VERSION}, last verified ${fmtDate(PACK_VERIFIED)}`}>
               <select id="st-p" className="input" value={p.province} onChange={(e) => act.setProfile({ province: e.target.value as typeof p.province, city: province(e.target.value as typeof p.province).cities[0] })}>{PROVINCES.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select>

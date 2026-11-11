@@ -595,8 +595,25 @@ export function ccaSchedule(state: AppState, prop: Property, year: number, netBe
   return relevant;
 }
 
-export function taxPack(state: AppState, prop: Property, year: number): TaxPack {
-  const from = `${year}-01-01`, to = `${year}-12-31`;
+/**
+ * The first day of the year with anything recorded for this property (rent or a cost). Someone who starts
+ * using Keyholder part way through the year has records from that day; the spreadsheet says so.
+ */
+export function recordsStart(state: AppState, prop: Property, year: number): ISODate {
+  const y0 = `${year}-01-01`, y1 = `${year}-12-31`;
+  const units = new Set(state.units.filter((u) => u.propertyId === prop.id).map((u) => u.id));
+  const leaseIds = new Set(state.leases.filter((l) => units.has(l.unitId)).map((l) => l.id));
+  const dates = [
+    ...state.payments.filter((p) => !p.voided && leaseIds.has(p.leaseId)).map((p) => p.date),
+    ...state.expenses.filter((e) => e.propertyId === prop.id).map((e) => e.date),
+  ].filter((d) => d >= y0 && d <= y1).sort();
+  return dates[0] ?? y0;
+}
+
+/** The T776 numbers for a property and year; `start` limits them to a later first day (records kept from then). */
+export function taxPack(state: AppState, prop: Property, year: number, start?: ISODate): TaxPack {
+  const y0 = `${year}-01-01`, to = `${year}-12-31`;
+  const from = start && start > y0 && start <= to ? start : y0;
   const units = state.units.filter((u) => u.propertyId === prop.id).map((u) => u.id);
   const leaseIds = new Set(state.leases.filter((l) => units.includes(l.unitId)).map((l) => l.id));
   const grossRents = state.payments.filter((p) => !p.voided && leaseIds.has(p.leaseId) && p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
@@ -629,8 +646,10 @@ export function taxPack(state: AppState, prop: Property, year: number): TaxPack 
 
   // Pre-flight checklist (TX-3)
   const preflight: TaxPack['preflight'] = [];
-  const noReceipt = exps.filter((e) => !e.receiptImage);
+  const noReceipt = exps.filter((e) => !e.receiptImage && !e.cashNoReceipt);
   if (noReceipt.length) preflight.push({ id: 'receipts', text: `${noReceipt.length} expense${noReceipt.length > 1 ? 's have' : ' has'} no receipt photo`, severity: 'fix' });
+  const cash = exps.filter((e) => e.cashNoReceipt && !e.receiptImage);
+  if (cash.length) preflight.push({ id: 'cash', text: `${cash.length} cost${cash.length > 1 ? 's' : ''} paid in cash with no receipt. The record is kept; a short signed note from the person you paid is even better.`, severity: 'check' });
   const noClass = exps.filter((e) => e.kind === 'capital' && !e.ccaClass);
   if (noClass.length) preflight.push({ id: 'cca-class', text: `${noClass.length} upgrade${noClass.length > 1 ? 's need' : ' needs'} a depreciation type`, severity: 'fix' });
   const other = exps.filter((e) => e.category === 'other');

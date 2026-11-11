@@ -137,6 +137,7 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
         </label>
         <div className="btn-row" style={{ justifyContent: 'center' }}>
           <button className="btn" onClick={() => setStep('details')}>No photo, just type it</button>
+          <button className="btn" onClick={() => { set({ cashNoReceipt: true }); setStep('details'); }}>Paid in cash, no receipt</button>
         </div>
       </Drawer>
     );
@@ -156,13 +157,19 @@ export function ExpenseForm({ onClose, expense, prefill, fromTxn }: { onClose: (
           <button className="btn small" style={{ position: 'absolute', right: 8, top: 8 }} onClick={() => set({ receiptImage: undefined })}>Remove photo</button>
         </div>
       ) : (
-        <label className="btn" style={{ marginBottom: 16 }}><Icon name="camera" size={16} />Add receipt photo<input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(ev) => onPhoto(ev.target.files?.[0])} /></label>
+        <div className="cash-row">
+          <label className="btn"><Icon name="camera" size={16} />Add receipt photo<input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(ev) => onPhoto(ev.target.files?.[0])} /></label>
+          <label className="check"><input id="ex-cash" type="checkbox" checked={!!e.cashNoReceipt} onChange={(x) => set({ cashNoReceipt: x.target.checked || undefined })} /> <span>Paid in cash, no receipt</span></label>
+        </div>
+      )}
+      {e.cashNoReceipt && !e.receiptImage && (
+        <p className="callout cash-note"><strong>That's OK.</strong> You can still count it if you keep a record: the date, who you paid, what for and how much. Keyholder saves this as your record. A short signed note from the person you paid is even better (you can add a photo of it).</p>
       )}
       <div className="grid2">
         <Field label="Amount" htmlFor="ex-amt"><MoneyInput id="ex-amt" value={e.amount || undefined} onChange={(c) => set({ amount: c ?? 0 })} autoFocus /></Field>
         <Field label="Date" htmlFor="ex-date"><input id="ex-date" type="date" className="input" value={e.date} onChange={(x) => set({ date: x.target.value })} /></Field>
       </div>
-      <Field label="Paid to" htmlFor="ex-vendor"><input id="ex-vendor" className="input" value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder="Home Depot, plumber, city…" /></Field>
+      <Field label="Paid to" htmlFor="ex-vendor"><input id="ex-vendor" className="input" value={e.vendor} onChange={(x) => set({ vendor: x.target.value })} placeholder={e.cashNoReceipt ? 'Name of the person you paid' : 'Home Depot, plumber, city…'} /></Field>
       <div className="grid2">
         <Field label="Property" htmlFor="ex-prop">
           <select id="ex-prop" className="input" value={e.propertyId} onChange={(x) => set({ propertyId: x.target.value, unitId: undefined })}>

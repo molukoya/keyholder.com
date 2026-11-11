@@ -236,10 +236,6 @@ h1, h2 { font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: linin
 .side-title { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 12px; font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
 .side-count { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .side-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 14px; font-weight: 600; color: var(--primary); text-decoration: none; }
-.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.quick { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; background: var(--paper); border: 1px solid var(--rule); font-size: 15px; font-weight: 600; color: var(--ink); transition: border-color 150ms, box-shadow 150ms, transform 150ms; }
-.quick:hover { border-color: #C7CBF7; box-shadow: var(--shadow-lift); transform: translateY(-1px); }
-.quick:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .timeline li > a, .timeline li > div { display: grid; grid-template-columns: 44px 32px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px; margin: 0 -8px; border-radius: 12px; color: var(--ink); text-decoration: none; }
 .timeline li > a:hover { background: var(--paper); }
@@ -438,3 +434,43 @@ html body .drawer { z-index: 126; }
 .contact-form textarea { resize: vertical; min-height: 96px; font: inherit; }
 .acct-email .acct-pass { flex: 1 1 100%; }
 .acct-email .acct-error { flex: 1 1 100%; margin: 0; }
+
+/* Signup: first and last name side by side (stacked on phones) */
+.q-names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; max-width: 560px; }
+.q-names .field { margin: 0; }
+.q-names .q-name { max-width: none; }
+@media (max-width: 560px) { .q-names { grid-template-columns: minmax(0, 1fr); } }
+
+/* Dark mode: the rent summary card and the urgent "next step" card follow the theme (they used fixed white). */
+:root[data-theme="dark"] .rent-card { background: linear-gradient(135deg, #1B2130 0%, #171C2B 100%); }
+:root[data-theme="dark"] .rent-card.all-in-card { background: linear-gradient(135deg, #172420 0%, #141C1A 100%); }
+:root[data-theme="dark"] .next-card.urgent { border-color: #5B2526; background: linear-gradient(135deg, #1D1A22, #24161A); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rent-card { background: linear-gradient(135deg, #1B2130 0%, #171C2B 100%); }
+  :root:not([data-theme="light"]) .rent-card.all-in-card { background: linear-gradient(135deg, #172420 0%, #141C1A 100%); }
+  :root:not([data-theme="light"]) .next-card.urgent { border-color: #5B2526; background: linear-gradient(135deg, #1D1A22, #24161A); }
+}
+
+/* Home: the side column folds away when it has nothing to show */
+.home-side:empty { display: none; }
+.home-grid:has(> .home-side:empty) { grid-template-columns: minmax(0, 1fr); }
+
+/* Expense form: receipt photo, or paid in cash with no receipt */
+.cash-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 16px; }
+.cash-row .check { margin: 0; }
+.cash-note { margin: 0 0 16px; }
+
+/* Taxes: spreadsheet start date and regular costs */
+.tax-tools { align-items: center; }
+.tax-from { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-14, 14px); font-weight: 600; color: var(--ink-soft); }
+.tax-from .input { width: auto; min-height: 44px; }
+.tax-start { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 16px; }
+.tax-start p { margin: 0; }
+.rc-list { list-style: none; padding: 0; margin: 12px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.rc-item { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--rule); background: var(--paper); }
+.rc-item:hover { border-color: var(--primary); }
+.rc-item:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.rc-item strong { display: block; font-size: var(--t-15, 15px); }
+.rc-item .tiny { display: block; }
+.rc-n { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; font-size: 14px; }
+.rc-n.done { color: var(--pine); }
