@@ -286,3 +286,22 @@ describe('deleting an account', () => {
     expect((await call('PUT', '/api/state', { cookie: r.cookie, body: { baseRevision: 0, data: s } })).body.revision).toBe(1);
   });
 });
+
+describe('the team password', () => {
+  it('a password changed in the dashboard stays; a new ADMIN_PASSWORD (Render) replaces it and signs out old sessions', async () => {
+    expect(await ensureAdmin(db, cfg)).toBe('unchanged');
+    const first = (await call('POST', '/api/auth/login', { body: { email: 'admin', password: ADMIN.password } })).cookie!;
+    // Changed in the dashboard (Team & settings → Your password).
+    expect((await call('POST', '/api/auth/password', { cookie: first, body: { current: ADMIN.password, next: 'dashboard-pass-123' } })).status).toBe(200);
+    expect(await ensureAdmin(db, cfg)).toBe('unchanged'); // same ADMIN_PASSWORD as before: the new one stays
+    expect((await call('POST', '/api/auth/login', { body: { email: 'admin', password: 'dashboard-pass-123' } })).status).toBe(200);
+    // A new value in Render, then a restart.
+    const keep = (await call('POST', '/api/auth/login', { body: { email: 'admin', password: 'dashboard-pass-123' } })).cookie!;
+    const cfg2 = loadConfig({ NODE_ENV: 'test', PGLITE_DIR: 'memory://', LOG_LEVEL: 'silent', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: 'render-pass-4567', WORKER: 'off' });
+    expect(await ensureAdmin(db, cfg2)).toBe('updated');
+    expect((await call('POST', '/api/auth/login', { body: { email: ADMIN.email, password: 'render-pass-4567' } })).status).toBe(200);
+    expect((await call('POST', '/api/auth/login', { body: { email: 'admin', password: 'dashboard-pass-123' } })).status).toBe(401);
+    expect((await call('GET', '/api/session', { cookie: keep })).body.user).toBeNull();
+    expect(await ensureAdmin(db, cfg2)).toBe('unchanged');
+  });
+});

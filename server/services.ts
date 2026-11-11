@@ -6,7 +6,7 @@ import type { Db, Q } from './db';
 import { queueMail } from './email';
 import { tenantMails } from './mails';
 import { merge3 } from './merge';
-import { hashPassword, newToken, normEmail, sha256 } from './security';
+import { hashPassword, newToken, normEmail, sha256, verifyPassword } from './security';
 
 // The server's building blocks: people, sign-in sessions, email-link tokens, the audit log and each
 // landlord's saved data. Routes (server/app.ts) and jobs (server/jobs.ts) call these.
@@ -44,17 +44,40 @@ export async function accountFor(q: Q, userId: string): Promise<string> {
   return (await q.one<{ id: string }>('select id from accounts where owner_id = $1', [userId]))!.id;
 }
 
-/** Make sure the admin from ADMIN_EMAIL / ADMIN_PASSWORD exists (and is an admin). */
-export async function ensureAdmin(db: Db, cfg: Config) {
-  if (!cfg.admin) return;
+/**
+ * Make sure the admin from ADMIN_EMAIL / ADMIN_PASSWORD exists, is an admin, and has that password.
+ * Changing ADMIN_PASSWORD (e.g. in Render) changes the team password at the next start and signs out old
+ * sessions. A password changed later in the dashboard stays, until ADMIN_PASSWORD is changed again: the
+ * server remembers (as a scrypt hash, in settings) which ADMIN_PASSWORD it last applied.
+ */
+export async function ensureAdmin(db: Db, cfg: Config): Promise<'created' | 'updated' | 'unchanged' | 'off'> {
+  if (!cfg.admin) return 'off';
+  const pw = cfg.admin.password;
+  const applied = (await db.one<{ value: string }>(`select value #>> '{}' as value from settings where key = 'admin.password-applied'`))?.value;
+  const remember = async (q: Q) => q.query(`insert into settings (key, value) values ('admin.password-applied', to_jsonb($1::text))
+    on conflict (key) do update set value = excluded.value, updated_at = now()`, [await hashPassword(pw)]);
   const u = await userByEmail(db, cfg.admin.email);
   if (!u) {
-    await createUser(db, { email: cfg.admin.email, name: cfg.admin.name, password: cfg.admin.password, role: 'admin', verified: true });
+    await createUser(db, { email: cfg.admin.email, name: cfg.admin.name, password: pw, role: 'admin', verified: true });
+    await remember(db);
     await audit(db, { actor: 'system', scope: 'system', action: 'Admin created', detail: cfg.admin.email });
-  } else if (u.role !== 'admin') {
+    return 'created';
+  }
+  if (u.role !== 'admin') {
     await db.query(`update users set role = 'admin' where id = $1`, [u.id]);
     await audit(db, { actor: 'system', scope: 'system', action: 'Admin role given', detail: cfg.admin.email });
   }
+  // The same ADMIN_PASSWORD as last time: leave the password alone (it may have been changed in the dashboard).
+  if (applied && (await verifyPassword(pw, applied))) return 'unchanged';
+  // A new ADMIN_PASSWORD (or the first start with this rule): it becomes the team password.
+  if (await verifyPassword(pw, u.password_hash)) { await remember(db); return 'unchanged'; }
+  await db.tx(async (q) => {
+    await q.query('update users set password_hash = $2 where id = $1', [u.id, await hashPassword(pw)]);
+    await endAllSessions(q, u.id);
+    await remember(q);
+    await audit(q, { actor: 'system', actorId: u.id, scope: 'system', action: 'Team password set from ADMIN_PASSWORD', detail: cfg.admin!.email });
+  });
+  return 'updated';
 }
 
 // ---------------- Sessions ----------------

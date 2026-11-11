@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { PageHead } from '../screens/Support';
@@ -6,6 +6,7 @@ import { addDays, daysBetween, fmtDate } from '../lib/dates';
 import { Status } from './charts';
 import { customerOf, isLive, resetSupport, sup, useSupport } from './store';
 import type { Member, Priority } from './data';
+import { api } from '../data/api';
 
 export function Privacy() {
   const s = useSupport();
@@ -87,10 +88,36 @@ export function Team() {
           <button className="btn" disabled={!reply.title.trim() || !reply.text.trim()}>Add reply</button>
         </form>
       </section>
+      {isLive() && <MyPassword />}
       <section className="sp-card sp-sec"><h2 className="sp-h3">Security</h2>
-        <p className="sp-small">Preview login (admin / admin) is in the site's code: a lock, not real security. With the backend, each person gets their own login and a second sign-in step.</p>
+        <p className="sp-small">{isLive() ? 'Each person on the team has their own login. The sample login (admin / admin) only ever shows sample data.' : "Preview login (admin / admin) is in the site's code: a lock, not real security. With the backend, each person gets their own login and a second sign-in step."}</p>
         {isLive() ? <button className="btn" onClick={resetSupport}>Refresh</button> : <button className="btn ghost danger" onClick={resetSupport}>Reset sample data</button>}
       </section>
     </>
+  );
+}
+
+/** Team & settings → Your password (live): change your own team password. */
+function MyPassword() {
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); if (busy) return;
+    setBusy(true); setMsg(null);
+    try { await api('POST', '/api/auth/password', { current: cur, next }); setMsg({ ok: true, text: 'Password changed. Your other devices were signed out.' }); setCur(''); setNext(''); }
+    catch (x) { setMsg({ ok: false, text: (x as Error).message }); } finally { setBusy(false); }
+  };
+  return (
+    <section className="sp-card sp-sec" id="my-password"><h2 className="sp-h3">Your password</h2>
+      <form className="sp-stackform sp-password" onSubmit={submit}>
+        <label className="field"><span className="label">Current password</span><input id="my-pw-cur" className="input" type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" /></label>
+        <label className="field"><span className="label">New password</span><input id="my-pw-new" className="input" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" /></label>
+        {msg && <p className={`sp-small${msg.ok ? '' : ' acct-error'}`} role="status">{msg.text}</p>}
+        <button className="btn primary" disabled={!cur || next.length < 8 || busy}>Change password</button>
+      </form>
+      <p className="sp-small">At least 8 characters. The first team account's password can also be set with ADMIN_PASSWORD in Render: a new value there replaces this one at the next restart.</p>
+    </section>
   );
 }
