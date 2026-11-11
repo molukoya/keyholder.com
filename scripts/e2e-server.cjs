@@ -14,7 +14,7 @@ const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim().toUpperCase
 const results = [];
 const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}${pass ? '' : ' — ' + note}`); };
 const step = async (tag, name, fn) => {
-  if (ONLY.length && !ONLY.includes(name.split(' ')[0])) return;
+  if (ONLY.length && !ONLY.includes(name.split(' ')[0].toUpperCase())) return;
   try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) { ok(tag, name, false, String(e.message).split('\n')[0].slice(0, 200)); }
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -143,6 +143,40 @@ function watch(pg, errors, label) {
       await step(tag, 'E9 Sign in on another device: the same properties, tenants and receipts are there', async () => {
         await signIn(pgB, email, password); await pgB.waitForSelector('.rent-row:has-text("Rita")');
         await go(pgB, 'rentals'); await pgB.waitForSelector('text=Oak house');
+      });
+      await step(tag, 'E9b Back from Google (fresh page load): a landlord lands on their own Home with their data', async () => {
+        // The server's Google callback sets the session cookie, then the browser opens #/auth/google as a new page.
+        const ctx = await b.newContext({ viewport: vp });
+        const r = await ctx.request.post(`${BASE}api/auth/login`, { headers: { 'X-Keyholder': '1' }, data: { email, password } });
+        if (r.status() !== 200) throw new Error('login ' + r.status());
+        const p = await ctx.newPage(); watch(p, errors, 'google-return');
+        await p.goto(BASE + '#/auth/google?intent=signin');
+        await p.waitForSelector('.rent-row:has-text("Rita"), h1:has-text("Something went wrong")', { timeout: 15000 });
+        if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
+        await ctx.close();
+      });
+      await step(tag, 'E9c Back from Google at the end of signup (fresh page load): the plan is saved to the new account', async () => {
+        const ctx = await b.newContext({ viewport: vp });
+        const newEmail = `gina.${tag}@landlord-e2e.ca`;
+        const r = await ctx.request.post(`${BASE}api/auth/signup`, { headers: { 'X-Keyholder': '1' }, data: { name: 'Gina Lopez', email: newEmail, password: 'gina-the-landlord-1' } });
+        if (r.status() !== 201) throw new Error('signup ' + r.status());
+        const p = await ctx.newPage(); watch(p, errors, 'google-signup');
+        await p.addInitScript(() => { if (!sessionStorage.getItem('kh:used')) { sessionStorage.setItem('kh:used', '1'); sessionStorage.setItem('kh:pending-signup', JSON.stringify({ profile: { province: 'ON', city: 'Toronto', setup: 'few', rentMethod: 'etransfer', dreads: [], taxWorries: [], goal: 'on-time' }, name: 'Gina Lopez' })); } });
+        await p.goto(BASE + '#/auth/google?intent=signup');
+        await p.waitForSelector(':is(h1, h2):has-text("Start here"), h1:has-text("Something went wrong")', { timeout: 15000 });
+        if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
+        await until(async () => (await api(p, '/api/state')).body?.data?.profile?.name === 'Gina Lopez', 6000, 'plan saved');
+        await ctx.close();
+      });
+      await step(tag, 'E9d Back from Google as a new landlord with no plan yet (fresh page load): the signup questions open', async () => {
+        const ctx = await b.newContext({ viewport: vp });
+        const r = await ctx.request.post(`${BASE}api/auth/signup`, { headers: { 'X-Keyholder': '1' }, data: { name: 'Hugo Lam', email: `hugo.${tag}@landlord-e2e.ca`, password: 'hugo-the-landlord-1' } });
+        if (r.status() !== 201) throw new Error('signup ' + r.status());
+        const p = await ctx.newPage(); watch(p, errors, 'google-new');
+        await p.goto(BASE + '#/auth/google?intent=signup');
+        await p.waitForSelector('.q-question, h1:has-text("Something went wrong")', { timeout: 15000 });
+        if (await p.locator('text=Something went wrong').count()) throw new Error('error page: ' + (await p.locator('.acct-card').textContent()));
+        await ctx.close();
       });
       await step(tag, 'E10 A change on one device shows on the other', async () => {
         await signIn(pg, email, password); await pg.waitForSelector('.rent-row:has-text("Rita")');

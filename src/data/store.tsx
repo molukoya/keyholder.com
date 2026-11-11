@@ -472,7 +472,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return { ...base, signOut };
   }, [mut, toast]);
   // Stage 2: keep the signed-in landlord's data saved on the server.
-  useEffect(() => { sync.attach(() => latest.current, (x) => { latest.current = x; setState(x); }, toast); }, [toast]);
+  // Connected while rendering, before any screen's effects run: a screen that opens straight onto a server
+  // step (e.g. coming back from Google) may load the landlord's data in its very first effect.
+  useMemo(() => sync.attach(() => latest.current, (x) => { latest.current = x; setState(x); }, toast), [toast]);
   useEffect(() => { sync.onState(state); }, [state]);
   useEffect(() => {
     if (!serverMode()) return;
