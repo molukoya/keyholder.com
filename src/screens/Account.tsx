@@ -214,8 +214,8 @@ export function SignIn() {
  * One sign-in form for everyone. test / test opens the demo (sample properties), admin / admin opens the
  * sample support dashboard. Those two are a lock, not security (they sit in the website's code) and only
  * ever show sample data. Everything else is a real sign-in: with the server, email and password are checked
- * there (and the Keyholder team lands on the live support dashboard); without one (the Claude preview),
- * it opens the account saved in this browser.
+ * there (and the Keyholder team lands on the live support dashboard; "admin" with the team's own password
+ * works too); without one (the Claude preview), it opens the account saved in this browser.
  */
 function CentralLogin({ onAccount }: { onAccount: (email: string) => void }) {
   const { act } = useStore();
@@ -233,10 +233,12 @@ function CentralLogin({ onAccount }: { onAccount: (email: string) => void }) {
     const u = user.trim().toLowerCase();
     if (preview) for (const kind of ['demo', 'admin'] as const) {
       if (u !== PREVIEW_LOGINS[kind].username) continue;
-      if (pass !== PREVIEW_LOGINS[kind].password) { setWrong(true); return; }
-      act.signInPreview(kind); nav(kind === 'admin' ? '/support' : '/today'); return;
+      if (pass === PREVIEW_LOGINS[kind].password) { act.signInPreview(kind); nav(kind === 'admin' ? '/support' : '/today'); return; }
+      // With the server, "admin" and the team's own password is the real team login (live dashboard).
+      if (server && kind === 'admin') break;
+      setWrong(true); return;
     }
-    if (!validEmail(u)) { setWrong(true); return; }
+    if (!validEmail(u) && !(server && u === 'admin')) { setWrong(true); return; }
     if (!server) { onAccount(user.trim()); return; }
     setBusy(true); setErr('');
     try {

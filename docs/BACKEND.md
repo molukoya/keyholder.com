@@ -50,7 +50,7 @@ Other hosts: the `Dockerfile` builds one container; give it `DATABASE_URL`, or a
 |---|---|---|
 | `DATABASE_URL` | — | Postgres. Without it: embedded Postgres in `PGLITE_DIR`. |
 | `APP_URL` | Render's address, else `http://localhost:PORT` | Used in email links and the cross-site check. |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | — | The first admin, created (or promoted) at start-up. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | — | The first admin, created (or promoted) at start-up. Sign in with the email, or with the username `admin`, and this password (10+ characters). |
 | `EMAIL_PROVIDER` | `log` | `log` keeps emails in the outbox (visible to the team); `resend` or `postmark` sends them. |
 | `RESEND_API_KEY` / `POSTMARK_TOKEN` | — | Key for the chosen provider. |
 | `EMAIL_FROM` | `Keyholder <hello@keyholder.ca>` | Sender. The domain must be verified with the provider. |

@@ -232,6 +232,13 @@ describe('support', () => {
     expect(again.audit.some((a: { action: string }) => a.action === 'Reply sent')).toBe(true);
   });
 
+  it('the team can sign in with the username "admin" and the team password (not with "admin" / "admin")', async () => {
+    const r = await call('POST', '/api/auth/login', { body: { email: 'admin', password: ADMIN.password } });
+    expect(r.status).toBe(200);
+    expect(r.body.user).toMatchObject({ email: ADMIN.email, role: 'admin' });
+    expect((await call('POST', '/api/auth/login', { body: { email: 'Admin', password: 'admin' } })).status).toBe(401);
+  });
+
   it('invites a team member, who sets a password from the email', async () => {
     const snap = (await call('GET', '/api/admin/support', { cookie: admin })).body;
     snap.team.push({ id: 'new', name: 'Nadia Rahman', email: 'nadia@keyholder.ca', role: 'Support' });

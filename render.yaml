@@ -1,6 +1,7 @@
 # Render Blueprint (Stage 2): the Keyholder web service (website + app + API, with the email sender and
 # daily jobs inside it) and a managed Postgres database. In Render: New → Blueprint → pick this repository.
-# Render asks for the values marked `sync: false` (the first admin's email and password).
+# Render asks for the values marked `sync: false` (the first admin's email and password, 10+ characters;
+# the team then signs in with that email, or the username "admin", and that password).
 # See docs/BACKEND.md for every setting, and how to switch on real email.
 services:
   - type: web
