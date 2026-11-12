@@ -19,6 +19,7 @@
     "screens": "node scripts/capture-screens.cjs"
   },
   "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1",
     "@electric-sql/pglite": "^0.5.16",
     "@fastify/cookie": "^11.1.5",
     "@fastify/helmet": "^13.2.0",

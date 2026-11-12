@@ -653,6 +653,7 @@ a.unit-who:hover strong, .unit-who.as-link:hover strong { text-decoration: under
 .row-menu { position: relative; display: inline-flex; }
 .row-menu .dots { min-width: 40px; font-size: 20px; line-height: 1; color: var(--ink-soft); }
 .row-menu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; display: flex; flex-direction: column; min-width: 200px; background: var(--paper-raised); border: 1px solid var(--rule-strong); box-shadow: var(--shadow-lift); }
+.row-menu-pop.floating { position: fixed; top: auto; z-index: 110; border-radius: 12px; overflow: hidden; }
 .row-menu-pop button { all: unset; cursor: pointer; padding: 12px 16px; font-size: var(--t-16); color: var(--ink); }
 .row-menu-pop button:hover, .row-menu-pop button:focus-visible { background: var(--paper-sunk); }
 .prop-line { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-5); border-top: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-sunk) 50%, transparent); flex-wrap: wrap; }

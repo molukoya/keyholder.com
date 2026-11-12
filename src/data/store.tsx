@@ -526,12 +526,17 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
     },
 
     // ---- Late-rent notices ----
-    serveNotice(n: Omit<Notice, 'id' | 'createdAt' | 'status'>) {
+    /** Records an approved notice, form or agreement. Returns its id. */
+    serveNotice(n: Omit<Notice, 'id' | 'createdAt' | 'status'>): string {
       const f = formById(n.formId);
       const status: Notice['status'] = f?.kind === 'application' ? 'filed' : f?.kind === 'notice' ? 'served' : 'signed';
-      mut((d) => { d.notices.push({ ...n, id: uid('n'), createdAt: new Date().toISOString(), status }); audit(d, `${n.kind} ${status}`, `${f?.title ?? ''}${n.terminationDate ? ` · ${n.terminationDate}` : ''}`); });
+      const id = uid('n');
+      mut((d) => { d.notices.push({ ...n, id, createdAt: new Date().toISOString(), status }); audit(d, `${n.kind} ${status}`, `${f?.title ?? ''}${n.terminationDate ? ` · ${n.terminationDate}` : ''}${n.official ? ` · official form ${n.official.version}` : ''}`); });
       toast(status === 'filed' ? `${n.kind} prepared with the ledger, notice and proof of service.` : status === 'served' ? `${n.kind} approved and recorded with proof of service.` : `${n.kind} saved with the lease.`);
+      return id;
     },
+    /** The official form of a served notice went to the tenants by email. */
+    markNoticeEmailed(id: string) { mut((d) => { const n = d.notices.find((x) => x.id === id); if (n) { n.emailedAt = new Date().toISOString(); audit(d, `${n.kind} emailed to the tenant`, 'Official form attached'); } }); },
 
     // ---- Phase 3 ----
     saveMortgage(m: Mortgage) { mut((d) => { const i = d.mortgages.findIndex((x) => x.id === m.id); if (i >= 0) d.mortgages[i] = m; else d.mortgages.push(m); audit(d, 'Mortgage saved', `${m.lender} ${fmt(m.principal)}`); }); toast('Mortgage saved. Payments are now split into principal and interest.'); },

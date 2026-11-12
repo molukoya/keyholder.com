@@ -182,8 +182,13 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('N1 did not open'); await approve(pg);
       return text;
     });
-    await step(tag, 'B3c Raise rent is always reachable: ⋯ on Rentals and the tenant page', async () => {
-      await go(pg, 'rentals'); await pg.locator('.unit-row', { hasText: 'Jordan' }).locator('.dots').click(); await pg.locator('[role=menuitem]:has-text("Raise rent")').click(); await pg.waitForTimeout(200);
+    await step(tag, 'B3c Raise rent is always reachable: ⋯ on Rentals (its menu on top of the card) and the tenant page', async () => {
+      await go(pg, 'rentals'); await pg.locator('.unit-row', { hasText: 'Jordan' }).locator('.dots').click();
+      // The menu shows on top of the page, not cut off inside the card.
+      const box = await pg.locator('[role=menu]').boundingBox();
+      const top = await pg.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.textContent ?? '', { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+      if (!/Raise rent/.test(top)) throw new Error('the menu is hidden under: ' + top.slice(0, 60));
+      await pg.locator('[role=menuitem]:has-text("Raise rent")').click(); await pg.waitForTimeout(200);
       if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('⋯ did not open N1'); await pg.keyboard.press('Escape');
       await go(pg, 'rent/tenant/t-sam'); await pg.locator('.page-head >> text=Raise rent').click(); await pg.waitForTimeout(200);
       if (!(await pg.locator('.drawer h2:has-text("N1")').count())) throw new Error('tenant page did not open N1'); await pg.keyboard.press('Escape');

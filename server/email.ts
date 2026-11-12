@@ -2,12 +2,16 @@ import { randomUUID } from 'node:crypto';
 import type { Config } from './config';
 import type { Db, Q } from './db';
 import type { Keys } from './keys';
+import type { PdfValue } from '../src/lib/ltbForms';
+import { fillOfficial } from './officialForms';
 
 // Email goes through an outbox table: whatever creates an email only writes a row (inside its own
 // transaction), and the sender delivers queued rows in the background with retries. With
 // EMAIL_PROVIDER=log nothing leaves the server; the email is kept and shown in the support dashboard.
 
-export interface Mail { to: string; toName?: string; replyTo?: string; subject: string; text: string; kind: string; accountId?: string | null; dedupeKey?: string; sendAfter?: Date }
+/** An official form attached to an email: made from these values when the email is sent. */
+export interface FormAttachment { formId: string; values: Record<string, PdfValue>; filename: string }
+export interface Mail { to: string; toName?: string; replyTo?: string; subject: string; text: string; kind: string; accountId?: string | null; dedupeKey?: string; sendAfter?: Date; attachment?: FormAttachment }
 
 /** Addresses that must never get real email: sample data and reserved test domains. */
 export const undeliverable = (email: string) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /@(example\.(com|org|net)|[^@]*\.(test|invalid|example|localhost))$/i.test(email);
@@ -16,23 +20,26 @@ export async function queueMail(q: Q, m: Mail): Promise<string | null> {
   const id = randomUUID();
   const skipped = undeliverable(m.to);
   const rows = await q.query<{ id: string }>(
-    `insert into outbox (id, account_id, kind, to_email, to_name, reply_to, subject, text_body, status, last_error, dedupe_key, send_after)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `insert into outbox (id, account_id, kind, to_email, to_name, reply_to, subject, text_body, status, last_error, dedupe_key, send_after, attachment)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
      on conflict (dedupe_key) do nothing returning id`,
     [id, m.accountId ?? null, m.kind, m.to, m.toName ?? null, m.replyTo ?? null, m.subject.slice(0, 300), m.text, skipped ? 'skipped' : 'queued',
-      skipped ? 'Test or sample address: not sent' : null, m.dedupeKey ?? null, m.sendAfter ?? new Date()],
+      skipped ? 'Test or sample address: not sent' : null, m.dedupeKey ?? null, m.sendAfter ?? new Date(), m.attachment ? JSON.stringify(m.attachment) : null],
   );
   return rows[0]?.id ?? null;
 }
 
-type Row = { id: string; to_email: string; to_name: string | null; reply_to: string | null; subject: string; text_body: string; attempts: number };
+type Row = { id: string; to_email: string; to_name: string | null; reply_to: string | null; subject: string; text_body: string; attempts: number; attachment: FormAttachment | null };
 
 async function deliver(em: Config['email'], m: Row): Promise<{ providerId?: string }> {
   const to = m.to_name ? `${m.to_name.replace(/[<>"]/g, '')} <${m.to_email}>` : m.to_email;
+  // An official form goes as a PDF attachment, made now from the values kept with the email.
+  const pdf = m.attachment && em.provider !== 'log' ? Buffer.from(await fillOfficial(m.attachment.formId, m.attachment.values)).toString('base64') : null;
   if (em.provider === 'resend') {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST', headers: { Authorization: `Bearer ${em.resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: em.from, to: [to], subject: m.subject, text: m.text_body, reply_to: m.reply_to ?? undefined }),
+      body: JSON.stringify({ from: em.from, to: [to], subject: m.subject, text: m.text_body, reply_to: m.reply_to ?? undefined,
+        ...(pdf ? { attachments: [{ filename: m.attachment!.filename, content: pdf }] } : {}) }),
     });
     if (!r.ok) throw new Error(`Resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return { providerId: ((await r.json()) as { id?: string }).id };
@@ -40,7 +47,8 @@ async function deliver(em: Config['email'], m: Row): Promise<{ providerId?: stri
   if (em.provider === 'postmark') {
     const r = await fetch('https://api.postmarkapp.com/email', {
       method: 'POST', headers: { 'X-Postmark-Server-Token': em.postmarkToken!, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ From: em.from, To: to, Subject: m.subject, TextBody: m.text_body, ReplyTo: m.reply_to ?? undefined, MessageStream: 'outbound' }),
+      body: JSON.stringify({ From: em.from, To: to, Subject: m.subject, TextBody: m.text_body, ReplyTo: m.reply_to ?? undefined, MessageStream: 'outbound',
+        ...(pdf ? { Attachments: [{ Name: m.attachment!.filename, Content: pdf, ContentType: 'application/pdf' }] } : {}) }),
     });
     if (!r.ok) throw new Error(`Postmark ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return { providerId: ((await r.json()) as { MessageID?: string }).MessageID };
@@ -55,7 +63,7 @@ export async function sendDue(cfg: Config, db: Db, limit = 20, keys?: Keys): Pro
   const rows = await db.query<Row>(
     `update outbox set status = 'sending', attempts = attempts + 1
      where id in (select id from outbox where status = 'queued' and send_after <= now() order by created_at limit $1 for update skip locked)
-     returning id, to_email, to_name, reply_to, subject, text_body, attempts`, [limit]);
+     returning id, to_email, to_name, reply_to, subject, text_body, attempts, attachment`, [limit]);
   let sent = 0, failed = 0;
   for (const m of rows) {
     try {
