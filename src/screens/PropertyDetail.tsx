@@ -8,7 +8,7 @@ import { propertyLevel, atLeast } from '../lib/levels';
 import { LevelInvite, PropertyCard } from '../components/levels';
 import { daysBetween, fmtDate, todayISO, yearOf } from '../lib/dates';
 import {
-  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, rentBasedValue, propertyValue,
+  adjustedCostBase, amortization, blendedValue, comparablesEstimate, indexEstimate, mortgageBalanceAt, mortgagePaidBetween, rentBasedValue, propertyValue, latestAvm,
 } from '../lib/finance';
 import { regionData } from '../lib/jurisdiction';
 import { LENDER_MAX_LTV, SELLING_COST_PCT, borrowingRoom, gainSincePurchase, monthChange, rentVsMarket, returnComparison, roughSale, valueHistory } from '../lib/silver';
@@ -17,6 +17,7 @@ import { RentRoll } from '../components/domain';
 import { ComparableForm, MortgageForm, OwnerEstimateForm, PropertyForm } from '../components/forms';
 import { Empty, Figure } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { HomeValuePanel } from '../components/HomeValue';
 
 export function PropertyDetail() {
   const { id, tab = 'units' } = useParams();
@@ -80,9 +81,12 @@ function ValueTab({ id }: { id: string }) {
 
   if (!p.purchasePrice || !p.purchaseDate) {
     const rough = rentBasedValue(state, p);
+    // The provider's value (Repliers) needs no purchase price; the rough figure from the rent shows only without it.
+    const avm = latestAvm(state, id, today);
     return (
       <>
-        {rough > 0 && (
+        <HomeValuePanel p={p} />
+        {rough > 0 && !avm && (
           <div className="sheet">
             <div className="small soft">{p.rentalSharePct < 100 ? 'The part you rent out is worth roughly' : 'Worth roughly'}</div>
             <div className="figure" style={{ margin: '4px 0 8px' }}>{fmtShort(Math.round(rough * 0.8))} – {fmtShort(Math.round(rough * 1.2))}</div>
@@ -98,6 +102,7 @@ function ValueTab({ id }: { id: string }) {
 
   return (
     <>
+      <HomeValuePanel p={p} />
       <GainStory p={p} range={blend ? [blend.low, blend.high] : null} equity={equity} owedKnown={!!m || p.approxMortgageBalance !== undefined || !!p.mortgageFree} />
       <div className="btn-row" style={{ margin: '-8px 0 24px' }}>
         <button className="btn" onClick={() => setForm('comp')}><Icon name="plus" size={16} />Add a nearby sale</button>
@@ -333,7 +338,8 @@ function SilverInsights({ p }: { p: Property }) {
             {ret.rows.map((r) => <li key={r.label}><span>{r.label}</span><i style={{ width: `${(r.pct / max) * 100}%` }} /><strong>{r.pct.toFixed(1)}%</strong></li>)}
           </ul>
         )}
-        <p className="tiny soft">Rent left over, mortgage paid down and value growth, divided by your money in it. Comparison rates are estimates.</p>
+        <p className="tiny soft">Rent left over, mortgage paid down and value growth, divided by your money in it.</p>
+        <ul className="tiny soft bench-sources">{ret.rows.map((r) => <li key={r.key}>{r.label} {r.pct}%: {r.source}, {fmtDate(r.asOf)}</li>)}</ul>
       </section>
 
       <section className="sheet">

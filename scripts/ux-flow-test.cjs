@@ -782,6 +782,9 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const groups = await pg.locator('.sp-nav-group > p').allTextContents(); if (!groups.includes('Super user')) throw new Error('no Super user group');
       await go(pg, 'support/pricing'); await pg.fill('#sp-price', '12'); await pg.locator('#price >> text=Save price').click(); await pg.waitForSelector('#price >> text=$12.00');
       await pg.fill('#promo-code', 'PREVIEW10'); await pg.fill('#promo-value', '10'); await pg.locator('#promotions >> text=Add code').click(); await pg.waitForSelector('#promotions >> text=PREVIEW10');
+      // Comparison rates: savings and the stock index fund are set here; the GIC is the Bank of Canada's.
+      await pg.waitForSelector('#benchmarks >> text=/5-year GIC: [0-9.]+%/'); await pg.fill('#bm-savings', '3.3'); await pg.fill('#bm-index', '6.8');
+      await pg.locator('#benchmarks >> text=Save rates').click(); await pg.waitForSelector('#benchmarks >> text=High-interest savings: 3.3%');
       await go(pg, 'support/banks'); await pg.locator('.sp-bank-list li:has-text("RBC") >> text=Turn off').click(); await pg.waitForSelector('.sp-bank-list li:has-text("RBC") >> text=Turn on');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('sideways scroll');
       await go(pg, 'welcome/pricing'); await pg.locator('.lp-price.best').scrollIntoViewIfNeeded(); await pg.waitForSelector('.lp-price.best >> text=$12');
@@ -792,6 +795,12 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (!(await pg.locator('.drawer .choice:has-text("RBC")').isDisabled())) throw new Error('RBC can still be picked');
       await pg.waitForSelector('.drawer .choice:has-text("RBC") >> text=Not available right now');
       await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+      // The rates set on the dashboard reach the app: a Silver property's "Your money is earning".
+      await pg.reload(); await go(pg, 'today'); await pg.waitForSelector('.rent-row');
+      const silver = await pg.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); const p = s.properties.find((x) => x.purchasePrice && x.purchaseDate); return p && p.id; });
+      if (!silver) throw new Error('the sample has no property with a purchase price');
+      await go(pg, `rent/property/${silver}/value`); await pg.waitForSelector('.bench-sources >> text=High-interest savings 3.3%');
+      await pg.waitForSelector('.bench-sources >> text=/5-year GIC [0-9.]+%: Bank of Canada/');
       // Address suggestions when adding a property (the preview suggests from sample addresses).
       await go(pg, 'rentals'); await pg.locator('button:has-text("Add property"), a:has-text("Add property")').first().click(); await pg.waitForSelector('#pp-addr');
       await pg.locator('#pp-addr').pressSequentially('453 w 12', { delay: 20 }); await pg.waitForSelector('.addr-list >> text=Vancouver, BC');
@@ -806,9 +815,9 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.locator('text=Sample landlord app').count()) throw new Error('Sample landlord app button still there');
       await go(pg, 'today'); await pg.waitForSelector('.sp-head'); const h = await pg.evaluate(() => location.hash); if (!h.startsWith('#/support')) throw new Error('opened ' + h);
     });
-    await step(tag, 'J7d Connections lists every service (in use: Google, Email, Address lookup; coming: Stripe, Plaid, Property values), even in the preview', async () => {
+    await step(tag, 'J7d Connections lists every service (in use: Google, Email, Address lookup, Plaid, AVM; coming: Stripe)', async () => {
       await go(pg, 'support/connections'); await pg.waitForSelector('#conn-preview');
-      for (const [g, names] of [['now', ['Google sign-in', 'Email (Resend)', 'Address lookup (Google Places)']], ['coming', ['Stripe payments', 'Bank data (Plaid)', 'Property values (AVM)']]]) {
+      for (const [g, names] of [['now', ['Google sign-in', 'Email (Resend)', 'Address lookup (Google Places)', 'Bank data (Plaid)', 'Property values (AVM)']], ['coming', ['Stripe payments']]]) {
         const got = await pg.locator(`#group-${g} .sp-conn h2`).allTextContents();
         if (got.join('|') !== names.join('|')) throw new Error(`${g}: ${got.join(', ')}`);
       }

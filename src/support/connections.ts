@@ -17,10 +17,10 @@ export const SERVICES: ServiceInfo[] = [
     howTo: 'Google Cloud console (the same project as Google sign-in) → APIs & Services → Library → turn on "Places API (New)" → Credentials → Create credentials → API key → limit it to Places API (New). Paste it here.' },
   { id: 'stripe', name: 'Stripe payments', group: 'coming', what: 'Card payments for the Landlord plan, with promo codes at checkout.',
     howTo: 'stripe.com → Developers → API keys. Start with the test keys (pk_test_, sk_test_). The webhook secret comes once payments are built.' },
-  { id: 'plaid', name: 'Bank data (Plaid)', group: 'coming', what: "Spotting rent, bills and mortgage payments in landlords' Canadian banks (RBC, TD, Scotiabank, BMO, CIBC, Desjardins and more). View only: it can never move money.",
+  { id: 'plaid', name: 'Bank data (Plaid)', group: 'now', what: "Spotting rent, bills and mortgage payments in landlords' Canadian banks (RBC, TD, Scotiabank, BMO, CIBC, Desjardins and more). View only: it can never move money.",
     howTo: 'dashboard.plaid.com → sign up → Developers → Keys: copy the Client ID and the Sandbox secret, and set Environment to sandbox. Real banks need Production access (Plaid reviews your business; some Canadian banks also need a separate registration that takes weeks).' },
-  { id: 'avm', name: 'Property values (AVM)', group: 'coming', what: 'An estimated market value for each property, updated monthly. Until a provider is connected, values are estimated from the purchase price and a market index.',
-    howTo: 'Choose a provider (recommended: Repliers Estimates to start, Teranet for lender-grade values, RPS for rent estimates too), sign up with them, then pick it here and paste its API key.' },
+  { id: 'avm', name: 'Property values (AVM)', group: 'now', what: "An estimated market value for each property, refreshed monthly, shown as soon as the landlord adds the home's size and style (no purchase price needed). Until a provider is connected, values are rough estimates from the rent or the purchase price.",
+    howTo: 'Repliers: ask Repliers support to turn on the Estimates add-on for your API key, then choose Repliers Estimates here and paste the key. If the key covers more than one MLS board, add the Board ID (Test lists them). Teranet and RPS are connected once their API documentation is in hand.' },
 ];
 
 export const KEY_FIELDS: KeyField[] = [
@@ -39,6 +39,7 @@ export const KEY_FIELDS: KeyField[] = [
   { name: 'plaid.env', service: 'plaid', label: 'Environment', secret: false, env: 'PLAID_ENV', options: ['sandbox', 'production'] },
   { name: 'avm.provider', service: 'avm', label: 'Provider', secret: false, env: 'AVM_PROVIDER', options: ['repliers', 'teranet', 'rps'] },
   { name: 'avm.apiKey', service: 'avm', label: 'API key', secret: true, env: 'AVM_API_KEY' },
+  { name: 'avm.boardId', service: 'avm', label: 'Repliers board ID (only if your key covers more than one MLS board)', secret: false, env: 'AVM_BOARD_ID', optional: true, hint: 'A number. The Test button lists your boards.' },
 ];
 export const fieldOf = (name: string) => KEY_FIELDS.find((f) => f.name === name);
 /** Every environment variable that is an API key (they can also be set on the Connections page). */

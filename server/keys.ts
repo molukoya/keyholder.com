@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type { Config } from './config';
 import type { Q } from './db';
 import { fieldOf, KEY_FIELDS, SERVICES, type ServiceId, type ServiceState } from '../src/support/connections';
-import { avmEstimate, AvmError, PROVIDER_NAME } from './avm';
+import { avmEstimate, AvmError, avmOptions, PROVIDER_NAME } from './avm';
 
 // API keys for the services Keyholder connects to (the list: src/support/connections.ts). They can be set in
 // Render (environment variables) or, by the super user, on the dashboard's Connections page. Keys saved on
@@ -164,11 +164,20 @@ export class Keys {
         return r.ok ? { ok: true, message: `Plaid accepts these keys (${env}).` } : { ok: false, message: `Plaid does not accept these keys (${r.status}). Check that the secret matches the environment.` };
       }
       if (this.state('avm') === 'none') return { ok: false, message: 'Not set: choose a provider and add its API key.' };
-      // A value for a public building (Toronto City Hall), to check the key and the answer.
-      const provider = this.get('avm.provider')!;
+      // 1) The key and the MLS data it reaches (property types, styles, boards). 2) A sample home, valued.
+      const provider = this.get('avm.provider')!, key = this.get('avm.apiKey')!;
+      const opts = { base: this.cfg.repliersBaseUrl, boardId: this.get('avm.boardId') || undefined };
       try {
-        const e = await avmEstimate(provider, this.get('avm.apiKey')!, fetcher, { street: '100 Queen St W', city: 'Toronto', province: 'ON', postalCode: 'M5H 2N2', lat: 43.6535, lng: -79.3841 }, this.cfg.repliersBaseUrl);
-        return { ok: true, message: `${PROVIDER_NAME[provider] ?? provider} works: a sample address came back at about $${Math.round(e.likely / 100).toLocaleString('en-CA')}.` };
+        const o = await avmOptions(provider, key, fetcher, opts);
+        const boards = o.boards.length > 1 && !opts.boardId ? ` Your key covers boards ${o.boards.join(', ')}: enter the one for your landlords' area as the Board ID.` : '';
+        const type = o.propertyTypes.find((t) => /detached/i.test(t) && !/semi/i.test(t)) ?? o.propertyTypes[0], style = o.styles.find((t) => /2.?stor/i.test(t)) ?? o.styles[0];
+        if (!type || !style) return { ok: false, message: `${PROVIDER_NAME[provider]}: the key works, but its MLS data lists no property types or styles to value homes with.${boards}` };
+        try {
+          const e = await avmEstimate(provider, key, fetcher, { street: '100 Queen St W', city: 'Toronto', province: 'ON', postalCode: 'M5H 2N2', propertyType: type, style, bedrooms: 3, bathrooms: 2, sqft: 1600 }, opts);
+          return { ok: true, message: `${PROVIDER_NAME[provider]} works: a sample ${type.toLowerCase()} home came back at about $${Math.round(e.likely / 100).toLocaleString('en-CA')}. ${o.propertyTypes.length} property types and ${o.styles.length} styles from your MLS data.${boards}` };
+        } catch (e) {
+          return { ok: false, message: `The key works (${o.propertyTypes.length} property types, ${o.styles.length} styles from your MLS data), but the sample home was not valued: ${e instanceof AvmError ? e.message : (e as Error).message}${boards}` };
+        }
       } catch (e) { return { ok: false, message: e instanceof AvmError ? e.message : (e as Error).message }; }
     } catch (e) {
       return { ok: false, message: `Could not reach the service: ${(e as Error).message}` };

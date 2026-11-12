@@ -64,11 +64,28 @@ export const CCA_CLASSES: { id: CCAClass; label: string; ratePct: number; exampl
 // ---- Benchmark Guide (P2). Low = 25th percentile, typical = median, high = 75th (PRD 7.10) ----
 export interface Band { low: number; typical: number; high: number; source: string; asOf: string }
 
-export const RETURN_PRESETS: Band & { labels: [string, string, string] } = {
-  low: 2.75, typical: 3.6, high: 7.5,
-  labels: ['High-interest savings', '5-year GIC', 'Broad stock index fund'],
-  source: 'Placeholder — Bank of Canada, published GIC rates', asOf: '2026-10',
+// ---- What a landlord's money could earn elsewhere (Silver: "Your money is earning") ----
+// 5-year GIC: the Bank of Canada's weekly figure for the big banks' posted 5-year GIC rate (Valet series
+// V80691341), read by the server each day. High-interest savings and the stock index fund have no official
+// rate: the super user sets them on the dashboard (Price & promotions → Comparison rates), with the date.
+export interface Benchmark { pct: number; asOf: string; source: string }
+export interface Benchmarks { savings: Benchmark; gic: Benchmark; index: Benchmark }
+export const BENCHMARK_LABELS = { savings: 'High-interest savings', gic: '5-year GIC', index: 'Broad stock index fund' } as const;
+export const GIC_SOURCE = "Bank of Canada: the big banks' posted 5-year GIC rate";
+export const DEFAULT_BENCHMARKS: Benchmarks = {
+  savings: { pct: 2.75, asOf: '2026-10-01', source: 'Set by Keyholder' },
+  gic: { pct: 2.75, asOf: '2026-11-04', source: GIC_SOURCE },
+  index: { pct: 7.5, asOf: '2026-10-01', source: 'Long-run yearly average, not a promise' },
 };
+let liveBenchmarks: Benchmarks | null = null;
+/** The rates in effect: the live site's (from the server) or, in the preview, the sample dashboard's. */
+export function setBenchmarks(b: Benchmarks | null | undefined) { liveBenchmarks = b ?? null; }
+export const benchmarks = (): Benchmarks => liveBenchmarks ?? DEFAULT_BENCHMARKS;
+/** The three rates as a band for the ruler: savings, GIC, stock index fund. */
+export function returnPresets(): Band & { labels: [string, string, string] } {
+  const b = benchmarks();
+  return { low: b.savings.pct, typical: b.gic.pct, high: b.index.pct, labels: [BENCHMARK_LABELS.savings, BENCHMARK_LABELS.gic, BENCHMARK_LABELS.index], source: b.gic.source, asOf: b.gic.asOf };
+}
 
 export interface RegionData {
   vacancy: Band;

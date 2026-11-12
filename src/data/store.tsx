@@ -15,6 +15,7 @@ import { vendorKey } from '../lib/bankrules';
 import { CATEGORIES } from '../lib/jurisdiction';
 import { api, banksOn, getConn, serverMode, setUser } from './api';
 import * as sync from './sync';
+import { askedThisSession, askValue, avmOn, missingFacts } from './avm';
 
 // Stage 1 store: all data lives in the browser (localStorage). In stage 2 each action below
 // becomes an API call; the action names are the contract for the backend.
@@ -473,7 +474,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
     deleteExpense(id: string) { mut((d) => { const e = d.expenses.find((x) => x.id === id); d.expenses = d.expenses.filter((x) => x.id !== id); for (const t of d.txns) if (t.expenseId === id) { t.status = 'new'; t.expenseId = undefined; } if (e) audit(d, 'Expense deleted', `${fmt(e.amount)} ${e.vendor}`); }); },
 
     // ---- Phase 2 ----
-    addValuation(v: Omit<Valuation, 'id'>) { mut((d) => { d.valuations.push({ ...v, id: uid('v') }); audit(d, 'Valuation recorded', `${v.source} ${fmt(v.likely)}`); }); toast('Valuation saved to the history.'); },
+    addValuation(v: Omit<Valuation, 'id'>, quiet = false) { mut((d) => { d.valuations.push({ ...v, id: uid('v') }); audit(d, 'Valuation recorded', `${v.note ?? v.source} ${fmt(v.likely)}`); }); if (!quiet) toast('Valuation saved to the history.'); },
     removeValuation(id: string) { mut((d) => { d.valuations = d.valuations.filter((v) => v.id !== id); }); },
     saveComparable(c: Comparable) { mut((d) => { const i = d.comparables.findIndex((x) => x.id === c.id); if (i >= 0) d.comparables[i] = c; else d.comparables.push(c); }); },
     removeComparable(id: string) { mut((d) => { d.comparables = d.comparables.filter((c) => c.id !== id); }); },
@@ -602,26 +603,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Live site: clear out a practice bank connection left from before (real Plaid ones stay, even while banks are off).
   const pretend = serverMode() && ((state.banks ?? []).some((b) => !realBank(b)) || state.txns.some(fakeTxn));
   useEffect(() => { if (pretend && sync.owned(state)) act.removePretendBank(); }, [pretend, state, act]);
-  // Property values from the connected AVM provider: each property with an address, about once a month
-  // (the server keeps each answer 30 days, so asking again is free).
-  const asked = useRef(new Set<string>());
+  // Property values from the connected provider (Repliers): each property whose home details are filled in, about
+  // once a month (the server keeps each answer 30 days, so asking again within the month is free).
   useEffect(() => {
-    if (!serverMode() || !getConn().config?.avm || !sync.owned(state)) return;
+    if (!avmOn() || !sync.owned(state)) return;
     const t = todayISO();
-    const due = state.properties.filter((p) => !p.archived && p.address.trim() && p.city && !asked.current.has(p.id)
+    const due = state.properties.filter((p) => !p.archived && !missingFacts(state, p).length && !askedThisSession(p.id)
       && !state.valuations.some((v) => v.propertyId === p.id && v.source === 'avm' && daysBetween(v.date, t) < 30));
-    if (!due.length) return;
-    due.forEach((p) => asked.current.add(p.id));
-    void (async () => {
-      for (const p of due.slice(0, 10)) {
-        const beds = state.units.filter((u) => u.propertyId === p.id).reduce((n, u) => n + (u.bedrooms || 0), 0);
-        try {
-          const r = await api<{ likely: number; low: number; high: number; confidence: 'low' | 'medium' | 'high'; provider: string; date: string }>('POST', '/api/valuation',
-            { street: p.address, city: p.city, province: p.province, postalCode: p.postalCode, lat: p.geo?.lat ?? null, lng: p.geo?.lng ?? null, type: p.type, bedrooms: beds || undefined });
-          act.addValuation({ propertyId: p.id, date: r.date || t, source: 'avm', low: r.low, likely: r.likely, high: r.high, confidence: r.confidence, note: r.provider });
-        } catch { /* shown on the property: the estimate stays until the provider answers */ }
-      }
-    })();
+    for (const p of due.slice(0, 10)) void askValue(state, p, act.addValuation);
   }, [state, act]);
   // Bank transactions that arrived from Plaid (the server wrote them): look at each new one once.
   const unchecked = state.txns.some((t) => t.source === 'bank' && t.status === 'new' && !t.checked);

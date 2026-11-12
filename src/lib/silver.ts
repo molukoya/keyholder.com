@@ -1,7 +1,7 @@
 import type { AppState, Cents, ISODate, Property, Unit } from '../data/types';
 import { addMonths } from './dates';
 import { indexEstimate, owedAt, propertyValue, worthIt } from './finance';
-import { RETURN_PRESETS, regionData } from './jurisdiction';
+import { BENCHMARK_LABELS, benchmarks, regionData } from './jurisdiction';
 
 // Silver: "know what it's worth and what it could do for you". Everything here needs the purchase price.
 // All figures are estimates for guidance, not offers or advice.
@@ -38,16 +38,13 @@ export function monthChange(state: AppState, p: Property, today: ISODate): Cents
 /** The property's return compared with savings, a GIC and a stock fund. */
 export function returnComparison(state: AppState, p: Property, today: ISODate) {
   const w = worthIt(state, today, { propertyId: p.id });
-  return { yours: w.returnPct, rows: compareRows(), source: RETURN_PRESETS.source };
+  return { yours: w.returnPct, rows: compareRows() };
 }
 
 /** GIC, balanced fund and stock market returns to compare against (the same for every property). */
 function compareRows() {
-  return [
-    { label: RETURN_PRESETS.labels[0], pct: RETURN_PRESETS.low },
-    { label: RETURN_PRESETS.labels[1], pct: RETURN_PRESETS.typical },
-    { label: RETURN_PRESETS.labels[2], pct: RETURN_PRESETS.high },
-  ];
+  const b = benchmarks();
+  return (['savings', 'gic', 'index'] as const).map((k) => ({ key: k, label: BENCHMARK_LABELS[k], pct: b[k].pct, source: b[k].source, asOf: b[k].asOf }));
 }
 
 /** Typical rent for a unit like this nearby, and how far the current rent is from it. */

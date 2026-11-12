@@ -28,6 +28,7 @@ function load(): SupportState {
       // Sample data saved before the super user: add the platform settings and the new team roles.
       const fresh = generateSupport();
       if (!s.platform) s.platform = fresh.platform;
+      s.platform.benchmarks ??= fresh.platform.benchmarks;
       s.myRole ??= 'super';
       s.team = s.team.map((m) => ({ ...m, role: (m.role as string) === 'Owner' ? 'Super user' : (m.role as string) === 'Read-only' ? 'Support' : m.role }));
       return s;

@@ -1,4 +1,5 @@
 import type { ISODate, Province } from '../data/types';
+import { DEFAULT_BENCHMARKS, type Benchmarks } from '../lib/jurisdiction';
 import { addDays, todayISO } from '../lib/dates';
 import { PACK_VERIFIED, PROVINCES } from '../lib/jurisdiction';
 
@@ -30,7 +31,7 @@ export interface Member { id: string; name: string; email: string; role: TeamRol
 /** A promo code for the Landlord plan (applied at checkout once card payments are on). */
 export interface Promotion { id: string; code: string; kind: 'percent' | 'amount'; value: number; months: number; endsOn?: ISODate; maxUses?: number; uses: number; status: 'active' | 'paused' | 'ended'; created: string }
 /** The super user's settings: the Landlord plan price, promotions, and which banks can be connected. */
-export interface Platform { unitCents: number; promotions: Promotion[]; banks: { enabled: boolean; off: string[] } }
+export interface Platform { unitCents: number; promotions: Promotion[]; banks: { enabled: boolean; off: string[] }; benchmarks: Benchmarks }
 export const DEFAULT_UNIT_CENTS = 800;
 export interface Reply { id: string; title: string; text: string }
 export interface AuditEntry { id: string; at: string; who: string; action: string; detail: string }
@@ -121,6 +122,7 @@ export function generateSupport(today: ISODate = todayISO()): SupportBase {
       { id: 'pr2', code: 'SPRING10', kind: 'amount', value: 1000, months: 1, endsOn: addDays(today, -20), uses: 12, status: 'ended', created: `${addDays(today, -120)}T14:00:00.000Z` },
     ],
     banks: { enabled: true, off: [] },
+    benchmarks: structuredClone(DEFAULT_BENCHMARKS),
   };
   const now = Date.parse(`${today}T15:00:00`);
   const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3600_000).toISOString();
