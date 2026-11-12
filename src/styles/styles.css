@@ -525,6 +525,17 @@ html body .drawer { z-index: 126; }
 .top-tools { gap: 4px; }
 /* Narrow phones: the logo, setup circle, Settings and Sign out fit on one line. */
 @media (max-width: 360px) { .mobile-top { padding-inline: 12px; } .mobile-top .icon-btn { width: 40px; height: 40px; } .mobile-top .top-tools { gap: 2px; } }
+/* Settings and Sign out at the top right: labelled buttons on computers; on phones a big icon with its word under it. */
+.top-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--rule-strong); background: var(--paper-raised); color: var(--ink); font-weight: 600; font-size: 15px; white-space: nowrap; }
+.top-btn svg { color: var(--ink-soft); }
+.top-btn:hover, .top-btn.active { border-color: var(--primary); color: var(--primary); }
+.top-btn:hover svg, .top-btn.active svg { color: var(--primary); }
+.top-btn:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.top-tools.desk .top-tools { gap: 10px; }
+.mobile-top .top-btn { flex-direction: column; justify-content: center; gap: 2px; min-height: 52px; min-width: 56px; padding: 4px 6px; border: 0; background: none; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.mobile-top .top-btn svg { width: 24px; height: 24px; }
+.mobile-top .top-btn.active { color: var(--primary); }
+@media (max-width: 360px) { .mobile-top .top-btn { min-width: 44px; padding: 4px 0; } .mobile-top .setup-circle { width: 48px; height: 48px; } .mobile-top .setup-circle .score-ring { width: 40px; height: 40px; } .mobile-top .setup-circle .score-ring > span { width: 31px; height: 31px; font-size: 13px; } }
 /* Help in the side menu (where Settings was) and in More on phones */
 .rail-foot .help-btn { width: 100%; }
 .more-list button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
@@ -541,3 +552,14 @@ html body .drawer { z-index: 126; }
 .addr-list button > span > span { font-size: 14px; color: var(--ink-soft); }
 .addr-list li[aria-selected="true"] button, .addr-list button:hover { background: var(--accent-tint); }
 .addr-foot { padding: 6px 12px 2px; font-size: 12px; color: var(--ink-faint, var(--ink-soft)); text-align: right; }
+/* "Is this tenant in good standing?" (tenancies older than Keyholder) */
+.standing-list { display: grid; gap: 12px; margin-bottom: 16px; }
+.standing-q { display: grid; gap: 12px; border: 1px solid var(--accent-tint); box-shadow: 0 0 0 3px var(--accent-tint) inset; }
+.standing-q .field { margin: 0; }
+.standing-head { display: flex; gap: 12px; align-items: flex-start; }
+.standing-head h2 { margin: 0 0 4px; font-size: 18px; }
+.standing-head p { margin: 0; }
+.drawer .standing-q { margin: 16px 0 8px; }
+.plain-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 10px; }
+.plain-list li { display: flex; gap: 10px; align-items: flex-start; }
+.plain-list li svg { flex: none; margin-top: 3px; color: var(--primary); }

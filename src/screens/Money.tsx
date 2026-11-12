@@ -7,8 +7,10 @@ import { useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, recordsStart, rentalPortion, taxPack } from '../lib/finance';
-import { BANK_CHECK_HOURS, CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
+import { CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
 import { banksOff, banksOn, serverMode } from '../data/api';
+import { connectWithPlaid } from '../data/plaid';
+import * as sync from '../data/sync';
 import { fmt, fmt0 } from '../lib/money';
 import { ExpenseForm, MortgageForm } from '../components/forms';
 import { Drawer, Empty, Field, Figure, Seg, Term, embedded } from '../components/ui';
@@ -31,13 +33,32 @@ export function Money() {
 }
 
 /** Taxes: its own tab. */
+/**
+ * A small bank button for Income and Expenses: "Link bank" to connect one (Plaid on the live site, the
+ * simulation in the preview), or "Check bank" once one is connected. Nothing while bank checks are off.
+ */
+export function LinkBankButton() {
+  const { state, act } = useStore();
+  const [open, setOpen] = useState(false);
+  if (!banksOn()) return null;
+  const linked = (state.banks ?? []).some((b) => b.status === 'connected');
+  return (
+    <>
+      {linked
+        ? <button className="btn small link-bank" onClick={() => act.syncBank()}><Icon name="sync" size={16} />Check bank</button>
+        : <button className="btn small link-bank" onClick={() => setOpen(true)}><Icon name="bank" size={16} />Link bank</button>}
+      {open && (serverMode() ? <PlaidConnect onClose={() => setOpen(false)} /> : <ConnectBank onClose={() => setOpen(false)} />)}
+    </>
+  );
+}
+
 /** Expenses (its own page in the menu): every bill and receipt, and "Add an expense" with the camera. */
 export function ExpensesPage() {
   const [adding, setAdding] = useState(false);
   return (
     <div className="page">
       <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic peach" aria-hidden><Icon name="receipt" size={22} /></span>Expenses</h1><PageSub>Bills and receipts, sorted for tax time</PageSub></div>
-        <button className="btn primary add-expense" data-tour="add-expense" onClick={() => setAdding(true)}><Icon name="camera" size={18} />Add an expense</button></div>
+        <div className="btn-row"><LinkBankButton /><button className="btn primary add-expense" data-tour="add-expense" onClick={() => setAdding(true)}><Icon name="camera" size={18} />Add an expense</button></div></div>
       <Expenses />
       {adding && <ExpenseForm onClose={() => setAdding(false)} />}
     </div>
@@ -145,7 +166,7 @@ export function Expenses() {
 }
 
 // =====================================================================================
-// How rent is tracked: two choices only — mark it yourself, or connect a bank that is checked every 4 hours.
+// How rent is tracked: two choices only — mark it yourself, or connect a bank (Plaid: new transactions as soon as the bank reports them).
 // =====================================================================================
 /** How rent is tracked (shown in Settings). */
 export function RentTracking() {
@@ -155,6 +176,8 @@ export function RentTracking() {
   const deposits = state.txns.filter((t) => t.amount > 0 && t.status !== 'ignored').slice(0, 20);
   const manual = banks.length === 0;
   const soon = !banksOn();
+  // A bank that asks to sign in again (Plaid's window in "update" mode).
+  const reconnect = (id: string) => { connectWithPlaid(id).then((r) => { if (r) { void sync.refresh(); act.say(`${r.bank} is connected again.`); } }, (e) => act.say((e as Error).message)); };
 
   return (
     <>
@@ -168,7 +191,7 @@ export function RentTracking() {
         <button role="radio" aria-checked={!manual} className={`choice big${soon ? ' soon' : ''}`} disabled={soon} onClick={() => manual && setConnect(true)}>
           <Icon name="bank" size={28} />
           <span className="t">Check my banks for me{soon && <span className="soon-tag">{serverMode() ? 'Coming soon' : 'Not available right now'}</span>}</span>
-          <span className="s">{soon ? 'Keyholder will spot rent, bills and mortgage payments in your bank. Until then, tap "Mark paid" when rent comes in.' : `Any Canadian banks or credit unions. Rent, bills and mortgage payments, every ${BANK_CHECK_HOURS} hours.`}</span>
+          <span className="s">{soon ? 'Keyholder will spot rent, bills and mortgage payments in your bank. Until then, tap "Mark paid" when rent comes in.' : 'Any Canadian banks or credit unions. Rent, bills and mortgage payments, as soon as your bank reports them.'}</span>
         </button>
       </div>
 
@@ -179,7 +202,7 @@ export function RentTracking() {
             <li key={b.id} className="row" style={{ gridTemplateColumns: '1fr auto' }}>
               <span><span className="title">{b.bank} {b.accountMask}</span><span className="sub" style={{ display: 'block' }}>{b.status === 'connected' ? `Last checked ${new Date(b.lastSync).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Needs you to sign in again'}</span></span>
               <span className="row-act">
-                {b.status === 'needs-reauth' && <button className="btn small primary" onClick={() => act.reauthBank(b.id)}>Sign in</button>}
+                {b.status === 'needs-reauth' && <button className="btn small primary" onClick={() => (serverMode() ? reconnect(b.id) : act.reauthBank(b.id))}>Sign in again</button>}
                 <button className="btn small ghost" onClick={() => act.disconnectBank(b.id)}>Disconnect</button>
               </span>
             </li>
@@ -211,8 +234,35 @@ export function RentTracking() {
           )}
         </section>
       )}
-      {connect && <ConnectBank onClose={() => setConnect(false)} />}
+      {connect && (serverMode() ? <PlaidConnect onClose={() => setConnect(false)} /> : <ConnectBank onClose={() => setConnect(false)} />)}
     </>
+  );
+}
+
+/** Live site: connect a bank through Plaid (the landlord signs in at their bank in Plaid's window). */
+function PlaidConnect({ onClose }: { onClose: () => void }) {
+  const { act } = useStore();
+  const toast = act.say;
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async () => {
+    setBusy(true); setErr('');
+    try {
+      const r = await connectWithPlaid();
+      if (r) { await sync.refresh(); toast(`${r.bank} connected.${r.added ? ` ${r.added} transaction${r.added === 1 ? '' : 's'} read.` : ''} Keyholder spots rent as soon as it arrives.`); onClose(); }
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Drawer title="Connect your bank" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button id="plaid-go" className="btn primary" disabled={busy} onClick={go}>{busy ? 'Opening…' : 'Continue to your bank'}</button></>}>
+      <p>Keyholder uses <strong>Plaid</strong> to see deposits and bills in your bank account: rent from tenants, and costs like insurance, utilities and mortgage payments.</p>
+      <ul className="plain-list">
+        <li><Icon name="lock" size={16} />You sign in at your bank, in Plaid's window. Keyholder never sees your password.</li>
+        <li><Icon name="check" size={16} />View only: Keyholder can never move money.</li>
+        <li><Icon name="bell" size={16} />New transactions arrive as soon as your bank reports them. Rent that clearly matches a tenant is marked paid.</li>
+        <li><Icon name="close" size={16} />Disconnect any time in Settings.</li>
+      </ul>
+      {err && <p className="small acct-error" role="alert">{err}</p>}
+    </Drawer>
   );
 }
 

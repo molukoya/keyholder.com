@@ -9,6 +9,43 @@ import { dailyRun } from './jobs';
 import { sendDue } from './email';
 import { ensureAdmin } from './services';
 import { Keys } from './keys';
+import { createHash, generateKeyPairSync, sign as signData } from 'node:crypto';
+
+// A stand-in for Plaid: answers like Plaid's API, records every call (Keyholder must never ask Plaid to refresh a bank).
+const plaidCalls: { path: string; body: Record<string, unknown> }[] = [];
+const plaidKey = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+const plaidJwk = plaidKey.publicKey.export({ format: 'jwk' }) as { kty: string; crv: string; x: string; y: string };
+let plaidNext: { transaction_id: string; amount: number; date: string; name: string; pending?: boolean }[] = [];
+function plaidAnswer(path: string, body: Record<string, unknown>) {
+  plaidCalls.push({ path, body });
+  if (path === '/link/token/create') return { link_token: 'link-sandbox-123' };
+  if (path === '/item/public_token/exchange') return { access_token: 'access-sandbox-abc', item_id: 'item-1' };
+  if (path === '/accounts/get') return { accounts: [{ account_id: 'a1', name: 'Chequing', mask: '1234', subtype: 'checking', type: 'depository' }], item: {} };
+  if (path === '/transactions/sync') {
+    const added = (body.cursor ? plaidNext : [
+      { transaction_id: 't1', amount: -2000, date: '2026-11-01', name: 'E-TRANSFER FROM MAYA CHEN', pending: false },
+      { transaction_id: 't2', amount: 85.5, date: '2026-11-03', name: 'HYDRO ONE', pending: false },
+      { transaction_id: 't3', amount: -10, date: '2026-11-04', name: 'PENDING THING', pending: true },
+    ]).map((t) => ({ account_id: 'a1', merchant_name: null, pending: false, ...t }));
+    plaidNext = [];
+    return { added, modified: [], removed: [], next_cursor: `c${plaidCalls.length}`, has_more: false };
+  }
+  if (path === '/item/remove') return { request_id: 'r' };
+  if (path === '/webhook_verification_key/get') return { key: { ...plaidJwk, alg: 'ES256', kid: body.key_id, use: 'sig' } };
+  if (path === '/institutions/get') return { institutions: [] };
+  return { error_code: 'NOT_FOUND', error_message: 'unknown path' };
+}
+/** Signs a webhook body the way Plaid does (ES256 JWT over the body's SHA-256). */
+function plaidSign(body: string, iat = Math.floor(Date.now() / 1000)) {
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const head = b64({ alg: 'ES256', kid: 'kid-1', typ: 'JWT' });
+  const claims = b64({ iat, request_body_sha256: createHash('sha256').update(body).digest('hex') });
+  const sig = signData('sha256', Buffer.from(`${head}.${claims}`), { key: plaidKey.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
+  return `${head}.${claims}.${sig}`;
+}
+// A stand-in for Repliers' estimates (dollars), counting calls.
+let repliersCalls = 0;
+let repliersStatus = 200;
 
 // The whole API against a real (embedded) Postgres, as the app uses it.
 
@@ -25,8 +62,18 @@ beforeAll(async () => {
   db = await openDb({ pgliteDir: 'memory://' });
   await migrate(db);
   await ensureAdmin(db, cfg);
-  const fakeFetch = (async (url: string) => {
+  const fakeFetch = (async (url: string, init?: RequestInit) => {
     googleCalls.push(String(url));
+    if (/^https:\/\/(sandbox|production)\.plaid\.com\//.test(String(url))) {
+      const path = new URL(String(url)).pathname;
+      const a = plaidAnswer(path, JSON.parse(String(init?.body ?? '{}')));
+      return new Response(JSON.stringify(a), { status: 'error_code' in a ? 400 : 200 });
+    }
+    if (String(url) === 'https://api.repliers.io/estimates') {
+      repliersCalls++;
+      if (repliersStatus !== 200) return new Response(JSON.stringify({ message: 'Estimates is not enabled for this account' }), { status: repliersStatus });
+      return new Response(JSON.stringify({ estimateId: 'e1', estimate: 812345.67, estimateHigh: 850000, estimateLow: 780000, confidence: 0.86, payload: JSON.parse(String(init?.body ?? '{}')) }), { status: 200 });
+    }
     if (String(url).includes('places:autocomplete')) return new Response(JSON.stringify({ suggestions: [{ placePrediction: { placeId: 'ChIJplace123456', text: { text: '100 Queen St W, Toronto, ON, Canada' }, structuredFormat: { mainText: { text: '100 Queen St W' }, secondaryText: { text: 'Toronto, ON, Canada' } } } }] }), { status: 200 });
     if (String(url).includes('places.googleapis.com/v1/places/')) return new Response(JSON.stringify({ location: { latitude: 43.6535, longitude: -79.3841 }, addressComponents: [
       { longText: '100', shortText: '100', types: ['street_number'] }, { longText: 'Queen Street West', shortText: 'Queen St W', types: ['route'] },
@@ -395,6 +442,83 @@ describe('the super user', () => {
     await save(ADMIN.password, { 'google.clientId': null });
     const start2 = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
     expect(start2.headers.location).toContain('client_id=gid&');
+  });
+});
+
+describe('bank data (Plaid)', () => {
+  let sup = '';
+  it('turns on when Plaid is set up on Connections; a landlord connects a bank and its first transactions arrive (settled only)', async () => {
+    sup = (await call('POST', '/api/auth/login', { body: { email: 'admin', password: ADMIN.password } })).cookie!;
+    const ok = await call('PUT', '/api/admin/connections', { cookie: sup, body: { password: ADMIN.password, values: { 'plaid.clientId': 'plaid-client-1', 'plaid.secret': 'plaid-sandbox-secret-7777', 'plaid.env': 'sandbox' } } });
+    expect(ok.status).toBe(200);
+    expect((await call('GET', '/api/session')).body.config.banks).toBe(true);
+    expect((await call('POST', '/api/bank/link-token', { cookie: sup, body: {} })).status).toBe(403); // the team has no rental data
+    const lt = await call('POST', '/api/bank/link-token', { cookie: alex, body: {} });
+    expect(lt.body).toEqual({ linkToken: 'link-sandbox-123' });
+    const create = plaidCalls.find((c) => c.path === '/link/token/create')!.body;
+    expect(create).toMatchObject({ client_id: 'plaid-client-1', products: ['transactions'], country_codes: ['CA'], webhook: 'http://localhost:8080/api/plaid/webhook' });
+    const ex = await call('POST', '/api/bank/exchange', { cookie: alex, body: { publicToken: 'public-sandbox-xyz', institution: { name: 'RBC Royal Bank', institution_id: 'ins_1' } } });
+    expect(ex.body).toEqual({ ok: true, bank: 'RBC Royal Bank', added: 2 });
+    // The access token is kept encrypted, never in plain text.
+    const row = (await db.query<{ access_token: string }>('select access_token from bank_items'))[0];
+    expect(row.access_token).not.toContain('access-sandbox-abc');
+    const st = (await call('GET', '/api/state', { cookie: alex })).body.data as AppState;
+    expect(st.banks.find((b) => b.bank === 'RBC Royal Bank')).toMatchObject({ accountMask: '•••• 1234', status: 'connected' });
+    const t1 = st.txns.find((t) => t.id === 'pl-t1')!, t2 = st.txns.find((t) => t.id === 'pl-t2')!;
+    expect(t1).toMatchObject({ amount: 200000, source: 'bank', status: 'new', payer: 'E-TRANSFER FROM MAYA CHEN' }); // money in
+    expect(t2.amount).toBe(-8550); // money out
+    expect(st.txns.some((t) => t.id === 'pl-t3')).toBe(false); // pending: not yet
+  });
+
+  it('new transactions arrive in real time from Plaid’s webhook (signed); a forged webhook is refused; Keyholder never asks the bank to refresh', async () => {
+    plaidNext = [{ transaction_id: 't4', amount: -1500, date: '2026-11-05', name: 'E-TRANSFER FROM SAM OKAFOR-BELL' }];
+    const body = JSON.stringify({ webhook_type: 'TRANSACTIONS', webhook_code: 'SYNC_UPDATES_AVAILABLE', item_id: 'item-1' });
+    const forged = await app.inject({ method: 'POST', url: '/api/plaid/webhook', headers: { 'content-type': 'application/json', 'plaid-verification': plaidSign(body.replace('item-1', 'item-2')) }, payload: body });
+    expect(forged.statusCode).toBe(401);
+    const old = await app.inject({ method: 'POST', url: '/api/plaid/webhook', headers: { 'content-type': 'application/json', 'plaid-verification': plaidSign(body, Math.floor(Date.now() / 1000) - 3600) }, payload: body });
+    expect(old.statusCode).toBe(401);
+    const r = await app.inject({ method: 'POST', url: '/api/plaid/webhook', headers: { 'content-type': 'application/json', 'plaid-verification': plaidSign(body) }, payload: body });
+    expect(r.statusCode).toBe(200);
+    const st = (await call('GET', '/api/state', { cookie: alex })).body.data as AppState;
+    expect(st.txns.find((t) => t.id === 'pl-t4')).toMatchObject({ amount: 150000, status: 'new' });
+    // "Check now" reads Plaid's copy (sync); nothing anywhere asks Plaid to refresh a bank (billed per request).
+    expect((await call('POST', '/api/bank/sync', { cookie: alex })).body).toEqual({ added: 0 });
+    expect(plaidCalls.some((c) => c.path.includes('refresh'))).toBe(false);
+    expect(plaidCalls.filter((c) => c.path === '/transactions/sync').every((c) => c.body.access_token === 'access-sandbox-abc')).toBe(true);
+  });
+
+  it('disconnecting removes the bank at Plaid (no more billing) and from the landlord’s data', async () => {
+    const st = (await call('GET', '/api/state', { cookie: alex })).body.data as AppState;
+    const id = st.banks.find((b) => b.bank === 'RBC Royal Bank')!.id;
+    expect((await call('DELETE', `/api/bank/${id}`, { cookie: alex })).status).toBe(200);
+    expect(plaidCalls.some((c) => c.path === '/item/remove' && c.body.access_token === 'access-sandbox-abc')).toBe(true);
+    expect((await db.query('select 1 from bank_items')).length).toBe(0);
+    const after = (await call('GET', '/api/state', { cookie: alex })).body.data as AppState;
+    expect(after.banks.some((b) => b.id === id)).toBe(false);
+    expect(after.txns.some((t) => t.bankId === id && t.status === 'new')).toBe(false);
+  });
+});
+
+describe('property values (AVM)', () => {
+  it('Repliers estimates a property from its address (in cents); the answer is kept 30 days; errors are explained', async () => {
+    const sup = (await call('POST', '/api/auth/login', { body: { email: 'admin', password: ADMIN.password } })).cookie!;
+    const addr = { street: '9 Oak St', city: 'Toronto', province: 'ON', postalCode: 'M5V 1A1', type: 'house', bedrooms: 3 };
+    expect((await call('POST', '/api/valuation', { cookie: alex, body: addr })).status).toBe(404); // not set up yet
+    await call('PUT', '/api/admin/connections', { cookie: sup, body: { password: ADMIN.password, values: { 'avm.provider': 'repliers', 'avm.apiKey': 'repliers-key-5555' } } });
+    expect((await call('GET', '/api/session')).body.config.avm).toBe(true);
+    const v = await call('POST', '/api/valuation', { cookie: alex, body: addr });
+    expect(v.body).toMatchObject({ likely: 81234567, high: 85000000, low: 78000000, confidence: 'high', provider: 'Repliers Estimates' });
+    expect(repliersCalls).toBe(1);
+    expect((await call('POST', '/api/valuation', { cookie: alex, body: addr })).body).toMatchObject({ likely: 81234567, cached: true });
+    expect(repliersCalls).toBe(1);
+    expect((await call('POST', '/api/admin/connections/test', { cookie: sup, body: { service: 'avm' } })).body).toMatchObject({ ok: true, message: expect.stringContaining('Repliers Estimates works') });
+    repliersStatus = 403;
+    const err = await call('POST', '/api/valuation', { cookie: alex, body: { ...addr, street: '10 Oak St' } });
+    expect(err.status).toBe(400);
+    expect(err.body.error).toMatch(/Estimates add-on is not on/);
+    repliersStatus = 200;
+    await call('PUT', '/api/admin/connections', { cookie: sup, body: { password: ADMIN.password, values: { 'avm.provider': 'teranet' } } });
+    expect((await call('POST', '/api/valuation', { cookie: alex, body: { ...addr, street: '11 Oak St' } })).status).toBe(501);
   });
 });
 

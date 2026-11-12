@@ -7,7 +7,7 @@ import { FormWizard, SituationPicker } from '../components/FormWizard';
 import { useStore } from '../data/store';
 import { addDays, addMonths, fmtDate, fmtPeriod, fmtTime } from '../lib/dates';
 import { PROVINCES, province } from '../lib/jurisdiction';
-import { TaxPackPage } from './Money';
+import { LinkBankButton, TaxPackPage } from './Money';
 import { PaymentForm } from '../components/forms';
 import { fmt } from '../lib/money';
 import { messageBody } from '../lib/templates';
@@ -43,7 +43,7 @@ export function IncomePage() {
   return (
     <div className="page">
       <div className="page-head"><div><h1 className="title-ic"><span className="tile-ic mint" aria-hidden><Icon name="cash" size={22} /></span>Income</h1><PageSub>Rent received, with a receipt for each payment</PageSub></div>
-        {live && <button className="btn primary" onClick={() => setPay(true)}><Icon name="cash" size={18} />Mark rent paid</button>}</div>
+        <div className="btn-row"><LinkBankButton />{live && <button className="btn primary" onClick={() => setPay(true)}><Icon name="cash" size={18} />Mark rent paid</button>}</div></div>
       <Income />
       {pay && <PaymentForm onClose={() => setPay(false)} />}
     </div>

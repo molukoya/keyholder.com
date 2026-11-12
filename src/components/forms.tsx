@@ -5,7 +5,7 @@ import type {
 } from '../data/types';
 import { uid, useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
-import { addMonths, fmtPeriod, periodOf } from '../lib/dates';
+import { addMonths, fmtPeriod, periodOf, periodRange } from '../lib/dates';
 import { activeLeases, byRoom, hasSpace, leaseLedger, mortgagePayment, openRooms, rentalPortion } from '../lib/finance';
 import { withPeople } from '../lib/people';
 import { CATEGORIES, CCA_CLASSES, PROVINCES, category, province } from '../lib/jurisdiction';
@@ -435,14 +435,23 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
   const [parking, setParking] = useState(false);
   const [pets, setPets] = useState(false);
   const [utilities, setUtilities] = useState('');
-  const valid = unit && people[0].name.trim() && rent && start && (!byRoom(unit) || room);
+  // A lease that started before this month: is the tenant in good standing, and when did they last pay?
+  const thisPeriod = periodOf(today);
+  const older = !!start && periodOf(start) < thisPeriod;
+  const lastDue = today >= `${thisPeriod}-${String(Math.min(dueDay, 28)).padStart(2, '0')}` ? thisPeriod : periodOf(addMonths(today, -1));
+  const [standing, setStanding] = useState<'yes' | 'no'>('yes');
+  const [paidThrough, setPaidThrough] = useState('');
+  const months = older ? periodRange(periodOf(start), thisPeriod).reverse() : [];
+  const lastPaid = paidThrough && months.includes(paidThrough) ? paidThrough : standing === 'yes' ? (months.includes(lastDue) ? lastDue : months[0]) : '';
+  const valid = unit && people[0].name.trim() && rent && start && (!byRoom(unit) || room) && (!older || !!lastPaid);
 
   const save = () => {
     if (!unit || !rent) return;
     const tid = uid('t');
     const base: Tenant = { id: tid, unitId: unit.id, names: [], email: '', phone: '', noticeMethod: consent && email ? 'email' : 'hand', emailConsent: consent && !!email, emailConsentDate: consent && email ? today : undefined, aliases: [] };
     const t = withPeople(base, people);
-    const l: Lease = { id: uid('l'), unitId: unit.id, tenantId: tid, room: byRoom(unit) ? room : undefined, start, rent, dueDay, paymentMethod: method, lmrDeposit: lmr ?? 0, utilities, parking, pets, emailNoticeConsent: consent && !!email };
+    const l: Lease = { id: uid('l'), unitId: unit.id, tenantId: tid, room: byRoom(unit) ? room : undefined, start, rent, dueDay, paymentMethod: method, lmrDeposit: lmr ?? 0, utilities, parking, pets, emailNoticeConsent: consent && !!email,
+      ...(older ? { paidThrough: lastPaid, standingChecked: true } : {}) };
     act.addTenancy(t, l);
     onClose();
   };
@@ -485,6 +494,18 @@ export function TenancyForm({ unitId, onClose }: { unitId?: string; onClose: () 
       <Field label="How will they pay?"><Seg label="Method" value={method} onChange={setMethod} options={[{ id: 'etransfer', label: 'e-Transfer' }, { id: 'cheque', label: 'Cheque' }, { id: 'cash', label: 'Cash' }, { id: 'direct-deposit', label: 'Deposit' }]} /></Field>
       <Field label="Utilities arrangement" htmlFor="tf-ut"><input id="tf-ut" className="input" value={utilities} onChange={(e) => setUtilities(e.target.value)} placeholder="Tenant pays hydro; heat and water included" /></Field>
       <div className="btn-row"><label className="check"><input type="checkbox" checked={parking} onChange={(e) => setParking(e.target.checked)} />Parking</label><label className="check"><input type="checkbox" checked={pets} onChange={(e) => setPets(e.target.checked)} />Pets</label></div>
+      {older && (
+        <div className="sheet standing-q" id="tf-standing">
+          <strong>{people[0].name.trim().split(' ')[0] || 'This tenant'} has rented since {fmtPeriod(periodOf(start))}. Are they in good standing?</strong>
+          <Seg label="In good standing?" value={standing} onChange={(v) => { setStanding(v); setPaidThrough(''); }} options={[{ id: 'yes', label: 'Yes, all rent is paid' }, { id: 'no', label: 'No, they owe rent' }]} />
+          <Field label="Last month they paid rent in full" htmlFor="tf-paid" hint="Rent up to and including this month counts as paid. Keyholder tracks rent from the month after.">
+            <select id="tf-paid" className="input" value={lastPaid} onChange={(e) => setPaidThrough(e.target.value)}>
+              {standing === 'no' && <option value="" disabled>Choose a month</option>}
+              {months.map((m) => <option key={m} value={m}>{fmtPeriod(m)}</option>)}
+            </select>
+          </Field>
+        </div>
+      )}
       <p className="small soft">The rent schedule is created from these terms: one charge per month, due on the {dueDay}{dueDay === 1 ? 'st' : 'th'}.</p>
     </Drawer>
   );

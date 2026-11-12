@@ -285,3 +285,7 @@
 .sp-needs-card .sp-needs { flex: 1; align-content: start; }
 .sp-allclear { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 32px 16px; color: var(--ink-soft); }
 .sp-allclear strong { font-size: 20px; color: var(--ink); }
+
+/* Dashboard Sign out: a full bordered button with its icon. */
+.btn.sp-signout { gap: 8px; min-height: 44px; border: 1px solid var(--rule-strong); background: var(--paper-raised); color: var(--ink); font-weight: 600; }
+.btn.sp-signout:hover { border-color: var(--primary); color: var(--primary); }

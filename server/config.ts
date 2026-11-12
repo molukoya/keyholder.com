@@ -33,6 +33,10 @@ const Env = z.object({
   DEV_TOOLS: z.string().optional(),
   /** Locks the API keys saved on the dashboard's Connections page (encrypted). A long random value; never change it once keys are saved. */
   KEYS_SECRET: z.string().min(16).optional(),
+  /** Tests only: a stand-in for Plaid's API. */
+  PLAID_BASE_URL: z.string().url().optional(),
+  /** Tests only: a stand-in for Repliers' API. */
+  REPLIERS_BASE_URL: z.string().url().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   /** "inline" runs the email sender and daily jobs inside the web process; "off" leaves them to `npm run worker`. */
@@ -67,6 +71,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     devTools: e.DEV_TOOLS ? e.DEV_TOOLS === 'on' : !production,
     google: e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET ? { clientId: e.GOOGLE_CLIENT_ID, clientSecret: e.GOOGLE_CLIENT_SECRET } : undefined,
     keysSecret: e.KEYS_SECRET,
+    plaidBaseUrl: production ? undefined : e.PLAID_BASE_URL,
+    repliersBaseUrl: production ? undefined : e.REPLIERS_BASE_URL,
     keysEnv: Object.fromEntries(KEY_ENV.map((k) => [k, env[k]])) as Record<string, string | undefined>,
     worker: e.WORKER,
     dailyHour: e.DAILY_HOUR,

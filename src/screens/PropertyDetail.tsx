@@ -133,7 +133,7 @@ function ValueTab({ id }: { id: string }) {
           <ValueChart vals={vals} />
           <ul className="rows sheet" style={{ padding: '0 16px' }}>{vals.map((v) => (
             <li key={v.id} className="row"><span className="margin">{fmtDate(v.date)}</span>
-              <span><span className="title">{fmtShort(v.likely)}</span><span className="sub" style={{ display: 'block' }}>{({ purchase: 'What you paid', owner: 'Your estimate', index: 'Local price trend', comparables: 'Nearby sales', assessment: 'Appraisal' })[v.source]}{v.note && v.source !== 'purchase' ? ` · ${v.note}` : ''}</span></span><span /></li>
+              <span><span className="title">{fmtShort(v.likely)}</span><span className="sub" style={{ display: 'block' }}>{({ avm: 'Automated valuation', purchase: 'What you paid', owner: 'Your estimate', index: 'Local price trend', comparables: 'Nearby sales', assessment: 'Appraisal' })[v.source]}{v.note && v.source !== 'purchase' ? ` · ${v.note}` : ''}</span></span><span /></li>
           ))}</ul>
         </div>
       </details>

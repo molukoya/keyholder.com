@@ -171,15 +171,15 @@ function Shell() {
   );
 }
 
-/** Top right in the app: Settings, as an icon; on the Settings page, a small Sign out icon next to it. */
+/** Top right in the app: a Settings button; on the Settings page, a Sign out button next to it (icon and word). */
 function SettingsIcon() {
   const { act } = useStore();
   const navigate = useNavigate();
   const onSettings = useLocation().pathname.startsWith('/settings');
   return (
     <>
-      <NavLink to="/settings" className="icon-btn" aria-label="Settings" title="Settings"><Icon name="settings" size={20} /></NavLink>
-      {onSettings && <button className="icon-btn signout-icon" aria-label="Sign out" title="Sign out" onClick={() => { act.signOut(); navigate('/welcome'); }}><Icon name="logout" size={20} /></button>}
+      <NavLink to="/settings" className="top-btn" aria-label="Settings"><Icon name="settings" size={22} /><span>Settings</span></NavLink>
+      {onSettings && <button className="top-btn signout-icon" aria-label="Sign out" onClick={() => { act.signOut(); navigate('/welcome'); }}><Icon name="logout" size={22} /><span>Sign out</span></button>}
     </>
   );
 }

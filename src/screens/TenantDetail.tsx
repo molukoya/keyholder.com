@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { StandingCheck } from '../components/Standing';
 import { Link, useParams } from 'react-router-dom';
 import type { Payment, Person, Receipt } from '../data/types';
 import { useStore } from '../data/store';
@@ -56,6 +57,7 @@ export function TenantDetail() {
         </div>
       </div>
 
+      {lease && <StandingCheck leaseId={lease.id} />}
       <div className="split">
         <div>
           <div className="figures" style={{ marginBottom: 24 }}>
@@ -77,6 +79,7 @@ export function TenantDetail() {
                         <td>{fmtPeriod(l.period)}</td>
                         <td className="num">{fmt(l.charge)}</td>
                         <td className="small">
+                          {l.before && <span className="soft">Paid before Keyholder</span>}
                           {l.payments.map((p) => {
                             const r = state.receipts.find((x) => x.paymentId === p.id && x.status !== 'superseded');
                             return (

@@ -127,6 +127,15 @@ export async function hydrate(): Promise<'loaded' | 'pushed' | 'empty'> {
   return 'empty';
 }
 
+/**
+ * The server changed this landlord's data itself (a bank connected, checked or removed): save anything
+ * waiting on this device first (the server merges it), then load the server's copy.
+ */
+export async function refresh() {
+  await flush();
+  if (getConn().user?.role === 'owner') await hydrate();
+}
+
 /** Checks for changes saved from another device (tab comes back, every minute). */
 export async function pull() {
   const u = getConn().user;
