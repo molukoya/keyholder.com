@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type { Config } from './config';
 import type { Q } from './db';
 import { fieldOf, KEY_FIELDS, SERVICES, type ServiceId, type ServiceState } from '../src/support/connections';
+import { avmEstimate, AvmError, PROVIDER_NAME } from './avm';
 
 // API keys for the services Keyholder connects to (the list: src/support/connections.ts). They can be set in
 // Render (environment variables) or, by the super user, on the dashboard's Connections page. Keys saved on
@@ -158,12 +159,17 @@ export class Keys {
         const id = this.get('plaid.clientId'), secret = this.get('plaid.secret'), env = this.get('plaid.env') === 'production' ? 'production' : 'sandbox';
         if (!id || !secret) return { ok: false, message: 'Not set: add the Client ID and Secret.' };
         // Lists one Canadian bank: works with any valid keys, changes nothing.
-        const r = await fetcher(`https://${env}.plaid.com/institutions/get`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const r = await fetcher(`${this.cfg.plaidBaseUrl ?? `https://${env}.plaid.com`}/institutions/get`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ client_id: id, secret, count: 1, offset: 0, country_codes: ['CA'] }) });
         return r.ok ? { ok: true, message: `Plaid accepts these keys (${env}).` } : { ok: false, message: `Plaid does not accept these keys (${r.status}). Check that the secret matches the environment.` };
       }
       if (this.state('avm') === 'none') return { ok: false, message: 'Not set: choose a provider and add its API key.' };
-      return { ok: null, message: 'Saved. These keys are checked once property values are connected.' };
+      // A value for a public building (Toronto City Hall), to check the key and the answer.
+      const provider = this.get('avm.provider')!;
+      try {
+        const e = await avmEstimate(provider, this.get('avm.apiKey')!, fetcher, { street: '100 Queen St W', city: 'Toronto', province: 'ON', postalCode: 'M5H 2N2', lat: 43.6535, lng: -79.3841 }, this.cfg.repliersBaseUrl);
+        return { ok: true, message: `${PROVIDER_NAME[provider] ?? provider} works: a sample address came back at about $${Math.round(e.likely / 100).toLocaleString('en-CA')}.` };
+      } catch (e) { return { ok: false, message: e instanceof AvmError ? e.message : (e as Error).message }; }
     } catch (e) {
       return { ok: false, message: `Could not reach the service: ${(e as Error).message}` };
     }

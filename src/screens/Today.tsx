@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { StandingCheck } from '../components/Standing';
 import { banksOn } from '../data/api';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
@@ -82,6 +83,7 @@ export function Today() {
       <div className="home-top"><Greeting /></div>
       <div className="home-grid">
         <div className="home-main">
+          <StandingCheck />
           <RentCard headline={headline} />
           <div className="track-top"><BankStatus /></div>
           <NextStep />

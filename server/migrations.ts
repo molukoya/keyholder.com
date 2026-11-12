@@ -203,4 +203,29 @@ create table secrets (
 );
 `,
   },
+  {
+    id: '003_bank_items',
+    sql: `
+create table bank_items (
+  id uuid primary key,
+  account_id uuid not null references accounts(id) on delete cascade,
+  item_id text not null unique,
+  access_token text not null,
+  institution text not null default 'Bank',
+  accounts jsonb not null default '[]',
+  cursor text,
+  status text not null default 'connected',
+  error text,
+  last_sync timestamptz,
+  created_at timestamptz not null default now()
+);
+create index bank_items_account on bank_items (account_id);
+
+create table valuation_cache (
+  key text primary key,
+  result jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+`,
+  },
 ];

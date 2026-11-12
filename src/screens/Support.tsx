@@ -83,7 +83,7 @@ function SupportShell() {
           ))}
         </nav>
         <div className="sp-rail-foot">
-          <button className="btn small ghost" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
+          <button className="btn sp-signout" onClick={() => { act.signOut(); nav('/welcome'); }}><Icon name="logout" size={18} />Sign out</button>
         </div>
       </aside>
       <div className="sp-main">

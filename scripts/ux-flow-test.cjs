@@ -447,6 +447,42 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       const found = await p.locator('text=/Bronze|Silver|Gold/').count(); await ctx.close();
       if (found) throw new Error('levels still in Settings');
     });
+    await step(tag, 'E9 A tenant since 2024 is not shown owing years of rent: asked if in good standing and the last month paid; earlier months count as paid', async () => {
+      const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+      await onboard(p); await go(p, 'rentals'); await p.locator('text=Add your first property').click();
+      await p.fill('#pp-nick', 'Elm house'); await p.fill('#pp-addr', '5 Elm St'); await p.locator('.drawer-foot >> text=Save property').click(); await p.waitForSelector('text=Elm house');
+      await p.locator('.prop-strip').first().click(); await p.waitForTimeout(250);
+      await p.locator('text=Add a unit').first().click(); await p.fill('#uf-l', 'Main'); await p.fill('#uf-r', '1800'); await p.locator('.drawer-foot >> text=Save unit').click(); await p.waitForSelector('.unit-row:has-text("Main")');
+      await p.locator('text=Add tenant').first().click(); await p.fill('#tf-n0', 'Nora Bell'); await p.fill('#tf-s', '2024-03-01'); await p.fill('#tf-r', '1800');
+      await p.waitForSelector('#tf-standing >> text=Are they in good standing?');
+      if (!(await p.inputValue('#tf-paid'))) throw new Error('no last month chosen for "Yes"');
+      await p.locator('.drawer-foot >> text=Save tenant and lease').click(); await p.waitForSelector('.unit-row:has-text("Nora")');
+      const st = await state(p); const l = st.leases.find((x) => x.start === '2024-03-01');
+      if (!l || !l.paidThrough || !l.standingChecked) throw new Error('answer not saved: ' + JSON.stringify(l));
+      await go(p, 'today'); await p.waitForSelector('.rent-row');
+      if (await p.locator('.rent-row:has-text("Nora") >> text=/late|owe/i').count()) throw new Error('shown as late');
+      if (await p.locator('.standing-q').count()) throw new Error('asked again on Home');
+      await go(p, 'rent/tenant/' + l.tenantId); await p.waitForSelector('text=Paid before Keyholder');
+      // A tenancy made before this question existed: asked once on Home; "No" with a month keeps later months owing.
+      await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('keyholder:v1')); const x = s.leases[0]; delete x.paidThrough; delete x.standingChecked; s.profile.account.created = new Date().toISOString().slice(0, 10); localStorage.setItem('keyholder:v1', JSON.stringify(s)); });
+      await p.reload(); await go(p, 'today'); await p.waitForSelector('.standing-q >> text=Is Nora in good standing?');
+      await p.locator('.standing-q .seg >> text=No, they owe rent').click();
+      await p.selectOption('.standing-q select', { index: 3 }); await p.locator('.standing-q >> text=Save').click();
+      await p.waitForTimeout(300); if (await p.locator('.standing-q').count()) throw new Error('still asking');
+      const l2 = (await state(p)).leases[0]; if (!l2.paidThrough || !l2.standingChecked) throw new Error('not saved');
+      await ctx.close();
+    });
+    await step(tag, 'E10 Top right: labelled Settings button (Sign out next to it on Settings); Income and Expenses have the bank button', async () => {
+      const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+      await login(p, 'test', 'test'); await p.waitForSelector('.rent-row'); await p.locator('.tour-card >> text=Skip tour').click();
+      const top = tag === 'phone' ? '.mobile-top' : '.top-tools.desk';
+      const s = p.locator(`${top} [aria-label="Settings"]`);
+      if ((await s.innerText()).trim() !== 'Settings') throw new Error('Settings has no word');
+      const box = await s.boundingBox(); if (!box || box.height < 44) throw new Error('Settings too small: ' + JSON.stringify(box));
+      await s.click(); await p.waitForSelector(`${top} [aria-label="Sign out"] >> text=Sign out`);
+      for (const page of ['income', 'expenses']) { await go(p, page); await p.waitForSelector('.page-head .link-bank'); }
+      await ctx.close();
+    });
     ok(tag, 'E errors', errsE.length === 0, errsE.slice(0, 3).join(' | '));
 
     // ---------------- F. Bright redesign: photos, Home cards, quick actions ----------------

@@ -15,9 +15,55 @@ const results = [];
 const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, note }); console.log(`· ${pass ? '✓' : '✗'} ${tag} ${name}${pass ? '' : ' — ' + note}`); };
 const step = async (tag, name, fn) => {
   if (ONLY.length && !ONLY.includes(name.split(' ')[0].toUpperCase())) return;
-  try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) { ok(tag, name, false, String(e.message).split('\n')[0].slice(0, 200)); }
+  try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) {
+    ok(tag, name, false, String(e.message).split('\n')[0].slice(0, 200));
+    // SHOTS=dir: a picture of the landlord's page when a check fails.
+    if (process.env.SHOTS && global.__pg) await global.__pg.screenshot({ path: `${process.env.SHOTS}/${tag}-${name.split(' ')[0]}.png` }).catch(() => {});
+  }
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------------- Stand-ins for Plaid and Repliers (the real ones are not reached from tests) ----------------
+const http = require('node:http');
+const crypto = require('node:crypto');
+const MOCK_PORT = PORT + 1;
+const MOCK = `http://localhost:${MOCK_PORT}`;
+const plaidKey = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+const plaidJwk = plaidKey.publicKey.export({ format: 'jwk' });
+const mock = { calls: [], items: new Map(), next: new Map(), n: 0 };
+const isoToday = () => new Date().toISOString().slice(0, 10);
+const mockServer = http.createServer((req, res) => {
+  let raw = ''; req.on('data', (c) => { raw += c; });
+  req.on('end', () => {
+    const b = raw ? JSON.parse(raw) : {}; const path = req.url; mock.calls.push({ path, body: b }); let out;
+    if (path === '/link/token/create') out = { link_token: `link-sandbox-${++mock.n}` };
+    else if (path === '/item/public_token/exchange') { const k = ++mock.n; out = { access_token: `access-sandbox-${k}`, item_id: `item-${k}` }; mock.items.set(out.access_token, out.item_id); }
+    else if (path === '/accounts/get') out = { accounts: [{ account_id: 'a1', name: 'Chequing', mask: '4321', subtype: 'checking', type: 'depository' }], item: {} };
+    else if (path === '/transactions/sync') {
+      const item = mock.items.get(b.access_token);
+      const added = !b.cursor ? [
+        { transaction_id: `${item}-t1`, account_id: 'a1', amount: -2000, date: isoToday(), name: 'E-TRANSFER RITA GOMEZ', merchant_name: null, pending: false },
+        { transaction_id: `${item}-t2`, account_id: 'a1', amount: 120.45, date: isoToday(), name: 'TORONTO HYDRO', merchant_name: 'Toronto Hydro', pending: false },
+      ] : (mock.next.get(item) ?? []);
+      mock.next.delete(item);
+      out = { added, modified: [], removed: [], next_cursor: `${item}-c${mock.calls.length}`, has_more: false };
+    } else if (path === '/item/remove') out = { request_id: 'r' };
+    else if (path === '/webhook_verification_key/get') out = { key: { ...plaidJwk, alg: 'ES256', kid: b.key_id, use: 'sig' } };
+    else if (path === '/institutions/get') out = { institutions: [] };
+    else if (path === '/estimates') out = { estimateId: 'e1', estimate: 905000, estimateHigh: 960000, estimateLow: 860000, confidence: 'high' };
+    else { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{}'); return; }
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(out));
+  });
+});
+/** A webhook body signed the way Plaid signs it (ES256 JWT over the body's SHA-256). */
+function plaidSign(body) {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const head = b64({ alg: 'ES256', kid: 'kid-1', typ: 'JWT' });
+  const claims = b64({ iat: Math.floor(Date.now() / 1000), request_body_sha256: crypto.createHash('sha256').update(body).digest('hex') });
+  return `${head}.${claims}.${crypto.sign('sha256', Buffer.from(`${head}.${claims}`), { key: plaidKey.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')}`;
+}
+/** In the browser: Plaid's bank window, as if the landlord signed in at RBC. */
+const stubPlaidLink = () => { window.Plaid = { create: (o) => ({ open: () => setTimeout(() => o.onSuccess('public-sandbox-xyz', { institution: { name: 'RBC Royal Bank', institution_id: 'ins_1' } }), 50), destroy: () => {} }) }; };
 const go = async (pg, r) => { await pg.goto(BASE + '#/' + r); await pg.waitForTimeout(300); };
 const approve = async (pg) => { await pg.locator('.slide-confirm .knob').focus(); await pg.keyboard.press('Enter'); await pg.waitForTimeout(350); };
 const api = async (pg, path) => pg.evaluate(async (p) => { const r = await fetch(p, { credentials: 'same-origin' }); return { status: r.status, body: await r.json().catch(() => null) }; }, path);
@@ -59,8 +105,9 @@ function watch(pg, errors, label) {
 
 (async () => {
   rmSync(DATA, { recursive: true, force: true });
+  await new Promise((r) => mockServer.listen(MOCK_PORT, r));
   const server = spawn(process.execPath, ['server-dist/index.mjs'], {
-    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, KEYS_SECRET: 'e2e-keys-secret-0123456789abcdef', DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
+    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, KEYS_SECRET: 'e2e-keys-secret-0123456789abcdef', PLAID_BASE_URL: MOCK, REPLIERS_BASE_URL: MOCK, DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   let b;
@@ -73,6 +120,7 @@ function watch(pg, errors, label) {
       let password = 'maple-street-48';
       const ctxA = await b.newContext({ viewport: vp, acceptDownloads: true });
       const pg = await ctxA.newPage(); watch(pg, errors, 'A');
+      global.__pg = pg;
 
       await step(tag, 'E1 The website runs with the server (accounts on the server)', async () => {
         await pg.goto(BASE); await pg.waitForSelector('.lp-hero-h');
@@ -87,7 +135,8 @@ function watch(pg, errors, label) {
         await pg.waitForSelector('text=Nice to meet you, Alex! Question 1 of 6');
         await answerQuestions(pg);
         if (await pg.locator('.acct-google, #ob-email').count()) throw new Error('Google or email boxes on the plan page');
-        if (await pg.locator('.plan-six >> text=/in your bank/').count()) throw new Error('the plan promises bank checks');
+        const banksOn = (await (await fetch(`${BASE}api/session`)).json()).config.banks;
+        if (!banksOn && await pg.locator('.plan-six >> text=/in your bank/').count()) throw new Error('the plan promises bank checks while banks are off');
         if (tag === 'desktop') { const extra = await pg.evaluate(() => document.documentElement.scrollHeight - window.innerHeight); if (extra > 1) throw new Error(`plan page scrolls ${extra}px`); }
         await pg.click('text=Go to dashboard');
         await pg.waitForSelector('text=Start here');
@@ -358,6 +407,51 @@ function watch(pg, errors, label) {
         if (await pg.locator('.addr-list').count()) throw new Error('suggestions shown');
         await pg.locator('.drawer >> text=Cancel').click();
       });
+      await step(tag, 'E27 Super user saves the Plaid and Repliers keys on Connections (Test works): bank connections and property values turn on', async () => {
+        const on = async () => { const c = (await (await fetch(`${BASE}api/session`)).json()).config; return c.banks && c.avm; };
+        if (!(await on())) {
+          await go(ad, 'support/connections'); await ad.waitForSelector('#conn-plaid');
+          await ad.fill('#key-plaid-clientId', 'e2e-plaid-client'); await ad.fill('#key-plaid-secret', 'e2e-plaid-secret-123'); await ad.selectOption('#key-plaid-env', 'sandbox');
+          await ad.selectOption('#key-avm-provider', 'repliers'); await ad.fill('#key-avm-apiKey', 'e2e-repliers-key-8888');
+          await ad.fill('#conn-password', ADMIN.password); await ad.locator('.sp-conn-save .btn.primary').click();
+          await ad.waitForSelector('#conn-plaid >> text=Keys saved');
+        } else { await go(ad, 'support/connections'); await ad.waitForSelector('#conn-plaid >> text=Keys saved'); }
+        await ad.locator('#conn-plaid button', { hasText: /^Test$/ }).click(); await ad.waitForSelector('#conn-plaid >> text=Plaid accepts these keys');
+        await ad.locator('#conn-avm button', { hasText: /^Test$/ }).click(); await ad.waitForSelector('#conn-avm >> text=Repliers Estimates works');
+        await until(on, 5000, 'banks and values on');
+      });
+      await step(tag, 'E28 The landlord connects a bank in Plaid\'s window: the bank shows, its deposit and bill arrive and are looked at', async () => {
+        await pg.addInitScript(stubPlaidLink); await pg.reload(); await go(pg, 'today'); await pg.waitForSelector('.rent-row');
+        await go(pg, 'settings'); await pg.locator('#rent-tracking .choice:has-text("Check my banks for me")').click();
+        await pg.waitForSelector('#plaid-go'); await pg.click('#plaid-go');
+        await pg.waitForSelector('#rent-tracking >> text=RBC Royal Bank');
+        await until(async () => { const d = (await api(pg, '/api/state')).body.data; const mine = d.txns.filter((t) => t.id.startsWith('pl-')); return mine.length >= 2 && mine.every((t) => t.checked || t.status !== 'new'); }, 10000, 'bank transactions saved and looked at');
+      });
+      await step(tag, 'E29 Plaid\'s webhook brings a new transaction right away (signed); a forged one is refused; Keyholder never asks the bank to refresh', async () => {
+        const item = [...mock.items.values()].pop();
+        mock.next.set(item, [{ transaction_id: `${item}-t9`, account_id: 'a1', amount: -75, date: isoToday(), name: 'E-TRANSFER PARKING', merchant_name: null, pending: false }]);
+        const body = JSON.stringify({ webhook_type: 'TRANSACTIONS', webhook_code: 'SYNC_UPDATES_AVAILABLE', item_id: item });
+        const forged = await fetch(`${BASE}api/plaid/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', 'plaid-verification': plaidSign(body + ' ') }, body });
+        if (forged.status !== 401) throw new Error('forged webhook ' + forged.status);
+        const r = await fetch(`${BASE}api/plaid/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', 'plaid-verification': plaidSign(body) }, body });
+        if (r.status !== 200) throw new Error('webhook ' + r.status);
+        await until(async () => (await api(pg, '/api/state')).body.data.txns.some((t) => t.id === `pl-${item}-t9`), 6000, 'the new transaction');
+        if (mock.calls.some((c) => c.path.includes('refresh'))) throw new Error('asked the bank to refresh');
+      });
+      await step(tag, 'E30 Property values come from Repliers (not the sample placeholder) and are kept 30 days', async () => {
+        await until(async () => (await api(pg, '/api/state')).body.data.valuations.some((v) => v.source === 'avm' && v.likely === 90500000), 10000, 'a Repliers value');
+        await go(pg, 'rentals'); await pg.locator('.prop-strip').first().click(); await pg.waitForSelector('.pcard-source >> text=Repliers Estimates');
+        if (await pg.locator('.pcard-source >> text=Sample AVM').count()) throw new Error('the placeholder still shows');
+        const n = mock.calls.filter((c) => c.path === '/estimates').length;
+        await pg.reload(); await pg.waitForSelector('.pcard-source'); await wait(800);
+        if (mock.calls.filter((c) => c.path === '/estimates').length !== n) throw new Error('asked Repliers again within 30 days');
+      });
+      await step(tag, 'E31 Disconnect removes the bank at Plaid (no more billing) and from Settings', async () => {
+        const removes = mock.calls.filter((c) => c.path === '/item/remove').length;
+        await go(pg, 'settings'); await pg.locator('#rent-tracking li:has-text("RBC Royal Bank") >> text=Disconnect').click();
+        await until(async () => !(await api(pg, '/api/state')).body.data.banks.some((b) => b.bank === 'RBC Royal Bank'), 6000, 'bank removed');
+        if (mock.calls.filter((c) => c.path === '/item/remove').length !== removes + 1) throw new Error('not removed at Plaid');
+      });
       await step(tag, 'E18 No preview on the live site: admin / admin is refused', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
         await signIn(p, 'admin', 'admin'); await p.waitForSelector('.acct-error');
@@ -379,6 +473,7 @@ function watch(pg, errors, label) {
   } catch (e) {
     ok('setup', 'E0 could not run', false, e.message);
   } finally {
+    mockServer.close();
     if (b) await b.close();
     server.kill('SIGTERM');
     await wait(500);

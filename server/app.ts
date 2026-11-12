@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -19,6 +19,8 @@ import {
 } from './services';
 import { applyChange, bankSettings, customerState, deleteAccount, snapshot, unitPrice } from './support';
 import { fieldOf, Keys, type ServiceId } from './keys';
+import { applyBankUpdate, dropBankFromState, itemByPlaidId, itemsFor, Plaid, PlaidError, syncItem } from './plaid';
+import { avmEstimate, AvmError } from './avm';
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null; sessionToken: string | null }
@@ -30,13 +32,20 @@ export const VERSION = '2.0.0';
 class Http extends Error { constructor(public status: number, message: string) { super(message); } }
 const fail = (status: number, message: string) => { throw new Http(status, message); };
 
-export interface Deps { cfg: Config; db: Db; fetch?: typeof fetch; staticDir?: string | null; keys?: Keys }
+export interface Deps { cfg: Config; db: Db; fetch?: typeof fetch; staticDir?: string | null; keys?: Keys; plaid?: Plaid }
 
-export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, keys = new Keys(cfg) }: Deps) {
+export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, keys = new Keys(cfg), plaid = new Plaid(keys, fetcher, cfg.plaidBaseUrl) }: Deps) {
   const app = Fastify({
     logger: cfg.logLevel === 'silent' ? false : { level: cfg.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization'] },
     bodyLimit: 12 * 1024 * 1024, // a landlord's data with receipt photos
     trustProxy: cfg.trustProxy,
+  });
+
+  // JSON bodies, keeping the raw text: Plaid signs its webhooks over the exact body.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    (req as FastifyRequest & { rawBody?: string }).rawBody = body as string;
+    try { done(null, body ? JSON.parse(body as string) : {}); } catch { const e = new Error('That is not valid JSON.') as Error & { statusCode: number }; e.statusCode = 400; done(e, undefined); }
   });
 
   await app.register(cookie);
@@ -45,11 +54,12 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
       directives: {
         defaultSrc: ["'self'"],
         // 'wasm-unsafe-eval' lets the on-device receipt reader (WebAssembly) start; it does not allow eval of text.
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://cdn.plaid.com'],
+        frameSrc: ['https://cdn.plaid.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", 'https://production.plaid.com', 'https://sandbox.plaid.com'],
         frameAncestors: ["'none'"],
         formAction: ["'self'"],
         objectSrc: ["'none'"],
@@ -69,7 +79,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   // the request must come from this site and carry our header (a form on another site cannot add it).
   app.addHook('onRequest', async (req) => {
     if (!req.url.startsWith('/api/')) return;
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.url !== '/api/plaid/webhook') {
       const origin = req.headers.origin;
       const sameSite = !origin || origin === cfg.appUrl || (() => { try { return new URL(origin).host === req.headers.host; } catch { return false; } })();
       if (!sameSite || req.headers['x-keyholder'] !== '1') fail(403, 'This request did not come from the Keyholder app.');
@@ -100,13 +110,13 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/', maxAge: cfg.sessionDays * 86400 });
   };
   // What the app needs to know. Google and email follow the keys in effect (Connections page, then Render).
-  // banks: real bank checks need the bank-data provider (Plaid, Phase 3); until then the app says "Coming soon".
+  // banks: bank checks are on when Plaid is set up (Connections) and the super user has not turned them off.
   // addressLookup: address suggestions (Google Places) when its key is set.
   // banksOff: banks the super user turned off one by one.
   const publicConfig = async () => {
     await keys.refresh(db);
     const b = await bankSettings(db);
-    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: false, banksOff: b.enabled ? b.off : [], addressLookup: !!keys.places(), version: VERSION };
+    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: b.enabled && plaid.ready(), banksOff: b.enabled ? b.off : [], addressLookup: !!keys.places(), avm: keys.state('avm') === 'saved', version: VERSION };
   };
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
@@ -293,9 +303,126 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     const b = z.object({ password: z.string().max(200).optional(), email: z.string().max(200).optional() }).parse(req.body ?? {});
     const ok = u.password_hash ? await verifyPassword(b.password ?? '', u.password_hash) : normEmail(b.email ?? '') === normEmail(u.email);
     if (!ok) fail(400, u.password_hash ? 'Your password is not right.' : 'Type your email to confirm.');
+    await removeBanksAtPlaid(accountId);
     await db.tx((q) => deleteAccount(q, accountId, 'the landlord'));
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
+  });
+
+  // ---------------- Bank data (Plaid) ----------------
+  const needPlaid = async () => {
+    await keys.refresh(db);
+    const b = await bankSettings(db);
+    if (!b.enabled) fail(400, 'Bank connections are turned off right now.');
+    if (!plaid.ready()) fail(400, 'Bank connections are not set up yet.');
+  };
+  const plaidFail = (e: unknown): never => {
+    if (e instanceof PlaidError) fail(e.status >= 500 ? 502 : 400, e.message || 'The bank service did not answer. Try again in a minute.');
+    throw e;
+  };
+  const webhookUrl = `${cfg.appUrl}/api/plaid/webhook`;
+  async function removeBanksAtPlaid(accountId: string) {
+    await keys.refresh(db);
+    for (const it of await itemsFor(db, accountId)) {
+      try { if (plaid.ready()) await plaid.remove(keys.decrypt(it.access_token)); } catch { /* removed or unreachable: the row goes anyway */ }
+      await db.query('delete from bank_items where id = $1', [it.id]);
+    }
+  }
+  // Opens Plaid's bank sign-in. With itemId: sign in again to a bank that asks for it.
+  app.post('/api/bank/link-token', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
+    const { accountId } = await ownerAccount(req);
+    await needPlaid();
+    const { itemId } = z.object({ itemId: z.string().uuid().optional() }).parse(req.body ?? {});
+    let token: string | undefined;
+    if (itemId) { const it = (await itemsFor(db, accountId)).find((x) => x.id === itemId); if (!it) fail(404, 'No such bank.'); token = keys.decrypt(it!.access_token); }
+    try { return { linkToken: await plaid.linkToken(accountId, webhookUrl, token) }; } catch (e) { return plaidFail(e); }
+  });
+  // After the landlord signed in at their bank (in Plaid's window): keep the connection and read the first transactions.
+  app.post('/api/bank/exchange', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const { u, accountId } = await ownerAccount(req);
+    await needPlaid();
+    const b = z.object({ publicToken: z.string().min(10).max(300), institution: z.object({ name: z.string().max(120).optional(), institution_id: z.string().max(80).optional() }).nullish() }).parse(req.body);
+    let ex: { access_token: string; item_id: string };
+    try { ex = await plaid.exchange(b.publicToken); } catch (e) { return plaidFail(e); }
+    const name = (b.institution?.name || 'Bank').slice(0, 120);
+    // A bank the super user turned off: undo the connection right away.
+    const settings = await bankSettings(db);
+    if (settings.off.some((x) => x.toLowerCase() === name.toLowerCase())) { await plaid.remove(ex.access_token).catch(() => {}); fail(400, `${name} is not available right now.`); }
+    let accounts: { id: string; name: string; mask: string | null }[] = [];
+    try { accounts = (await plaid.accounts(ex.access_token)).accounts.map((a) => ({ id: a.account_id, name: a.name, mask: a.mask })); } catch { /* shown without account numbers */ }
+    const id = randomUUID();
+    await db.query(`insert into bank_items (id, account_id, item_id, access_token, institution, accounts) values ($1, $2, $3, $4, $5, $6::jsonb)
+      on conflict (item_id) do update set access_token = excluded.access_token, status = 'connected'`, [id, accountId, ex.item_id, keys.encrypt(ex.access_token), name, JSON.stringify(accounts)]);
+    await audit(db, { actor: u.email, actorId: u.id, accountId, scope: 'app', action: 'Bank connected', detail: name, ip: ip(req) });
+    const it = (await itemByPlaidId(db, ex.item_id))!;
+    let added = 0;
+    try { added = await syncItem(db, plaid, keys, it); } catch { /* the first transactions arrive with Plaid's webhook */ }
+    return { ok: true, bank: name, added };
+  });
+  // "Check now": reads what Plaid already has (no request to the bank, no extra charge).
+  app.post('/api/bank/sync', { config: { rateLimit: { max: 12, timeWindow: '1 minute' } } }, async (req) => {
+    const { accountId } = await ownerAccount(req);
+    await needPlaid();
+    let added = 0;
+    for (const it of await itemsFor(db, accountId)) {
+      try { added += await syncItem(db, plaid, keys, it); }
+      catch (e) { if (e instanceof PlaidError && e.code === 'ITEM_LOGIN_REQUIRED') await db.query(`update bank_items set status = 'needs-reauth', error = $2 where id = $1`, [it.id, e.code]); else if (!(e instanceof PlaidError)) throw e; }
+    }
+    return { added };
+  });
+  // Disconnect a bank: removed at Plaid (it stops billing), then from Keyholder.
+  app.delete('/api/bank/:id', async (req) => {
+    const { u, accountId } = await ownerAccount(req);
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    await keys.refresh(db);
+    const it = (await itemsFor(db, accountId)).find((x) => x.id === id);
+    if (it) {
+      try { if (plaid.ready()) await plaid.remove(keys.decrypt(it.access_token)); } catch { /* already gone at Plaid */ }
+      await db.query('delete from bank_items where id = $1', [it.id]);
+      await audit(db, { actor: u.email, actorId: u.id, accountId, scope: 'app', action: 'Bank disconnected', detail: it.institution, ip: ip(req) });
+    }
+    await dropBankFromState(db, accountId, id);
+    return { ok: true };
+  });
+  // Plaid tells Keyholder as soon as it has new transactions: read them right away (real time, from Plaid's copy).
+  app.post('/api/plaid/webhook', { config: { rateLimit: { max: 600, timeWindow: '1 minute' } } }, async (req, reply) => {
+    await keys.refresh(db);
+    if (!plaid.ready()) return reply.code(200).send({ ok: true });
+    const raw = (req as FastifyRequest & { rawBody?: string }).rawBody ?? '';
+    if (!(await plaid.verifyWebhook(req.headers['plaid-verification'] as string | undefined, raw))) return reply.code(401).send({ error: 'Not from Plaid.' });
+    const b = req.body as { webhook_type?: string; webhook_code?: string; item_id?: string; error?: { error_code?: string } | null };
+    const it = b.item_id ? await itemByPlaidId(db, b.item_id) : undefined;
+    if (!it) return { ok: true };
+    if (b.webhook_type === 'TRANSACTIONS' && b.webhook_code === 'SYNC_UPDATES_AVAILABLE') {
+      try { await syncItem(db, plaid, keys, it); } catch (e) { await recordError(db, 'Bank data', `sync ${(e as Error).message}`); }
+    } else if (b.webhook_type === 'ITEM' && (b.webhook_code === 'ERROR' || b.webhook_code === 'PENDING_EXPIRATION' || b.webhook_code === 'PENDING_DISCONNECT')) {
+      await db.query(`update bank_items set status = 'needs-reauth', error = $2 where id = $1`, [it.id, b.error?.error_code ?? b.webhook_code]);
+      await applyBankUpdate(db, it.account_id, { ...it, status: 'needs-reauth' }, [], []);
+    }
+    return { ok: true };
+  });
+
+  // ---------------- Property values (AVM) ----------------
+  // The provider's estimate for one property's address. Kept 30 days per address, so a home is paid for once a month.
+  app.post('/api/valuation', { config: { rateLimit: { hook: 'preHandler' as const, max: 30, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => r.user?.id ?? r.ip } } }, async (req) => {
+    await ownerAccount(req);
+    await keys.refresh(db);
+    if (keys.state('avm') !== 'saved') fail(404, 'Property values are not set up.');
+    const a = z.object({ street: z.string().trim().min(3).max(200), city: z.string().trim().min(1).max(80), province: z.string().length(2), postalCode: z.string().max(10).optional(),
+      lat: z.number().min(40).max(85).nullish(), lng: z.number().min(-145).max(-50).nullish(), type: z.string().max(20).optional(), bedrooms: z.number().int().min(0).max(20).optional() }).parse(req.body);
+    const provider = keys.get('avm.provider')!;
+    const key = createHash('sha256').update(`${provider}|${a.street.toLowerCase()}|${a.city.toLowerCase()}|${a.province}`).digest('hex');
+    const hit = await db.one<{ result: unknown }>(`select result from valuation_cache where key = $1 and fetched_at > now() - interval '30 days'`, [key]);
+    if (hit) return { ...(hit.result as object), cached: true };
+    try {
+      const e = await avmEstimate(provider, keys.get('avm.apiKey')!, fetcher, a, cfg.repliersBaseUrl);
+      const result = { ...e, date: new Date().toISOString().slice(0, 10) };
+      await db.query(`insert into valuation_cache (key, result) values ($1, $2::jsonb) on conflict (key) do update set result = excluded.result, fetched_at = now()`, [key, JSON.stringify(result)]);
+      return result;
+    } catch (e) {
+      if (e instanceof AvmError) { await recordError(db, 'Property values', e.message); fail(e.status === 501 ? 501 : e.status >= 500 ? 502 : 400, e.message); }
+      throw e;
+    }
   });
 
   // ---------------- Help: a landlord writes to support ----------------

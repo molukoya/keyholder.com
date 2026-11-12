@@ -154,6 +154,13 @@ export interface Lease {
   emailNoticeConsent: boolean;
   /** Units rented by the room: which room this lease is for, e.g. "Room 2". */
   room?: string;
+  /**
+   * A tenancy older than Keyholder: rent counts as paid up to and including this month (YYYY-MM), from the
+   * landlord's answer to "Is this tenant in good standing? When was the last rent they paid?".
+   */
+  paidThrough?: Period;
+  /** The landlord answered that question (also when they said the rent really is owed). */
+  standingChecked?: boolean;
 }
 
 export type PaymentSource = 'manual' | 'bank' | 'email';
@@ -209,6 +216,8 @@ export interface BankTxn {
   paymentId?: ID;
   expenseId?: ID;
   mortgageId?: ID;
+  /** Looked at once by the app when it arrived from the bank (matched to rent, or filed by a vendor rule). */
+  checked?: boolean;
   suggestion?: { leaseId: ID; period: Period; confidence: 'high' | 'medium' | 'low'; reasons: string[] };
 }
 
@@ -257,7 +266,7 @@ export interface Message {
 }
 
 // ---- Phase 2 ----
-export type ValuationSource = 'purchase' | 'owner' | 'index' | 'comparables' | 'assessment';
+export type ValuationSource = 'purchase' | 'owner' | 'index' | 'comparables' | 'assessment' | 'avm';
 
 export interface Valuation {
   id: ID;

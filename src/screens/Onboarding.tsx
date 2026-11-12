@@ -224,7 +224,7 @@ function SavePlan({ a, first, onBack, onExit, onDone }: { a: Partial<Profile>; f
   type Item = [icon: string, text: string];
   const notice = d.includes('which-notice') || d.includes('chasing') || a.goal === 'no-chasing';
   const core: Item[] = [
-    bank ? ['bank', 'Spots rent in your bank every 4 hours and marks it paid, so you always know who has paid.'] : ['check', 'Keeps track of who has paid: one tap marks rent paid when cash or a cheque comes in.'],
+    bank ? ['bank', 'Spots rent in your bank as soon as it arrives and marks it paid, so you always know who has paid.'] : ['check', 'Keeps track of who has paid: one tap marks rent paid when cash or a cheque comes in.'],
     ['receipt', 'Sends each tenant a numbered receipt the moment their rent is in.'],
     ['bell', 'Sends friendly reminders when rent is late, and stops them as soon as the money arrives.'],
     ['camera', 'Files every receipt and bill to the right property: take a photo and it fills in the details.'],

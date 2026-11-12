@@ -90,18 +90,37 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - Monthly, per unit. Stripe's billing page: change card, invoices, cancel.
 - Promo codes (R8) apply at checkout. The dashboard's Revenue page shows real payments.
 
-### R12. Real bank connection (Plaid), "Link bank" on Income and Expenses ☐
+### R12. Real bank connection (Plaid), "Link bank" on Income and Expenses ☑
 - Plaid (chosen over Flinks by the owner): Plaid Link for the landlord to sign in to their bank, then read-only
   transactions. Self-serve signup and a free sandbox to build and test with; major Canadian banks.
 - A small "Link bank" button by the title of Income and Expenses.
 - Deposits appear in Income to match to rent; withdrawals appear in Expenses to file. Read-only.
-- The server checks for new transactions every 4 hours.
+- Real time, without extra Plaid charges: Plaid keeps its own copy of each bank up to date and tells Keyholder
+  (a signed webhook) as soon as it has new transactions; Keyholder reads them from Plaid's copy
+  (`/transactions/sync`, included in Plaid's monthly fee per connected bank). "Check now" does the same read.
+  Keyholder never asks a bank for fresh data (`/transactions/refresh`, billed per request).
+- Disconnecting a bank (or deleting the account) removes the connection at Plaid too, so it stops being billed.
+- A deposit that clearly is a tenant's rent is marked paid (receipt drafted); others wait to be confirmed. Bills
+  from a vendor filed before are filed again the same way.
 - Real bank data needs Plaid's Production access (a business review; some Canadian banks also need an OAuth
   registration that can take weeks: start early).
 
-### R16. Property values (AVM) ☐
+### R16. Property values (AVM) ☑ (Repliers; Teranet / RPS once their API documentation is in hand)
 - An estimated market value for each property, updated monthly, from an AVM provider. Recommended: Repliers
   Estimates to start (documented API, values from an address); Teranet (Home Value Range) for lender-grade
   values; RPS also estimates rents. MLS® (CREA DDF) has no sold prices and needs a REALTOR® and a CREA
   agreement, so it is not used for values. The Connections page has the slot (provider + API key).
 - Until a provider is connected, values come from the purchase price and a market index, labelled estimates.
+- Built: each property with an address gets the provider's value (with its low–high range) about once a month;
+  the server keeps each answer 30 days per address, so a home is paid for once a month at most. The card says
+  "Automated valuation · Repliers Estimates · date". The Connections Test asks for a sample address.
+
+### R17. Tenants older than Keyholder: in good standing? ☑
+- Adding a tenant whose lease started before this month asks: are they in good standing, and the last month
+  they paid rent in full. Months up to then count as paid ("Paid before Keyholder" in the ledger).
+- Tenancies added before this question existed, showing unpaid months from before the landlord started
+  Keyholder, get the same question on Home and on the tenant's page, once.
+
+### R18. Bigger Settings and Sign out ☑
+- Computers: labelled buttons (icon + word, 44px tall) at the top right; Sign out on the Settings page only.
+- Phones: larger icons with the word under each. The support dashboard's Sign out is a bordered button too.

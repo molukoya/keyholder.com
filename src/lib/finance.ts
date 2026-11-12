@@ -35,6 +35,8 @@ export interface LedgerLine {
   daysLate: number;
   /** Running balance owed after this period (positive = tenant owes). */
   balance: Cents;
+  /** Paid before the landlord used Keyholder (the lease's paidThrough answer), not a recorded payment. */
+  before?: boolean;
 }
 
 /** Periods the lease charges for, from its start through `through` (inclusive). */
@@ -59,10 +61,13 @@ export function leaseLedger(lease: Lease, payments: Payment[], today: ISODate, t
   return leasePeriods(lease, end).map((period) => {
     const due = dueDate(period, lease.dueDay);
     const ps = live.filter((p) => p.period === period).sort((a, b) => a.date.localeCompare(b.date));
-    const paid = ps.reduce((a, p) => a + p.amount, 0);
+    const recorded = ps.reduce((a, p) => a + p.amount, 0);
+    // Up to paidThrough the tenant was in good standing before Keyholder: those months count as paid.
+    const before = !!lease.paidThrough && period <= lease.paidThrough && recorded < lease.rent;
+    const paid = before ? lease.rent : recorded;
     balance += lease.rent - paid;
     const { state, daysLate } = chargeState(lease.rent, paid, due, today);
-    return { period, due, charge: lease.rent, paid, payments: ps, state, daysLate, balance };
+    return { period, due, charge: lease.rent, paid, payments: ps, state, daysLate, balance, ...(before ? { before } : {}) };
   });
 }
 
@@ -331,7 +336,7 @@ export function comparablesEstimate(comps: Comparable[], today: ISODate): Omit<V
   };
 }
 
-const SOURCE_WEIGHT: Record<Valuation['source'], number> = { comparables: 4, index: 3, owner: 2, assessment: 1, purchase: 1 };
+const SOURCE_WEIGHT: Record<Valuation['source'], number> = { avm: 5, comparables: 4, index: 3, owner: 2, assessment: 1, purchase: 1 };
 const CONF_WEIGHT = { low: 0.5, medium: 1, high: 1.5 } as const;
 
 /** Blend the latest valuation from each source (within 18 months) into one range. */
@@ -381,6 +386,9 @@ export interface ValueInfo { value: Cents; basis: ValueBasis; source: string; as
 
 export function propertyValue(state: AppState, prop: Property, today: ISODate): ValueInfo {
   const vals = state.valuations.filter((v) => v.propertyId === prop.id);
+  // The connected AVM provider's estimate (refreshed monthly) is the value, when there is a recent one.
+  const avm = vals.filter((v) => v.source === 'avm' && daysBetween(v.date, today) <= 60).sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (avm) return { value: avm.likely, basis: 'valuation', source: `Automated valuation · ${avm.note || 'AVM'} · ${avm.date}`, asOf: avm.date };
   const idx = indexEstimate(prop, today);
   const own = vals.filter((v) => v.source !== 'purchase').sort((a, b) => b.date.localeCompare(a.date));
   if (own.length) {

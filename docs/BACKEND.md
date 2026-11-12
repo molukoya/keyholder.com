@@ -131,6 +131,10 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 | `GET /health` | anyone | `{ ok, version, db }` (Render health check) |
 | `GET /session` | anyone | `{ user \| null, config }` (Google on, email sending, banks, banks turned off) |
 | `GET /pricing` | anyone | `{ unitCents }`: the Landlord plan price per unit a month |
+| `POST /bank/link-token` · `POST /bank/exchange` | landlord | Open Plaid's bank sign-in · keep the connection (token encrypted) and read the first transactions |
+| `POST /bank/sync` · `DELETE /bank/:id` | landlord | "Check now" (reads Plaid's copy) · disconnect (removed at Plaid too) |
+| `POST /plaid/webhook` | Plaid (signed) | New transactions: read right away. The signature (ES256 JWT over the body) is checked. |
+| `POST /valuation` | landlord | The AVM provider's value for an address (kept 30 days per address) |
 | `GET /address/suggest?q=` · `GET /address/details?id=` | signed in | Canadian address suggestions · street, city, province, postal code, position (Google Places, 60 a minute) |
 | `GET /announcements` | anyone | Active announcements |
 | `POST /auth/signup` | anyone | `{ name, email, password }` → creates the account and signs in |
@@ -152,11 +156,14 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 Migrations are in `server/migrations.ts` and run at start-up (each once, in a transaction). Tables:
 `users`, `sessions`, `auth_tokens`, `accounts`, `account_state` (+ `account_state_history`),
 `message_deliveries`, `outbox`, `audit_log`, `support_tickets`, `announcements`, `data_requests`,
-`settings`, `system_errors`, `job_runs`, `promotions`, `secrets` (encrypted API keys).
+`settings`, `system_errors`, `job_runs`, `promotions`, `secrets` (encrypted API keys), `bank_items` (Plaid
+connections, access tokens encrypted), `valuation_cache` (AVM answers, 30 days).
 
 ## Not done yet (needs an outside service or a decision)
 
-- **Bank data**: needs a bank-data provider (Plaid, see `docs/REQUIREMENTS.md` R12). Until then the live app
+- **Bank data** (built with Plaid, `server/plaid.ts`): on once Plaid's keys are on Connections (and `KEYS_SECRET`
+  is set). Production banks: Plaid's Production access, and for some Canadian banks Plaid's OAuth registration.
+  Before that the live app
   shows bank checks as "Coming soon" (`/api/session` config `banks: false`) and removes any practice bank
   connection left in an account; only the browser-only preview simulates them. The matcher is real code.
 - **Card payments** for the Landlord plan (Stripe): plans can be set by the team; nobody is charged.
