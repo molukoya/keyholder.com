@@ -177,7 +177,7 @@ export function RentTracking() {
   const manual = banks.length === 0;
   const soon = !banksOn();
   // A bank that asks to sign in again (Plaid's window in "update" mode).
-  const reconnect = (id: string) => { connectWithPlaid(id).then((r) => { if (r) { void sync.pull(); act.say(`${r.bank} is connected again.`); } }, (e) => act.say((e as Error).message)); };
+  const reconnect = (id: string) => { connectWithPlaid(id).then((r) => { if (r) { void sync.refresh(); act.say(`${r.bank} is connected again.`); } }, (e) => act.say((e as Error).message)); };
 
   return (
     <>
@@ -249,7 +249,7 @@ function PlaidConnect({ onClose }: { onClose: () => void }) {
     setBusy(true); setErr('');
     try {
       const r = await connectWithPlaid();
-      if (r) { await sync.pull(); toast(`${r.bank} connected.${r.added ? ` ${r.added} transaction${r.added === 1 ? '' : 's'} read.` : ''} Keyholder spots rent as soon as it arrives.`); onClose(); }
+      if (r) { await sync.refresh(); toast(`${r.bank} connected.${r.added ? ` ${r.added} transaction${r.added === 1 ? '' : 's'} read.` : ''} Keyholder spots rent as soon as it arrives.`); onClose(); }
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (

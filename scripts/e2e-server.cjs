@@ -192,8 +192,13 @@ function watch(pg, errors, label) {
         await pg.reload(); await pg.waitForSelector('.rent-row');
         const after = await until(async () => { const x = (await api(pg, '/api/state')).body.data; return !x.banks.length && !x.txns.some((t) => t.source === 'bank') && !x.payments.some((p) => p.id === 'pay-fake') && x; }, 8000, 'clean-up saved');
         const log = JSON.stringify(after.audit); if (!/Practice bank connection removed/.test(log) || !/Rent un-marked/.test(log)) throw new Error('not in the history');
-        await go(pg, 'settings'); await pg.waitForSelector('#rent-tracking >> text=Coming soon');
-        if (!(await pg.locator('#rent-tracking .choice.soon').isDisabled())) throw new Error('the bank choice can still be clicked');
+        // Banks off: "Coming soon". Once Plaid is on (the phone run comes after E27), the real connection is offered instead.
+        const banksOn = (await (await fetch(`${BASE}api/session`)).json()).config.banks;
+        await go(pg, 'settings');
+        if (!banksOn) {
+          await pg.waitForSelector('#rent-tracking >> text=Coming soon');
+          if (!(await pg.locator('#rent-tracking .choice.soon').isDisabled())) throw new Error('the bank choice can still be clicked');
+        } else await pg.waitForSelector('#rent-tracking .choice:has-text("Check my banks for me"):not(.soon)');
       });
       await step(tag, 'E6 Settings shows the account and that it is saved', async () => {
         await go(pg, 'settings'); await pg.waitForSelector(`text=${email}`); await pg.waitForSelector('.save-status');

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
-  AppState, Applicant, BankName, BankTxn, ExpenseCategory, Listing, Notice, TodoPref, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
+  AppState, Applicant, BankConnection, BankName, BankTxn, ExpenseCategory, Listing, Notice, TodoPref, Comparable, Expense, Lease, Mortgage, Payment, Profile, Property, Tenant, Tone, Unit, Valuation,
 } from './types';
 import { emptyState, seedState, STATE_VERSION, defaultProfile } from './seed';
 import { addDays, daysBetween, dueDate, periodOf, todayISO } from '../lib/dates';
@@ -292,20 +292,21 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
 
     // ---- Bank & email ----
     /**
-     * Live site, before real bank checks exist: an earlier version let a landlord "connect" a pretend bank that
-     * made up deposits. Remove the connection, those deposits, anything they filed or marked as paid, and note
-     * each removal in the account's history.
+     * Live site: an earlier version let a landlord "connect" a pretend bank that made up deposits. Remove that
+     * connection, those deposits, anything they filed or marked as paid, and note each removal in the account's
+     * history. Real Plaid connections and their transactions are never touched.
      */
     removePretendBank() {
       let removed = 0;
       mut((d) => {
-        const banks = d.banks ?? [];
-        const fake = d.txns.filter((t) => t.source === 'bank');
+        const banks = (d.banks ?? []).filter((b) => !realBank(b));
+        const fake = d.txns.filter(fakeTxn);
         if (!banks.length && !fake.length) return;
-        const payIds = new Set([...fake.flatMap((t) => (t.paymentId ? [t.paymentId] : [])), ...d.payments.filter((x) => x.source === 'bank').map((x) => x.id)]);
+        const realPay = new Set(d.txns.filter((t) => !fakeTxn(t)).flatMap((t) => (t.paymentId ? [t.paymentId] : [])));
+        const payIds = new Set([...fake.flatMap((t) => (t.paymentId ? [t.paymentId] : [])), ...d.payments.filter((x) => x.source === 'bank' && !realPay.has(x.id)).map((x) => x.id)]);
         const expIds = new Set(fake.flatMap((t) => (t.expenseId ? [t.expenseId] : [])));
         const rcptIds = new Set(d.receipts.filter((r) => payIds.has(r.paymentId)).map((r) => r.id));
-        for (const b of banks) audit(d, 'Practice bank connection removed', `${b.bank} ${b.accountMask}: bank checks are not live yet`);
+        for (const b of banks) audit(d, 'Practice bank connection removed', `${b.bank} ${b.accountMask}: it was not a real bank connection`);
         if (fake.length) audit(d, 'Made-up bank transactions removed', `${fake.length} from the practice bank connection`);
         for (const x of d.payments.filter((y) => payIds.has(y.id))) audit(d, 'Rent un-marked', `${fmt(x.amount)} on ${x.date}: a made-up deposit had marked it paid`);
         for (const e of d.expenses.filter((y) => expIds.has(y.id))) audit(d, 'Expense removed', `${fmt(e.amount)} ${e.vendor}: filed from a made-up bank transaction`);
@@ -313,12 +314,14 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
         d.receipts = d.receipts.filter((r) => !rcptIds.has(r.id));
         d.payments = d.payments.filter((x) => !payIds.has(x.id));
         d.expenses = d.expenses.filter((e) => !expIds.has(e.id));
-        d.txns = d.txns.filter((t) => t.source !== 'bank');
-        d.banks = [];
-        d.profile.rentArrival = 'manual';
+        d.txns = d.txns.filter((t) => !fakeTxn(t));
+        d.banks = (d.banks ?? []).filter(realBank);
+        if (!d.banks.length) d.profile.rentArrival = 'manual';
         removed = banks.length + fake.length;
       });
-      if (removed) toast('Bank checks are not live yet, so the practice bank connection was removed. You mark rent paid yourself for now.');
+      if (removed) toast(banksOn()
+        ? 'The practice bank connection was removed (it made up deposits). Connect your real bank in Settings.'
+        : 'Bank checks are not live yet, so the practice bank connection was removed. You mark rent paid yourself for now.');
     },
     connectBank(bank: BankName) {
       if (!banksOn()) return; // live site: no bank-data provider yet
@@ -333,7 +336,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
     reauthBank(id: string) { mut((d) => { const b = d.banks.find((x) => x.id === id); if (b) { b.status = 'connected'; b.lastSync = new Date().toISOString(); } }); toast('Connection renewed.'); },
     disconnectBank(id: string) {
       if (serverMode()) {
-        void api('DELETE', `/api/bank/${id}`).then(() => sync.pull()).then(() => toast('Disconnected. Keyholder no longer sees that account.'), (e) => toast((e as Error).message));
+        void api('DELETE', `/api/bank/${id}`).then(() => sync.refresh()).then(() => toast('Disconnected. Keyholder no longer sees that account.'), (e) => toast((e as Error).message));
         return;
       }
       mut((d) => { const b = d.banks.find((x) => x.id === id); d.banks = d.banks.filter((x) => x.id !== id); if (!d.banks.length) d.profile.rentArrival = 'manual'; if (b) audit(d, 'Bank disconnected', b.bank); });
@@ -369,7 +372,7 @@ function makeActions(mut: Mut, toast: (s: string) => void, get: () => AppState) 
         void (async () => {
           try {
             const r = await api<{ added: number }>('POST', '/api/bank/sync');
-            await sync.pull();
+            await sync.refresh();
             if (!auto) toast(r.added ? `${r.added} new bank transaction${r.added === 1 ? '' : 's'}.` : 'Up to date. Nothing new from your bank yet.');
           } catch (e) { if (!auto) toast((e as Error).message); }
         })();
@@ -545,6 +548,10 @@ function sampleLandlord(p: Profile): Profile {
   return p.name ? p : { ...p, name: 'Alex Morgan', email: p.email || 'alex.morgan@example.com' };
 }
 
+/** Live site: a bank connection made through Plaid, and a transaction that came from it ("pl-" + Plaid's id). */
+const realBank = (b: BankConnection) => b.via === 'plaid';
+const fakeTxn = (t: BankTxn) => t.source === 'bank' && !t.id.startsWith('pl-');
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(load);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
@@ -592,8 +599,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     else if (!u && a?.signedIn && (a.provider === 'email' || a.provider === 'google')) mut((d) => { if (d.profile.account) d.profile.account.signedIn = false; });
     sync.startPulling();
   }, [mut]);
-  // Live site without real bank checks: clear out a practice bank connection left from before.
-  const pretend = !banksOn() && ((state.banks ?? []).length > 0 || state.txns.some((t) => t.source === 'bank'));
+  // Live site: clear out a practice bank connection left from before (real Plaid ones stay, even while banks are off).
+  const pretend = serverMode() && ((state.banks ?? []).some((b) => !realBank(b)) || state.txns.some(fakeTxn));
   useEffect(() => { if (pretend && sync.owned(state)) act.removePretendBank(); }, [pretend, state, act]);
   // Property values from the connected AVM provider: each property with an address, about once a month
   // (the server keeps each answer 30 days, so asking again is free).

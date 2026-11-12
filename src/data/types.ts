@@ -200,6 +200,8 @@ export interface BankConnection {
   accountMask: string;
   status: 'connected' | 'needs-reauth';
   lastSync: string;
+  /** Set for a real connection through Plaid (live site). Without it, a connection on the live site is a practice one. */
+  via?: 'plaid';
 }
 
 export type TxnStatus = 'new' | 'matched' | 'suggested' | 'ignored' | 'expense' | 'mortgage';

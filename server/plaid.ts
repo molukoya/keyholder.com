@@ -109,7 +109,7 @@ export async function applyBankUpdate(db: Db, accountId: string, item: Pick<Bank
   const d = structuredClone(s.data) as AppState;
   d.banks = d.banks ?? [];
   const masks = item.accounts.map((a) => a.mask).filter(Boolean);
-  const conn = { id: item.id, bank: item.institution, accountMask: masks.length ? `•••• ${masks.join(', ')}` : '', status: item.status === 'needs-reauth' ? 'needs-reauth' as const : 'connected' as const, lastSync: new Date().toISOString() };
+  const conn = { id: item.id, via: 'plaid' as const, bank: item.institution, accountMask: masks.length ? `•••• ${masks.join(', ')}` : '', status: item.status === 'needs-reauth' ? 'needs-reauth' as const : 'connected' as const, lastSync: new Date().toISOString() };
   const at = d.banks.findIndex((b) => b.id === item.id);
   if (at >= 0) d.banks[at] = conn; else d.banks.push(conn);
   d.profile.rentArrival = 'bank';

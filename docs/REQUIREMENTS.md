@@ -23,7 +23,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
   The browser-only preview keeps the simulation for demos.
 - Setup progress counts only a real bank connection; while banks are off, that step is not listed.
 - Clean-up of live accounts: remove the pretend connection, its made-up deposits and any rent those
-  deposits marked as paid. Each removal is written to the account's history.
+  deposits marked as paid. Each removal is written to the account's history. Real Plaid connections (R12) and
+  their transactions are never removed, even while banks are turned off.
 
 ### R3. Sign out: small icon, Settings page only ☑
 - On Settings, a small Sign out icon at the top right (next to the setup circle and the Settings icon).
