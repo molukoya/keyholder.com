@@ -57,8 +57,8 @@ function Root() {
   // admin / admin: the support dashboard. Anyone else asking for it gets their own home instead.
   if (loc.pathname.startsWith('/support') && signedIn && p.account?.provider === 'admin') return <Routes><Route path="/support/*" element={<Support />} /></Routes>;
   if (loc.pathname.startsWith('/signin')) return signedIn ? <Navigate to={p.account?.provider === 'admin' ? '/support' : '/today'} replace /> : <SignIn />;
-  // The Keyholder team (with the server) sees only the support dashboard: no landlord app behind it.
-  if (signedIn && p.account?.provider === 'admin' && !p.sample) return <Navigate to="/support" replace />;
+  // The Keyholder team sees only the support dashboard (the preview's admin / admin too): no landlord app behind it.
+  if (signedIn && p.account?.provider === 'admin') return <Navigate to="/support" replace />;
   // Signed up but the questions are not done yet: back to the questions (the website stays open to them).
   const unfinished = signedIn && !p.onboarded && !p.sample && (p.account?.provider === 'google' || p.account?.provider === 'email');
   if (unfinished) return onStart ? <Onboarding /> : <Navigate to="/start/1" replace />;

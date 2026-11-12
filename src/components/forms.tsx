@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { AddressField, addressLookupOn, type PickedAddress } from './AddressField';
 import type {
   CCAClass, Comparable, Expense, ExpenseCategory, Lease, Mortgage, MortgageFrequency, PayMethod, Payment, Person, Property, PropertyType, Tenant, Unit, Valuation,
 } from '../data/types';
@@ -285,13 +286,20 @@ export function PropertyForm({ onClose, property }: { onClose: () => void; prope
   const [sqRented, setSqRented] = useState<number | ''>('');
   const [sqTotal, setSqTotal] = useState<number | ''>('');
   const set = (x: Partial<Property>) => setP((o) => ({ ...o, ...x }));
-  const cities = province(p.province).cities;
+  // A city the address lookup found that is not in the province's list is offered too.
+  const cities = province(p.province).cities.includes(p.city) || !p.city ? province(p.province).cities : [p.city, ...province(p.province).cities];
   const valid = p.nickname.trim() && p.address.trim();
+  const picked = (a: PickedAddress) => {
+    const prov = PROVINCES.find((x) => x.code === a.province)?.code;
+    set({ address: a.street || p.address, ...(prov ? { province: prov } : {}), ...(a.city ? { city: a.city } : {}), postalCode: a.postalCode || undefined, geo: a.lat !== null && a.lng !== null ? { lat: a.lat, lng: a.lng } : undefined });
+  };
   return (
     <Drawer title={property ? 'Edit property' : 'Add a property'} onClose={onClose}
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!valid} onClick={() => { act.saveProperty(p); onClose(); }}>Save property</button></>}>
       <Field label="What do you call it?" htmlFor="pp-nick" hint='For example "Maple duplex" or "Home"'><input id="pp-nick" className="input" value={p.nickname} onChange={(e) => set({ nickname: e.target.value })} /></Field>
-      <Field label="Street address" htmlFor="pp-addr"><input id="pp-addr" className="input" value={p.address} onChange={(e) => set({ address: e.target.value })} autoComplete="street-address" /></Field>
+      <Field label="Street address" htmlFor="pp-addr" hint={addressLookupOn() ? 'Pick your address from the list: the city, province and postal code fill in.' : undefined}>
+        <AddressField id="pp-addr" value={p.address} onChange={(address) => set({ address, geo: undefined })} onPick={picked} />
+      </Field>
       <div className="grid2">
         <Field label="Province" htmlFor="pp-prov">
           <select id="pp-prov" className="input" value={p.province} onChange={(e) => set({ province: e.target.value as Property['province'], city: province(e.target.value as Property['province']).cities[0] })}>
@@ -304,6 +312,7 @@ export function PropertyForm({ onClose, property }: { onClose: () => void; prope
           </select>
         </Field>
       </div>
+      <Field label="Postal code" htmlFor="pp-postal" hint="Optional"><input id="pp-postal" className="input" value={p.postalCode ?? ''} onChange={(e) => set({ postalCode: e.target.value.toUpperCase() || undefined })} autoComplete="postal-code" maxLength={7} /></Field>
       <Field label="Type">
         <Seg<PropertyType> label="Type" value={p.type} onChange={(type) => set({ type })} options={[{ id: 'house', label: 'House' }, { id: 'duplex', label: 'Duplex' }, { id: 'triplex', label: 'Triplex' }, { id: 'condo', label: 'Condo' }, { id: 'townhouse', label: 'Town' }]} />
       </Field>

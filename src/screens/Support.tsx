@@ -13,6 +13,7 @@ import { Growth, Revenue } from '../support/Business';
 import { Announcements, Health, Rules } from '../support/Platform';
 import { Privacy, Team } from '../support/Admin';
 import { Banks, Connections, Pricing } from '../support/Super';
+import { LandlordMap } from '../support/LandlordMap';
 
 // The support dashboard. Grouped by how often it is used: Today, Support, Business, Platform, Admin.
 // admin / admin shows sample support data; a real team member signed in to the Keyholder server sees
@@ -82,7 +83,6 @@ function SupportShell() {
           ))}
         </nav>
         <div className="sp-rail-foot">
-          {!isLive() && <button className="btn small" onClick={() => nav('/today')}>Sample landlord app</button>}
           <button className="btn small ghost" onClick={() => { act.signOut(); nav('/welcome'); }}>Sign out</button>
         </div>
       </aside>
@@ -224,6 +224,10 @@ function Overview() {
           <Tile label="Monthly revenue" value={fmtMoney(revenue)} delta={pct(revenue, prevRevenue)} note={`${paying.length} paying`} />
           <Tile label="Open requests" value={String(open.length)} note={overdue.length ? `${overdue.length} overdue` : 'None overdue'} good={false} />
         </div>
+      </section>
+      <section className="sp-card sp-sec" aria-labelledby="map">
+        <h2 id="map" className="sp-h3">Where your landlords are</h2>
+        <LandlordMap customers={cs} />
       </section>
       <div className="sp-two">
         <section className="sp-card" aria-labelledby="sg">

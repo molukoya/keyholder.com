@@ -1,4 +1,6 @@
 import { z } from 'zod';
+// Settings that are API keys: they can also be set on the dashboard (Connections), see server/keys.ts.
+import { KEY_ENV } from '../src/support/connections';
 
 // Every setting comes from environment variables, with safe defaults for running on a laptop.
 // Production (Render) sets them in render.yaml or the dashboard. See docs/BACKEND.md for the full list.
@@ -42,10 +44,6 @@ const Env = z.object({
 });
 
 export type Config = ReturnType<typeof loadConfig>;
-
-/** Settings that are API keys: they can also be set on the dashboard (Connections), see server/keys.ts. */
-const KEY_ENV = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'EMAIL_PROVIDER', 'RESEND_API_KEY', 'POSTMARK_TOKEN', 'EMAIL_FROM',
-  'STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PLAID_CLIENT_ID', 'PLAID_SECRET', 'PLAID_ENV'];
 
 export function loadConfig(env: Record<string, string | undefined> = process.env) {
   const e = Env.parse(env);

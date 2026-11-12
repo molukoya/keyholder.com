@@ -200,6 +200,8 @@ export function summarize(s: AppState) {
     receiptsSent: (s.messages ?? []).filter((m) => m.kind === 'receipt' && m.status === 'sent').length,
     province: s.profile?.province ?? 'ON',
     city: s.profile?.city ?? '',
+    // Where the rentals are, by city only (for the team's map): never a street address.
+    places: [...new Map(props.map((p) => [`${p.province}|${p.city}`, { city: String(p.city ?? '').slice(0, 80), province: String(p.province ?? '') }])).values()].slice(0, 50),
     onboarded: !!s.profile?.onboarded,
     autoSend: !!s.profile?.autoSend,
     emailUpdates: !!s.profile?.emailUpdates,

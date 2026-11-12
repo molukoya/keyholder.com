@@ -27,6 +27,11 @@ beforeAll(async () => {
   await ensureAdmin(db, cfg);
   const fakeFetch = (async (url: string) => {
     googleCalls.push(String(url));
+    if (String(url).includes('places:autocomplete')) return new Response(JSON.stringify({ suggestions: [{ placePrediction: { placeId: 'ChIJplace123456', text: { text: '100 Queen St W, Toronto, ON, Canada' }, structuredFormat: { mainText: { text: '100 Queen St W' }, secondaryText: { text: 'Toronto, ON, Canada' } } } }] }), { status: 200 });
+    if (String(url).includes('places.googleapis.com/v1/places/')) return new Response(JSON.stringify({ location: { latitude: 43.6535, longitude: -79.3841 }, addressComponents: [
+      { longText: '100', shortText: '100', types: ['street_number'] }, { longText: 'Queen Street West', shortText: 'Queen St W', types: ['route'] },
+      { longText: 'Toronto', shortText: 'Toronto', types: ['locality', 'political'] }, { longText: 'Ontario', shortText: 'ON', types: ['administrative_area_level_1', 'political'] },
+      { longText: 'M5H 2N2', shortText: 'M5H 2N2', types: ['postal_code'] }, { longText: 'Canada', shortText: 'CA', types: ['country', 'political'] }] }), { status: 200 });
     if (String(url).includes('/token')) return new Response(JSON.stringify({ access_token: 'at' }), { status: 200 });
     return new Response(JSON.stringify({ sub: 'g-123', email: 'gina@gmail.com', email_verified: true, name: 'Gina Lopez' }), { status: 200 });
   }) as typeof fetch;
@@ -370,6 +375,18 @@ describe('the super user', () => {
     const other = new Keys(loadConfig({ NODE_ENV: 'test', PGLITE_DIR: 'memory://', KEYS_SECRET: 'a-different-keys-secret-value' }));
     await other.refresh(db, true);
     expect(other.get('stripe.secretKey')).toBeUndefined();
+    // Address lookup: off until its key is set; then suggestions and details come through the server, for signed-in people only.
+    expect((await call('GET', '/api/session')).body.config.addressLookup).toBe(false);
+    expect((await call('GET', '/api/address/suggest?q=100%20Queen', { cookie: sup })).status).toBe(404);
+    await save(ADMIN.password, { 'places.apiKey': 'AIzaTestPlacesKey9999' });
+    expect((await call('GET', '/api/session')).body.config.addressLookup).toBe(true);
+    expect((await call('GET', '/api/address/suggest?q=100%20Queen')).status).toBe(401);
+    const sug = await call('GET', '/api/address/suggest?q=100%20Queen&session=sess-abcdef12', { cookie: alex });
+    expect(sug.body.suggestions[0]).toEqual({ id: 'ChIJplace123456', main: '100 Queen St W', secondary: 'Toronto, ON, Canada' });
+    const det = await call('GET', '/api/address/details?id=ChIJplace123456&session=sess-abcdef12', { cookie: alex });
+    expect(det.body).toEqual({ street: '100 Queen Street West', city: 'Toronto', province: 'ON', postalCode: 'M5H 2N2', country: 'CA', lat: 43.6535, lng: -79.3841 });
+    expect(JSON.stringify(sug.body) + JSON.stringify(det.body)).not.toContain('AIzaTestPlacesKey9999');
+    expect((await call('POST', '/api/admin/connections/test', { cookie: sup, body: { service: 'places' } })).body).toMatchObject({ ok: true });
     // Removing a saved key goes back to Render's value.
     await save(ADMIN.password, { 'google.clientId': null });
     const start2 = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
@@ -388,7 +405,7 @@ describe('Google sign-in', () => {
     expect(cb.headers.location).toBe('http://localhost:8080/#/auth/google?intent=signup');
     const cookie = ([cb.headers['set-cookie']].flat() as string[]).find((c) => c.startsWith('kh_session='))!.split(';')[0];
     expect((await call('GET', '/api/session', { cookie })).body.user).toMatchObject({ email: 'gina@gmail.com', google: true, emailVerified: true });
-    expect(googleCalls.filter((u) => u.includes('google')).length).toBe(2);
+    expect(googleCalls.filter((u) => u.includes('oauth2.googleapis.com') || u.includes('openidconnect')).length).toBe(2);
   });
 
   it('refuses a callback with the wrong state', async () => {

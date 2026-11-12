@@ -66,7 +66,7 @@ export async function snapshot(db: Q, me: User): Promise<SupportSnapshot> {
       plan: a.plan, units: s.units ?? 0, properties: s.properties ?? 0, tenants: s.tenants ?? 0,
       signedUp: day(a.created_at), lastActive: day(a.last_seen_at ?? a.created_at),
       banks: (s.banks ?? []).map((b) => ({ bank: b.bank, status: b.status as 'ok' | 'failing' })), emailBounces: a.bounces,
-      paymentStatus: 'none', trialEnds: a.trial_ends ?? undefined, credit: a.credit_cents, unitPrice: a.unit_price_cents ?? undefined, source: 'Not asked yet',
+      paymentStatus: 'none', trialEnds: a.trial_ends ?? undefined, credit: a.credit_cents, unitPrice: a.unit_price_cents ?? undefined, places: Array.isArray(s.places) ? s.places : undefined, source: 'Not asked yet',
       receiptsSent: s.receiptsSent ?? 0, notes: Array.isArray(a.notes) ? a.notes : [],
     };
   });

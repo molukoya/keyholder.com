@@ -1,7 +1,7 @@
 # Keyholder: next upgrades (requirements)
 
 Agreed with the owner on 2026-11-11 ("go with your recommendations"). Built in three phases, in order.
-Phase 3 waits until the owner has created the Stripe and Plaid accounts.
+Phase 3 waits until the owner has created the Stripe and Flinks accounts.
 
 Status: ☐ to do · ◐ in progress · ☑ done
 
@@ -64,23 +64,43 @@ Status: ☐ to do · ◐ in progress · ☑ done
   "Not available right now" for that bank.
 
 ### R10. API keys in the dashboard ☑
-- "Connections" page, super user only: Google sign-in, email (Resend), Stripe, bank service (Plaid).
+- "Connections" page, super user only: Google sign-in, email (Resend), address lookup (Google Places), Stripe,
+  bank data (Flinks), property values (AVM). Grouped "In use" and "Coming"; the preview shows the same list.
   Each shows its status, a Test button, and lets you enter or replace keys.
 - Keys are stored encrypted with `KEYS_SECRET` (a new Render setting). After saving only the last 4
   characters show. Changing a key asks for the password. Every change is logged.
 - Keys set in Render keep working; a key saved in the dashboard takes over.
 
-## Phase 3: payments and real bank data (needs the owner's Stripe and Plaid accounts)
+### R13. Address autocomplete (Google Places) ☑
+- Typing a property address suggests Canadian addresses; picking one fills street, city, province, postal code
+  and the map position. Through the server (the key never reaches the browser), signed-in people only, 60 a
+  minute each. Plain box until the key is set on Connections. The preview suggests from sample addresses.
+
+### R14. Overview map ☑
+- Support → Overview: a map of Canada (provinces drawn in), one dot per city where landlords' rentals are,
+  bigger for more landlords, with the busiest places listed. City level only, never street addresses.
+
+### R15. Admin sees only the dashboard ☑
+- No "Sample landlord app" button; admin / admin in the preview opens only the support dashboard too.
+
+## Phase 3: payments and real bank data (needs the owner's Stripe and Flinks accounts)
 
 ### R11. Stripe payments ☐
 - Upgrade to the Landlord plan by card on Stripe Checkout (Keyholder never sees card numbers).
 - Monthly, per unit. Stripe's billing page: change card, invoices, cancel.
 - Promo codes (R8) apply at checkout. The dashboard's Revenue page shows real payments.
 
-### R12. Real bank connection (Plaid), "Link bank" on Income and Expenses ☐
-- Plaid: self-serve signup, free test mode, major Canadian banks (RBC, TD, Scotiabank, BMO, CIBC,
-  Desjardins, …). Flinks is the alternative if a contract is preferred.
+### R12. Real bank connection (Flinks), "Link bank" on Income and Expenses ☐
+- Flinks (Canadian): Flinks Connect for the landlord to sign in to their bank, then read-only transactions.
+  Built and tested first on Flinks' sandbox ("toolbox"); real banks need a Flinks contract.
 - A small "Link bank" button by the title of Income and Expenses.
 - Deposits appear in Income to match to rent; withdrawals appear in Expenses to file. Read-only.
 - The server checks for new transactions every 4 hours.
-- Real bank data needs Plaid's production approval (a business review, can take a few weeks).
+- Real bank data needs the Flinks contract (talk to their sales team early).
+
+### R16. Property values (AVM) ☐
+- An estimated market value for each property, updated monthly, from an AVM provider. Recommended: Repliers
+  Estimates to start (documented API, values from an address); Teranet (Home Value Range) for lender-grade
+  values; RPS also estimates rents. MLS® (CREA DDF) has no sold prices and needs a REALTOR® and a CREA
+  agreement, so it is not used for values. The Connections page has the slot (provider + API key).
+- Until a provider is connected, values come from the purchase price and a market index, labelled estimates.

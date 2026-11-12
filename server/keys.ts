@@ -1,37 +1,14 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type { Config } from './config';
 import type { Q } from './db';
+import { fieldOf, KEY_FIELDS, SERVICES, type ServiceId, type ServiceState } from '../src/support/connections';
 
-// API keys for the services Keyholder connects to (Google sign-in, email, Stripe, Plaid). They can be set
-// in Render (environment variables) or, by the super user, on the dashboard's Connections page. Keys saved
-// on the dashboard are stored encrypted (AES-256-GCM, locked with KEYS_SECRET, which stays in Render), are
-// never sent back to the browser in full, and take over from Render's. Every change is in the audit log.
+// API keys for the services Keyholder connects to (the list: src/support/connections.ts). They can be set in
+// Render (environment variables) or, by the super user, on the dashboard's Connections page. Keys saved on
+// the dashboard are stored encrypted (AES-256-GCM, locked with KEYS_SECRET, which stays in Render), are never
+// sent back to the browser in full, and take over from Render's. Every change is in the audit log.
 
-export type ServiceId = 'google' | 'email' | 'stripe' | 'plaid';
-export interface KeyField { name: string; service: ServiceId; label: string; secret: boolean; env: string; options?: string[]; hint?: string }
-
-export const SERVICES: { id: ServiceId; name: string; what: string }[] = [
-  { id: 'google', name: 'Google sign-in', what: '"Continue with Google" on Sign in and Sign up.' },
-  { id: 'email', name: 'Email', what: 'Receipts, reminders, password links and support replies.' },
-  { id: 'stripe', name: 'Stripe payments', what: 'Card payments for the Landlord plan (being built).' },
-  { id: 'plaid', name: 'Bank data (Plaid)', what: 'Spotting rent and bills in landlords\' banks (being built).' },
-];
-
-export const KEY_FIELDS: KeyField[] = [
-  { name: 'google.clientId', service: 'google', label: 'Client ID', secret: false, env: 'GOOGLE_CLIENT_ID', hint: 'Ends with .apps.googleusercontent.com' },
-  { name: 'google.clientSecret', service: 'google', label: 'Client secret', secret: true, env: 'GOOGLE_CLIENT_SECRET' },
-  { name: 'email.provider', service: 'email', label: 'Sending', secret: false, env: 'EMAIL_PROVIDER', options: ['log', 'resend', 'postmark'], hint: 'log keeps emails in the outbox (nothing is sent)' },
-  { name: 'email.resendKey', service: 'email', label: 'Resend API key', secret: true, env: 'RESEND_API_KEY' },
-  { name: 'email.postmarkToken', service: 'email', label: 'Postmark server token', secret: true, env: 'POSTMARK_TOKEN' },
-  { name: 'email.from', service: 'email', label: 'From address', secret: false, env: 'EMAIL_FROM', hint: 'Keyholder <hello@your-domain>' },
-  { name: 'stripe.publishableKey', service: 'stripe', label: 'Publishable key', secret: false, env: 'STRIPE_PUBLISHABLE_KEY', hint: 'Starts with pk_' },
-  { name: 'stripe.secretKey', service: 'stripe', label: 'Secret key', secret: true, env: 'STRIPE_SECRET_KEY', hint: 'Starts with sk_ or rk_' },
-  { name: 'stripe.webhookSecret', service: 'stripe', label: 'Webhook signing secret', secret: true, env: 'STRIPE_WEBHOOK_SECRET', hint: 'Starts with whsec_' },
-  { name: 'plaid.clientId', service: 'plaid', label: 'Client ID', secret: false, env: 'PLAID_CLIENT_ID' },
-  { name: 'plaid.secret', service: 'plaid', label: 'Secret', secret: true, env: 'PLAID_SECRET' },
-  { name: 'plaid.env', service: 'plaid', label: 'Environment', secret: false, env: 'PLAID_ENV', options: ['sandbox', 'production'] },
-];
-export const fieldOf = (name: string) => KEY_FIELDS.find((f) => f.name === name);
+export { fieldOf, KEY_FIELDS, SERVICES, type ServiceId } from '../src/support/connections';
 
 type Meta = { last4: string; updatedBy: string; updatedAt: string };
 
@@ -82,6 +59,18 @@ export class Keys {
 
   /** Google sign-in, when both halves are set. */
   google() { const clientId = this.get('google.clientId'), clientSecret = this.get('google.clientSecret'); return clientId && clientSecret ? { clientId, clientSecret } : undefined; }
+  /** Google Places (address lookup), when its key is set. */
+  places() { return this.get('places.apiKey'); }
+  /** How each service stands, for the Connections page. */
+  state(id: ServiceId): ServiceState {
+    const has = (n: string) => !!this.get(n);
+    if (id === 'google') return this.google() ? 'connected' : 'none';
+    if (id === 'email') return this.email().provider !== 'log' ? 'connected' : has('email.resendKey') || has('email.postmarkToken') ? 'off' : 'none';
+    if (id === 'places') return has('places.apiKey') ? 'connected' : 'none';
+    if (id === 'stripe') return has('stripe.secretKey') && has('stripe.publishableKey') ? 'saved' : 'none';
+    if (id === 'flinks') return has('flinks.customerId') && has('flinks.instance') ? 'saved' : 'none';
+    return has('avm.provider') && has('avm.apiKey') ? 'saved' : 'none';
+  }
   /** How email is sent right now. A provider without its key falls back to keeping emails in the outbox. */
   email(): Config['email'] {
     const provider = (this.get('email.provider') ?? 'log') as Config['email']['provider'];
@@ -94,12 +83,13 @@ export class Keys {
   describe() {
     return SERVICES.map((s) => ({
       ...s,
+      state: this.state(s.id),
       fields: KEY_FIELDS.filter((f) => f.service === s.id).map((f) => {
         const source = this.unreadable.has(f.name) ? 'unreadable' as const : this.source(f.name);
         const value = this.get(f.name);
         const m = this.meta.get(f.name);
         return {
-          name: f.name, label: f.label, secret: f.secret, options: f.options, hint: f.hint, env: f.env, source,
+          name: f.name, label: f.label, secret: f.secret, options: f.options, hint: f.hint, env: f.env, optional: f.optional, source,
           value: !f.secret && value ? value : undefined,
           last4: f.secret && value ? value.slice(-4) : undefined,
           updatedAt: source === 'dashboard' ? m?.updatedAt : undefined, updatedBy: source === 'dashboard' ? m?.updatedBy : undefined,
@@ -125,7 +115,7 @@ export class Keys {
   }
 
   /** Checks a service with the keys in effect, without changing anything. */
-  async test(service: ServiceId, fetcher: typeof fetch, appUrl: string): Promise<{ ok: boolean; message: string }> {
+  async test(service: ServiceId, fetcher: typeof fetch, appUrl: string): Promise<{ ok: boolean | null; message: string }> {
     try {
       if (service === 'google') {
         const g = this.google(); if (!g) return { ok: false, message: 'Not set: add the Client ID and Client secret.' };
@@ -156,11 +146,20 @@ export class Keys {
         const mode = key.includes('_test_') ? 'test mode' : 'live mode';
         return r.ok ? { ok: true, message: `Stripe accepts the secret key (${mode}).` } : { ok: false, message: `Stripe does not accept this key (${r.status}).` };
       }
-      const id = this.get('plaid.clientId'), secret = this.get('plaid.secret'), env = this.get('plaid.env') ?? 'sandbox';
-      if (!id || !secret) return { ok: false, message: 'Not set: add the Client ID and Secret.' };
-      const r = await fetcher(`https://${env === 'production' ? 'production' : 'sandbox'}.plaid.com/institutions/get`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: id, secret, count: 1, offset: 0, country_codes: ['CA'] }) });
-      return r.ok ? { ok: true, message: `Plaid accepts these keys (${env}).` } : { ok: false, message: `Plaid does not accept these keys (${r.status}).` };
+      if (service === 'places') {
+        const key = this.places(); if (!key) return { ok: false, message: 'Not set: add the API key.' };
+        const r = await fetcher('https://places.googleapis.com/v1/places:autocomplete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+          body: JSON.stringify({ input: '100 Queen St W, Toronto', includedRegionCodes: ['ca'] }) });
+        if (r.ok) return { ok: true, message: 'Google accepts this key: address suggestions are on.' };
+        const b = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+        return { ok: false, message: `Google does not accept this key (${r.status}). ${b.error?.message ?? 'Check that "Places API (New)" is turned on and the key is allowed to use it.'}`.trim() };
+      }
+      if (service === 'flinks') {
+        if (this.state('flinks') === 'none') return { ok: false, message: 'Not set: add the Customer ID and Instance.' };
+        return { ok: null, message: 'Saved. Flinks keys are checked once bank connections are built (Phase 3).' };
+      }
+      if (this.state('avm') === 'none') return { ok: false, message: 'Not set: choose a provider and add its API key.' };
+      return { ok: null, message: 'Saved. These keys are checked once property values are connected.' };
     } catch (e) {
       return { ok: false, message: `Could not reach the service: ${(e as Error).message}` };
     }
