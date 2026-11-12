@@ -723,7 +723,11 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'support/announcements'); await pg.fill('.sp-card textarea', 'Bank checks pause tonight at 2 a.m.');
       await pg.locator('.seg[aria-label="Show on"] >> text=Both').click(); await pg.locator('.sp-card .btn.primary', { hasText: 'Post' }).click(); await pg.waitForTimeout(200);
       await go(pg, 'welcome'); await pg.waitForSelector('.announce.website >> text=Bank checks pause');
-      await go(pg, 'today'); await pg.waitForSelector('.announce.app >> text=Bank checks pause');
+      // The app side, with the demo login (admin only opens the dashboard), then back to the dashboard.
+      await go(pg, 'support'); await pg.locator('.sp-rail-foot >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await login(pg, 'test', 'test'); await pg.waitForSelector('.announce.app >> text=Bank checks pause');
+      await pg.locator('.tour-card >> text=Skip tour').click(); await go(pg, 'settings'); await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
+      await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head');
       await go(pg, 'support/announcements'); await pg.locator('.sp-rows li', { hasText: 'Bank checks pause' }).locator('text=Hide').click(); await pg.waitForTimeout(200);
       await go(pg, 'welcome'); if (await pg.locator('.announce').count()) throw new Error('still showing after Hide');
     });
@@ -743,14 +747,45 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       await go(pg, 'support/pricing'); await pg.fill('#sp-price', '12'); await pg.locator('#price >> text=Save price').click(); await pg.waitForSelector('#price >> text=$12.00');
       await pg.fill('#promo-code', 'PREVIEW10'); await pg.fill('#promo-value', '10'); await pg.locator('#promotions >> text=Add code').click(); await pg.waitForSelector('#promotions >> text=PREVIEW10');
       await go(pg, 'support/banks'); await pg.locator('.sp-bank-list li:has-text("RBC") >> text=Turn off').click(); await pg.waitForSelector('.sp-bank-list li:has-text("RBC") >> text=Turn on');
-      await go(pg, 'support/connections'); await pg.waitForSelector('text=there is no server here');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('sideways scroll');
       await go(pg, 'welcome/pricing'); await pg.locator('.lp-price.best').scrollIntoViewIfNeeded(); await pg.waitForSelector('.lp-price.best >> text=$12');
-      await go(pg, 'today'); if (await pg.locator('.tour-card').count()) { await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200); }
+      // The bank turned off, in the sample landlord app (test / test).
+      await go(pg, 'support'); await pg.locator('.sp-rail-foot >> text=Sign out').click(); await pg.waitForSelector('.lp-hero-h');
+      await login(pg, 'test', 'test'); await pg.waitForSelector('.rent-row'); await pg.locator('.tour-card >> text=Skip tour').click(); await pg.waitForTimeout(200);
       await go(pg, 'settings'); await pg.locator('#rent-tracking >> text=Add another bank').click(); await pg.waitForSelector('.drawer');
       if (!(await pg.locator('.drawer .choice:has-text("RBC")').isDisabled())) throw new Error('RBC can still be picked');
       await pg.waitForSelector('.drawer .choice:has-text("RBC") >> text=Not available right now');
-      await pg.keyboard.press('Escape'); await go(pg, 'support');
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+      // Address suggestions when adding a property (the preview suggests from sample addresses).
+      await go(pg, 'rentals'); await pg.locator('button:has-text("Add property"), a:has-text("Add property")').first().click(); await pg.waitForSelector('#pp-addr');
+      await pg.locator('#pp-addr').pressSequentially('453 w 12', { delay: 20 }); await pg.waitForSelector('.addr-list >> text=Vancouver, BC');
+      await pg.locator('.addr-list button').first().click(); await pg.waitForTimeout(150);
+      const filled = [await pg.inputValue('#pp-addr'), await pg.inputValue('#pp-prov'), await pg.inputValue('#pp-city'), await pg.inputValue('#pp-postal')].join(' | ');
+      if (filled !== '453 W 12th Ave | BC | Vancouver | V5Y 1V4') throw new Error('filled: ' + filled);
+      await pg.locator('.drawer >> text=Cancel').click(); await pg.waitForTimeout(150);
+      await go(pg, 'settings'); await pg.locator('.signout-icon:visible').click(); await pg.waitForSelector('.lp-hero-h');
+      await login(pg, 'admin', 'admin'); await pg.waitForSelector('.sp-head');
+    });
+    await step(tag, 'J7c admin / admin sees only the dashboard: no sample landlord app button, the app redirects to the dashboard', async () => {
+      if (await pg.locator('text=Sample landlord app').count()) throw new Error('Sample landlord app button still there');
+      await go(pg, 'today'); await pg.waitForSelector('.sp-head'); const h = await pg.evaluate(() => location.hash); if (!h.startsWith('#/support')) throw new Error('opened ' + h);
+    });
+    await step(tag, 'J7d Connections lists every service (in use: Google, Email, Address lookup; coming: Stripe, Flinks, Property values), even in the preview', async () => {
+      await go(pg, 'support/connections'); await pg.waitForSelector('#conn-preview');
+      for (const [g, names] of [['now', ['Google sign-in', 'Email (Resend)', 'Address lookup (Google Places)']], ['coming', ['Stripe payments', 'Bank data (Flinks)', 'Property values (AVM)']]]) {
+        const got = await pg.locator(`#group-${g} .sp-conn h2`).allTextContents();
+        if (got.join('|') !== names.join('|')) throw new Error(`${g}: ${got.join(', ')}`);
+      }
+      if (await pg.locator('text=Plaid').count()) throw new Error('Plaid still listed');
+      if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('sideways scroll');
+    });
+    await step(tag, 'J7e Overview: map of Canada with a dot per city (sizes by landlords), the busiest places listed', async () => {
+      await go(pg, 'support'); await pg.waitForSelector('.sp-lmap svg');
+      const dots = await pg.locator('.sp-lmap-dot').count(); if (dots < 10) throw new Error(dots + ' dots');
+      if ((await pg.locator('.sp-lmap-prov').count()) !== 13) throw new Error('provinces and territories missing');
+      const box = await pg.locator('.sp-lmap svg').boundingBox(); if (!box || box.height < 150) throw new Error('map too small');
+      await pg.locator('.sp-lmap-top li').first().hover(); await pg.waitForSelector('.sp-lmap-caption >> text=landlords');
+      await pg.waitForSelector('text=City level only');
     });
     await step(tag, 'J8 Sign out returns to the website, and the dashboard is closed again', async () => {
       if (tag === 'phone') await go(pg, 'support');

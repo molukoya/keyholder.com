@@ -7,6 +7,7 @@ import { api } from '../data/api';
 import { Status } from './charts';
 import { fmtMoney, isLive, isSuper, live, sup, toast, useSupport } from './store';
 import { DEFAULT_UNIT_CENTS, type Promotion } from './data';
+import { KEY_FIELDS, OPTION_LABEL, SERVICES, STATE_LABEL, type ServiceId, type ServiceInfo, type ServiceState } from './connections';
 
 // The super user's pages: the Landlord plan price and promotions, which banks can be connected, and the
 // API keys for the services Keyholder connects to. Admins and support staff can look but not change
@@ -123,7 +124,7 @@ export function Banks() {
       <section className="sp-card sp-sec">
         <div className="sp-card-head"><h2 className="sp-h3">Bank connection</h2><Status tone={b.enabled ? 'good' : 'bad'}>{b.enabled ? 'On' : 'Off for everyone'}</Status></div>
         <p className="sp-small">{isLive()
-          ? 'Landlords see "Coming soon" until the bank service (Plaid) is connected. These switches are kept and apply from then.'
+          ? 'Landlords see "Coming soon" until the bank service (Flinks) is connected. These switches are kept and apply from then.'
           : 'Preview: the sample app simulates bank connections, and follows these switches.'}</p>
         {canEdit ? <button id="banks-all" className={`btn${b.enabled ? ' ghost danger' : ' primary'}`} onClick={toggleAll}>{b.enabled ? 'Turn off for everyone' : 'Turn on for everyone'}</button> : <OnlySuper />}
       </section>
@@ -145,22 +146,40 @@ export function Banks() {
 }
 
 // ---------------- Connections (API keys) ----------------
-type Field = { name: string; label: string; secret: boolean; options?: string[]; hint?: string; env: string; source: 'dashboard' | 'render' | 'none' | 'unreadable'; value?: string; last4?: string; updatedAt?: string; updatedBy?: string };
-type Service = { id: string; name: string; what: string; fields: Field[] };
+type Field = { name: string; label: string; secret: boolean; options?: string[]; hint?: string; env: string; optional?: boolean; source: 'dashboard' | 'render' | 'none' | 'unreadable'; value?: string; last4?: string; updatedAt?: string; updatedBy?: string };
+type Service = ServiceInfo & { state: ServiceState; fields: Field[] };
 type ConnData = { canSave: boolean; services: Service[] };
 const SOURCE: Record<Field['source'], [string, 'good' | 'warn' | 'off' | 'bad']> = {
   dashboard: ['Saved here', 'good'], render: ['From Render', 'good'], none: ['Not set', 'off'], unreadable: ['Cannot be read (KEYS_SECRET changed?)', 'bad'],
 };
+const STATE_TONE: Record<ServiceState, 'good' | 'warn' | 'off'> = { connected: 'good', saved: 'good', off: 'warn', none: 'off' };
+const GROUPS: { id: ServiceInfo['group']; title: string; sub: string }[] = [
+  { id: 'now', title: 'In use', sub: 'Working in Keyholder today, as soon as their keys are set.' },
+  { id: 'coming', title: 'Coming', sub: 'Being built. Keys can be saved now; they are used once each feature is ready.' },
+];
+/** Browser-only preview: the same list with sample statuses (there is no server, so nothing can be saved). */
+const PREVIEW_STATE: Record<ServiceId, ServiceState> = { google: 'connected', email: 'off', places: 'none', stripe: 'none', flinks: 'none', avm: 'none' };
+const previewData = (): ConnData => ({
+  canSave: false,
+  services: SERVICES.map((svc) => ({
+    ...svc, state: PREVIEW_STATE[svc.id],
+    fields: KEY_FIELDS.filter((f) => f.service === svc.id).map((f) => {
+      const on = PREVIEW_STATE[svc.id] !== 'none' && !f.optional;
+      return { ...f, source: on ? 'render' as const : 'none' as const, value: on && !f.secret ? (f.options ? f.options[0] : 'sample') : undefined, last4: on && f.secret ? 'a1b2' : undefined };
+    }),
+  })),
+});
 
 export function Connections() {
   const s = useSupport();
-  const [data, setData] = useState<ConnData | null>(null);
+  const preview = !isLive();
+  const [data, setData] = useState<ConnData | null>(preview ? previewData() : null);
   const [err, setErr] = useState('');
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tests, setTests] = useState<Record<string, { ok: boolean; message: string } | 'testing'>>({});
-  useEffect(() => { if (isLive() && isSuper(s)) api<ConnData>('GET', '/api/admin/connections').then(setData).catch((e) => setErr((e as Error).message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [tests, setTests] = useState<Record<string, { ok: boolean | null; message: string } | 'testing'>>({});
+  useEffect(() => { if (!preview && isSuper(s)) api<ConnData>('GET', '/api/admin/connections').then(setData).catch((e) => setErr((e as Error).message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const changes = Object.keys(edit).length;
   const save = async (e: FormEvent) => {
     e.preventDefault(); if (!changes || !password || busy) return;
@@ -172,67 +191,79 @@ export function Connections() {
   };
   const test = async (id: string) => {
     setTests((t) => ({ ...t, [id]: 'testing' }));
-    try { const r = await api<{ ok: boolean; message: string }>('POST', '/api/admin/connections/test', { service: id }); setTests((t) => ({ ...t, [id]: r })); }
+    try { const r = await api<{ ok: boolean | null; message: string }>('POST', '/api/admin/connections/test', { service: id }); setTests((t) => ({ ...t, [id]: r })); }
     catch (x) { setTests((t) => ({ ...t, [id]: { ok: false, message: (x as Error).message } })); }
   };
 
-  const head = <PageHead eyebrow="Super user" title="Connections" sub="API keys for Google sign-in, email, Stripe and bank data" />;
-  if (!isLive()) return <>{head}<section className="sp-card sp-sec"><p>On the live site, the super user adds and changes the API keys for every connected service here: Google sign-in, email (Resend), Stripe and Plaid. Keys are stored encrypted and never shown in full again.</p><p className="sp-small sp-muted">Preview: there is no server here, so there are no keys to show.</p></section></>;
-  if (!isSuper(s)) return <>{head}<section className="sp-card sp-sec"><OnlySuper /></section></>;
+  const head = <PageHead eyebrow="Super user" title="Connections" sub="Every outside service Keyholder uses, and its API keys" />;
+  if (!preview && !isSuper(s)) return <>{head}<section className="sp-card sp-sec"><OnlySuper /></section></>;
   if (!data) return <>{head}<section className="sp-card sp-sec">{err ? <p className="acct-error">{err}</p> : <p className="sp-muted">Loading…</p>}</section></>;
+  const editable = !preview && data.canSave;
+  const card = (svc: Service) => {
+    const t = tests[svc.id];
+    return (
+      <section key={svc.id} className="sp-card sp-sec sp-conn" id={`conn-${svc.id}`}>
+        <div className="sp-card-head"><h2 className="sp-h3">{svc.name}</h2><Status tone={STATE_TONE[svc.state]}>{STATE_LABEL[svc.state]}{svc.state === 'saved' ? ' · being built' : ''}</Status></div>
+        <p className="sp-small">{svc.what}</p>
+        <details className="sp-howto"><summary>How to get the keys</summary><p className="sp-small">{svc.howTo}</p></details>
+        <div className="sp-keys">{svc.fields.map((f) => {
+          const [label, tone] = SOURCE[f.source];
+          const id = `key-${f.name.replace('.', '-')}`;
+          // A choice that is not set uses its default: email sending off.
+          const now = f.secret ? (f.last4 ? `•••• ${f.last4}` : '') : f.options ? OPTION_LABEL[f.value ?? (f.name === 'email.provider' ? 'log' : '')] ?? f.value ?? '' : (f.value ?? '');
+          return (
+            <div key={f.name} className="sp-key">
+              <div className="sp-key-now">
+                <label htmlFor={id}><strong>{f.label}</strong></label>
+                <span><Status tone={tone}>{label}</Status>{now && <code>{now}</code>}{f.updatedBy && f.updatedAt && <span className="sp-muted"> · {f.updatedBy}, {fmtDate(f.updatedAt.slice(0, 10))}</span>}</span>
+              </div>
+              <div className="sp-key-edit">
+                {f.options
+                  ? <select id={id} className="input" value={edit[f.name] ?? f.value ?? ''} disabled={!editable} onChange={(e) => setEdit({ ...edit, [f.name]: e.target.value })}><option value="" disabled>Choose</option>{f.options.map((o) => <option key={o} value={o}>{OPTION_LABEL[o] ?? o}</option>)}</select>
+                  : <input id={id} className="input" type={f.secret ? 'password' : 'text'} autoComplete="off" spellCheck={false} placeholder={f.source === 'none' ? (f.hint ?? 'Paste it here') : 'Paste a new value to replace it'} value={edit[f.name] ?? ''} disabled={!editable} onChange={(e) => { const v = e.target.value; setEdit((x) => { const n = { ...x }; if (v) n[f.name] = v; else delete n[f.name]; return n; }); }} />}
+                {editable && f.source === 'dashboard' && !(f.name in edit) && <button type="button" className="btn small ghost" onClick={() => setEdit({ ...edit, [f.name]: '' })} title={`Use Render's ${f.env} instead`}>Remove</button>}
+                {f.name in edit && edit[f.name] === '' && <span className="sp-small sp-muted">Will be removed</span>}
+              </div>
+            </div>
+          );
+        })}</div>
+        {!preview && (
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button type="button" className="btn small" onClick={() => test(svc.id)} disabled={t === 'testing'}><Icon name="bolt" size={14} />{t === 'testing' ? 'Testing…' : 'Test'}</button>
+            {t && t !== 'testing' && <span className={`sp-small sp-test ${t.ok === true ? 'ok' : t.ok === false ? 'bad' : 'info'}`} role="status"><Icon name={t.ok === true ? 'check' : t.ok === false ? 'alert' : 'info'} size={14} />{t.message}</span>}
+          </div>
+        )}
+      </section>
+    );
+  };
   return (
     <>
       {head}
-      {!data.canSave && (
+      {preview && <section className="sp-card sp-sec callout" id="conn-preview"><strong>Preview: sample statuses.</strong> <span className="sp-small">There is no server here, so nothing can be saved or tested. On the live site you add and change these keys on this page.</span></section>}
+      {!preview && !data.canSave && (
         <section className="sp-card sp-sec callout warn" id="keys-secret">
           <strong>One step first: add KEYS_SECRET in Render.</strong>
           <p className="sp-small">Keys saved here are locked with it. In Render: your Keyholder service → Environment → Add variable → Name <code>KEYS_SECRET</code>, Value: a long random password (32+ characters, keep a copy somewhere safe). Save, wait for the restart, then come back. Until then keys can only be set in Render.</p>
         </section>
       )}
       <form onSubmit={save}>
-        {data.services.map((svc) => {
-          const ready = svc.fields.filter((f) => !f.options && f.name !== 'email.postmarkToken' && f.name !== 'stripe.webhookSecret').every((f) => f.source === 'dashboard' || f.source === 'render');
-          const t = tests[svc.id];
-          return (
-            <section key={svc.id} className="sp-card sp-sec sp-conn" id={`conn-${svc.id}`}>
-              <div className="sp-card-head"><h2 className="sp-h3">{svc.name}</h2><Status tone={ready ? 'good' : 'off'}>{ready ? 'Set' : 'Not set'}</Status></div>
-              <p className="sp-small">{svc.what}</p>
-              <div className="sp-keys">{svc.fields.map((f) => {
-                const [label, tone] = SOURCE[f.source];
-                const id = `key-${f.name.replace('.', '-')}`;
-                // A choice that is not set uses its default: email sending off, Plaid's test mode.
-                const now = f.secret ? (f.last4 ? `•••• ${f.last4}` : '') : (f.value ?? (f.name === 'email.provider' ? 'off (default)' : f.name === 'plaid.env' ? 'sandbox (default)' : ''));
-                return (
-                  <div key={f.name} className="sp-key">
-                    <div className="sp-key-now">
-                      <label htmlFor={id}><strong>{f.label}</strong></label>
-                      <span><Status tone={tone}>{label}</Status>{now && <code>{now}</code>}{f.updatedBy && <span className="sp-muted"> · {f.updatedBy}, {fmtDate(f.updatedAt!.slice(0, 10))}</span>}</span>
-                    </div>
-                    <div className="sp-key-edit">
-                      {f.options
-                        ? <select id={id} className="input" value={edit[f.name] ?? f.value ?? ''} disabled={!data.canSave} onChange={(e) => setEdit({ ...edit, [f.name]: e.target.value })}><option value="" disabled>Choose</option>{f.options.map((o) => <option key={o} value={o}>{o === 'log' ? 'Off (keep in outbox)' : o}</option>)}</select>
-                        : <input id={id} className="input" type={f.secret ? 'password' : 'text'} autoComplete="off" spellCheck={false} placeholder={f.source === 'none' ? (f.hint ?? 'Paste it here') : 'Paste a new value to replace it'} value={edit[f.name] ?? ''} disabled={!data.canSave} onChange={(e) => { const v = e.target.value; setEdit((x) => { const n = { ...x }; if (v) n[f.name] = v; else delete n[f.name]; return n; }); }} />}
-                      {f.source === 'dashboard' && !(f.name in edit) && <button type="button" className="btn small ghost" onClick={() => setEdit({ ...edit, [f.name]: '' })} title={`Use Render's ${f.env} instead`}>Remove</button>}
-                      {f.name in edit && edit[f.name] === '' && <span className="sp-small sp-muted">Will be removed</span>}
-                    </div>
-                  </div>
-                );
-              })}</div>
-              <div className="btn-row" style={{ marginTop: 12 }}>
-                <button type="button" className="btn small" onClick={() => test(svc.id)} disabled={t === 'testing'}><Icon name="bolt" size={14} />{t === 'testing' ? 'Testing…' : 'Test'}</button>
-                {t && t !== 'testing' && <span className={`sp-small sp-test ${t.ok ? 'ok' : 'bad'}`} role="status"><Icon name={t.ok ? 'check' : 'alert'} size={14} />{t.message}</span>}
-              </div>
-            </section>
-          );
-        })}
-        <section className={`sp-card sp-sec sp-conn-save${changes ? ' on' : ''}`}>
-          <p className="sp-small">Keys you save here take over from Render's. Saving asks for your password, and every change is in Privacy &amp; audit.</p>
-          <div className="sp-inline-form">
-            <label className="field"><span className="label">Your password</span><input id="conn-password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!changes} /></label>
-            <button className="btn primary" disabled={!changes || !password || busy || !data.canSave}>{busy ? 'Saving…' : changes ? `Save ${plural(changes, 'change')}` : 'No changes'}</button>
+        {GROUPS.map((g) => (
+          <div key={g.id} className="sp-conn-group" id={`group-${g.id}`}>
+            <h2 className="sp-h2">{g.title}</h2>
+            <p className="sp-small sp-muted">{g.sub}</p>
+            {data.services.filter((svc) => svc.group === g.id).map(card)}
           </div>
-          {err && <p className="sp-small acct-error" role="alert">{err}</p>}
-        </section>
+        ))}
+        {!preview && (
+          <section className={`sp-card sp-sec sp-conn-save${changes ? ' on' : ''}`}>
+            <p className="sp-small">Keys you save here take over from Render's. Saving asks for your password, and every change is in Privacy &amp; audit.</p>
+            <div className="sp-inline-form">
+              <label className="field"><span className="label">Your password</span><input id="conn-password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!changes} /></label>
+              <button className="btn primary" disabled={!changes || !password || busy || !data.canSave}>{busy ? 'Saving…' : changes ? `Save ${plural(changes, 'change')}` : 'No changes'}</button>
+            </div>
+            {err && <p className="sp-small acct-error" role="alert">{err}</p>}
+          </section>
+        )}
       </form>
     </>
   );

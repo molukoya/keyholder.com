@@ -100,12 +100,13 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/', maxAge: cfg.sessionDays * 86400 });
   };
   // What the app needs to know. Google and email follow the keys in effect (Connections page, then Render).
-  // banks: real bank checks need the bank-data provider (Plaid, Phase 3); until then the app says "Coming soon".
+  // banks: real bank checks need the bank-data provider (Flinks, Phase 3); until then the app says "Coming soon".
+  // addressLookup: address suggestions (Google Places) when its key is set.
   // banksOff: banks the super user turned off one by one.
   const publicConfig = async () => {
     await keys.refresh(db);
     const b = await bankSettings(db);
-    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: false, banksOff: b.enabled ? b.off : [], version: VERSION };
+    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: false, banksOff: b.enabled ? b.off : [], addressLookup: !!keys.places(), version: VERSION };
   };
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
@@ -344,6 +345,47 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     return db.query(`select id, kind, to_email, subject, status, last_error, created_at, sent_at from outbox order by created_at desc limit 200`);
   });
 
+  // ---------------- Address lookup (Google Places, Canada) ----------------
+  // The app asks the server, which asks Google with the key kept here (never in the browser). Signed-in
+  // people only, and a limit per person, so the key cannot be used up by others.
+  const placesKey = async () => { await keys.refresh(db); return keys.places() ?? fail(404, 'Address lookup is not set up.'); };
+  const lookupLimit = { rateLimit: { hook: 'preHandler' as const, max: 60, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => r.user?.id ?? r.ip } };
+  const Session = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
+  app.get('/api/address/suggest', { config: lookupLimit }, async (req) => {
+    need(req);
+    const { q, session } = z.object({ q: z.string().trim().min(3).max(200), session: Session }).parse(req.query);
+    const key = await placesKey();
+    const r = await fetcher('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+      body: JSON.stringify({ input: q, includedRegionCodes: ['ca'], languageCode: 'en', sessionToken: session }),
+    });
+    if (!r.ok) { await recordError(db, 'Address lookup', `suggestions ${r.status}`); fail(502, 'Address suggestions are not working right now. Type the address instead.'); }
+    type Pred = { placeId: string; text?: { text: string }; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } } };
+    const b = (await r.json()) as { suggestions?: { placePrediction?: Pred }[] };
+    const suggestions = (b.suggestions ?? []).flatMap((x) => (x.placePrediction ? [x.placePrediction] : [])).slice(0, 5)
+      .map((x) => ({ id: x.placeId, main: x.structuredFormat?.mainText?.text ?? x.text?.text ?? '', secondary: x.structuredFormat?.secondaryText?.text ?? '' }));
+    return { suggestions };
+  });
+  app.get('/api/address/details', { config: lookupLimit }, async (req) => {
+    need(req);
+    const { id, session } = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{10,300}$/), session: Session }).parse(req.query);
+    const key = await placesKey();
+    const r = await fetcher(`https://places.googleapis.com/v1/places/${id}${session ? `?sessionToken=${session}` : ''}`, {
+      headers: { 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'addressComponents,location' },
+    });
+    if (!r.ok) { await recordError(db, 'Address lookup', `details ${r.status}`); fail(502, 'That address could not be filled in. Type it instead.'); }
+    const b = (await r.json()) as { addressComponents?: { longText: string; shortText: string; types: string[] }[]; location?: { latitude: number; longitude: number } };
+    const part = (type: string, short = false) => { const c = (b.addressComponents ?? []).find((x) => x.types.includes(type)); return c ? (short ? c.shortText : c.longText) : ''; };
+    const street = [part('street_number'), part('route')].filter(Boolean).join(' ');
+    const unit = part('subpremise');
+    return {
+      street: unit && street ? `${unit}-${street}` : street,
+      city: part('locality') || part('sublocality') || part('postal_town') || part('administrative_area_level_3'),
+      province: part('administrative_area_level_1', true), postalCode: part('postal_code'), country: part('country', true),
+      lat: b.location?.latitude ?? null, lng: b.location?.longitude ?? null,
+    };
+  });
+
   // ---------------- Connections: API keys (super user only) ----------------
   app.get('/api/admin/connections', async (req) => {
     needSuper(req);
@@ -375,7 +417,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   });
   app.post('/api/admin/connections/test', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
     const me = needSuper(req);
-    const { service } = z.object({ service: z.enum(['google', 'email', 'stripe', 'plaid']) }).parse(req.body);
+    const { service } = z.object({ service: z.enum(['google', 'email', 'places', 'stripe', 'flinks', 'avm']) }).parse(req.body);
     await keys.refresh(db, true);
     const r = await keys.test(service as ServiceId, fetcher, cfg.appUrl);
     await audit(db, { actor: me.email, actorId: me.id, scope: 'admin', action: 'Connection tested', detail: `${service}: ${r.ok ? 'ok' : 'not working'}`, ip: ip(req) });

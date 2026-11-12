@@ -65,6 +65,9 @@ export interface Property {
   address: string;
   city: string;
   province: Province;
+  postalCode?: string;
+  /** Map position (from the address lookup). Only cities, never exact positions, leave the landlord's account. */
+  geo?: { lat: number; lng: number };
   type: PropertyType;
   /** Share of the property that is rented out, 0–100 (PS-5). 100 when the owner lives elsewhere. */
   rentalSharePct: number;

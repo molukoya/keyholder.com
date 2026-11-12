@@ -15,6 +15,8 @@ export interface Customer {
   paymentStatus: 'ok' | 'failed' | 'none'; trialEnds?: ISODate; credit: number;
   /** What this subscriber pays per unit a month (the price when they subscribed). */
   unitPrice?: number;
+  /** Cities of their rentals (city level only, for the map). Missing: the city from signup is used. */
+  places?: { city: string; province: string }[];
   source: string; receiptsSent: number; deleted?: boolean; notes: string[];
 }
 export type TicketStatus = 'open' | 'waiting' | 'solved';

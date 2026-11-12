@@ -342,6 +342,22 @@ function watch(pg, errors, label) {
         const r = await p.evaluate(async () => (await fetch('/api/admin/connections')).status); if (r !== 403) throw new Error('connections ' + r);
         await ctx.close();
       });
+      await step(tag, 'E25 Overview map: real landlords by city (never street addresses); Sign out from the dashboard works on this screen', async () => {
+        await go(ad, 'support'); await ad.waitForSelector('.sp-lmap svg');
+        if ((await ad.locator('.sp-lmap-dot').count()) < 1) throw new Error('no dots');
+        await ad.waitForSelector('.sp-lmap-top >> text=Toronto, ON');
+        if ((await ad.locator('.sp-lmap').textContent()).includes('Oak St')) throw new Error('a street address is shown');
+        const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+        await signIn(p, 'admin', ADMIN.password); await p.waitForSelector('.sp-page');
+        await p.locator('.sp-rail-foot >> text=Sign out').click(); await p.waitForSelector('.lp-hero-h'); await ctx.close();
+      });
+      await step(tag, 'E26 Without the Google Places key the address box stays a plain box (no suggestions, nothing sent anywhere)', async () => {
+        if ((await api(pg, '/api/session')).body.config.addressLookup) throw new Error('address lookup on without a key');
+        await go(pg, 'rentals'); await pg.locator('button:has-text("Add property"), a:has-text("Add property")').first().click(); await pg.waitForSelector('#pp-addr');
+        await pg.locator('#pp-addr').pressSequentially('100 Queen St', { delay: 20 }); await pg.waitForTimeout(800);
+        if (await pg.locator('.addr-list').count()) throw new Error('suggestions shown');
+        await pg.locator('.drawer >> text=Cancel').click();
+      });
       await step(tag, 'E18 No preview on the live site: admin / admin is refused', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
         await signIn(p, 'admin', 'admin'); await p.waitForSelector('.acct-error');
