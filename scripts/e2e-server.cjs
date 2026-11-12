@@ -426,7 +426,10 @@ function watch(pg, errors, label) {
         await until(on, 5000, 'banks and values on');
       });
       await step(tag, 'E28 The landlord connects a bank in Plaid\'s window: the bank shows, its deposit and bill arrive and are looked at', async () => {
-        await pg.addInitScript(stubPlaidLink); await pg.reload(); await go(pg, 'today'); await pg.waitForSelector('.rent-row');
+        // E12's password reset signed this browser out (a reset ends every other sign-in): sign in again.
+        await pg.addInitScript(stubPlaidLink); await pg.reload();
+        if (!(await api(pg, '/api/session')).body.user) await signIn(pg, email, password);
+        await go(pg, 'today'); await pg.waitForSelector('.rent-row');
         await go(pg, 'settings'); await pg.locator('#rent-tracking .choice:has-text("Check my banks for me")').click();
         await pg.waitForSelector('#plaid-go'); await pg.click('#plaid-go');
         await pg.waitForSelector('#rent-tracking >> text=RBC Royal Bank');
