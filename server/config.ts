@@ -37,6 +37,7 @@ const Env = z.object({
   PLAID_BASE_URL: z.string().url().optional(),
   /** Tests only: a stand-in for Repliers' API. */
   REPLIERS_BASE_URL: z.string().url().optional(),
+  BOC_BASE_URL: z.string().url().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   /** "inline" runs the email sender and daily jobs inside the web process; "off" leaves them to `npm run worker`. */
@@ -73,6 +74,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     keysSecret: e.KEYS_SECRET,
     plaidBaseUrl: production ? undefined : e.PLAID_BASE_URL,
     repliersBaseUrl: production ? undefined : e.REPLIERS_BASE_URL,
+    bocBaseUrl: production ? undefined : e.BOC_BASE_URL,
     keysEnv: Object.fromEntries(KEY_ENV.map((k) => [k, env[k]])) as Record<string, string | undefined>,
     worker: e.WORKER,
     dailyHour: e.DAILY_HOUR,

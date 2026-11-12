@@ -3,7 +3,7 @@ import type {
   Property, Unit, Valuation,
 } from '../data/types';
 import { addDays, addMonths, daysBetween, dueDate, periodOf, periodRange, yearsBetween } from './dates';
-import { CATEGORIES, CCA_CLASSES, RETURN_PRESETS, regionData } from './jurisdiction';
+import { CATEGORIES, CCA_CLASSES, benchmarks, regionData } from './jurisdiction';
 import { hasGold } from './levels';
 
 // =====================================================================================
@@ -376,27 +376,32 @@ export type ValueBasis = 'valuation' | 'purchase' | 'rent';
  * Rent-based estimates are already the rented part only.
  */
 /**
- * Automated valuation model. Stage 1 is a PLACEHOLDER: it grows the purchase price by the local price index,
- * or (no purchase price) divides yearly rent by the local gross yield. Stage 2 swaps in a licensed Canadian
- * AVM (e.g. Opta/SCM iClarify, Teranet Purview, Altus) behind this same function and label.
+ * The value shown for a property. With a connected provider (Repliers), its estimate for the whole home, once the
+ * landlord has added the home's details (no purchase price needed). Without one: the purchase price grown by the
+ * local price trend, or (no purchase price) a rough figure from the rent and the local rent-to-price ratio.
  */
-export const AVM_PROVIDER = 'Sample AVM (placeholder)';
-
 export interface ValueInfo { value: Cents; basis: ValueBasis; source: string; asOf: ISODate }
 
 export function propertyValue(state: AppState, prop: Property, today: ISODate): ValueInfo {
   const vals = state.valuations.filter((v) => v.propertyId === prop.id);
   // The connected AVM provider's estimate (refreshed monthly) is the value, when there is a recent one.
-  const avm = vals.filter((v) => v.source === 'avm' && daysBetween(v.date, today) <= 60).sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (avm) return { value: avm.likely, basis: 'valuation', source: `Automated valuation · ${avm.note || 'AVM'} · ${avm.date}`, asOf: avm.date };
+  const avm = latestAvm(state, prop.id, today);
+  if (avm) return { value: avm.likely, basis: 'valuation', source: `${avm.note || 'Automated valuation'} · ${avm.date}`, asOf: avm.date };
   const idx = indexEstimate(prop, today);
   const own = vals.filter((v) => v.source !== 'purchase').sort((a, b) => b.date.localeCompare(a.date));
   if (own.length) {
     const blend = blendedValue([...vals, ...(idx ? [{ ...idx, id: 'idx', propertyId: prop.id }] : [])], today);
     if (blend) return { value: blend.likely, basis: 'valuation', source: `Automated valuation blended with ${own.length === 1 ? 'your estimate' : 'your estimates and nearby sales'}`, asOf: today };
   }
-  if (idx) return { value: idx.likely, basis: 'purchase', source: `Automated valuation · ${AVM_PROVIDER}`, asOf: today };
-  return { value: rentBasedValue(state, prop), basis: 'rent', source: `Automated valuation from rent · ${AVM_PROVIDER}`, asOf: today };
+  if (idx) return { value: idx.likely, basis: 'purchase', source: 'Estimate from what you paid and the local price trend', asOf: today };
+  return { value: rentBasedValue(state, prop), basis: 'rent', source: 'Rough estimate from the rent, not an appraisal', asOf: today };
+}
+
+/** The provider's latest estimate for a property (the last one saved wins on the same day), if under 60 days old. */
+export function latestAvm(state: AppState, propertyId: string, today: ISODate) {
+  let best: AppState['valuations'][number] | undefined;
+  for (const v of state.valuations) if (v.propertyId === propertyId && v.source === 'avm' && daysBetween(v.date, today) <= 60 && (!best || v.date >= best.date)) best = v;
+  return best;
 }
 
 // =====================================================================================
@@ -515,8 +520,8 @@ export function worthIt(state: AppState, today: ISODate, opts: { propertyId?: st
   const returnPct = roughValue.length === 0 && equity > 0 ? (total / equity) * 100 : null;
   return {
     value, debt, equity, cashFlow, principalPaid, appreciation, total, returnPct,
-    benchmarkPct: RETURN_PRESETS.typical,
-    diffPts: returnPct === null ? null : returnPct - RETURN_PRESETS.typical,
+    benchmarkPct: benchmarks().gic.pct,
+    diffPts: returnPct === null ? null : returnPct - benchmarks().gic.pct,
     appreciationEstimated, roughValue, missing,
   };
 }

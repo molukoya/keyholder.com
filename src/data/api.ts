@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { setBenchmarks, type Benchmarks } from '../lib/jurisdiction';
 import { embedded } from '../components/ui';
 
 // Talking to the Keyholder server (Stage 2). The same app runs in two ways:
@@ -7,7 +8,7 @@ import { embedded } from '../components/ui';
 // The mode is decided once at start-up, before the first screen is drawn.
 
 export type ServerUser = { id: string; email: string; name: string; role: 'owner' | 'super' | 'admin' | 'support'; emailVerified: boolean; hasPassword: boolean; google: boolean };
-export type ServerConfig = { google: boolean; emailDelivery: boolean; banks?: boolean; banksOff?: string[]; addressLookup?: boolean; avm?: boolean; version: string };
+export type ServerConfig = { google: boolean; emailDelivery: boolean; banks?: boolean; banksOff?: string[]; addressLookup?: boolean; avm?: boolean; benchmarks?: Benchmarks; version: string };
 export type Conn = { mode: 'local' | 'server'; user: ServerUser | null; config: ServerConfig | null };
 
 let conn: Conn = { mode: 'local', user: null, config: null };
@@ -41,19 +42,24 @@ export function useConn(): Conn {
   return useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, getConn, getConn);
 }
 
+/** Browser-only preview: the comparison rates set on the sample dashboard in this browser, if any. */
+function previewBenchmarks(): Benchmarks | null {
+  try { const raw = localStorage.getItem('keyholder:support:v1'); return raw ? (JSON.parse(raw) as { platform?: { benchmarks?: Benchmarks } }).platform?.benchmarks ?? null : null; } catch { return null; }
+}
+
 /** Asks the page's own server who is signed in. No answer (or not JSON) means local mode. */
 export async function detectServer(timeoutMs = 3000): Promise<Conn> {
-  if (embedded || typeof window === 'undefined' || !/^https?:$/.test(location.protocol)) return conn;
+  if (embedded || typeof window === 'undefined' || !/^https?:$/.test(location.protocol)) { setBenchmarks(previewBenchmarks()); return conn; }
   // The Keyholder server marks the page it serves. Static hosts (GitHub Pages, `vite preview`) don't, so
   // the app stays in browser-only mode without making a request. `npm run dev` asks anyway (it proxies /api).
-  if (!document.querySelector('meta[name="keyholder-server"]') && !import.meta.env.DEV) return conn;
+  if (!document.querySelector('meta[name="keyholder-server"]') && !import.meta.env.DEV) { setBenchmarks(previewBenchmarks()); return conn; }
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const r = await fetch('/api/session', { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: ctl.signal, cache: 'no-store' });
     if (r.ok && (r.headers.get('content-type') ?? '').includes('application/json')) {
       const b = (await r.json()) as { user: ServerUser | null; config: ServerConfig };
-      if (b && b.config) conn = { mode: 'server', user: b.user, config: b.config };
+      if (b && b.config) { conn = { mode: 'server', user: b.user, config: b.config }; setBenchmarks(b.config.benchmarks); }
     }
   } catch { /* no server: local mode */ } finally { clearTimeout(t); }
   emit();

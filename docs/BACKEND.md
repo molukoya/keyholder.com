@@ -134,7 +134,8 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 | `POST /bank/link-token` · `POST /bank/exchange` | landlord | Open Plaid's bank sign-in · keep the connection (token encrypted) and read the first transactions |
 | `POST /bank/sync` · `DELETE /bank/:id` | landlord | "Check now" (reads Plaid's copy) · disconnect (removed at Plaid too) |
 | `POST /plaid/webhook` | Plaid (signed) | New transactions: read right away. The signature (ES256 JWT over the body) is checked. |
-| `POST /valuation` | landlord | The AVM provider's value for an address (kept 30 days per address) |
+| `POST /valuation` | landlord | Repliers' value for a home: address, postal code, bedrooms, bathrooms, square feet, MLS property type and style (kept 30 days per home) |
+| `GET /valuation/options` | landlord | The property types and styles the MLS board accepts (Repliers aggregates; a day at a time) |
 | `GET /address/suggest?q=` · `GET /address/details?id=` | signed in | Canadian address suggestions · street, city, province, postal code, position (Google Places, 60 a minute) |
 | `GET /announcements` | anyone | Active announcements |
 | `POST /auth/signup` | anyone | `{ name, email, password }` → creates the account and signs in |
@@ -157,7 +158,9 @@ Migrations are in `server/migrations.ts` and run at start-up (each once, in a tr
 `users`, `sessions`, `auth_tokens`, `accounts`, `account_state` (+ `account_state_history`),
 `message_deliveries`, `outbox`, `audit_log`, `support_tickets`, `announcements`, `data_requests`,
 `settings`, `system_errors`, `job_runs`, `promotions`, `secrets` (encrypted API keys), `bank_items` (Plaid
-connections, access tokens encrypted), `valuation_cache` (AVM answers, 30 days).
+connections, access tokens encrypted), `valuation_cache` (AVM answers, 30 days). Settings include
+`benchmarks` (savings and stock index fund rates, set by the super user) and `benchmarks.gic` (the Bank of
+Canada's 5-year GIC rate, read daily by the worker from www.bankofcanada.ca/valet, series V80691341).
 
 ## Not done yet (needs an outside service or a decision)
 

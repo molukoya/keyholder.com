@@ -112,9 +112,30 @@ Status: ☐ to do · ◐ in progress · ☑ done
   values; RPS also estimates rents. MLS® (CREA DDF) has no sold prices and needs a REALTOR® and a CREA
   agreement, so it is not used for values. The Connections page has the slot (provider + API key).
 - Until a provider is connected, values come from the purchase price and a market index, labelled estimates.
-- Built: each property with an address gets the provider's value (with its low–high range) about once a month;
-  the server keeps each answer 30 days per address, so a home is paid for once a month at most. The card says
-  "Automated valuation · Repliers Estimates · date". The Connections Test asks for a sample address.
+- Built (owner, 2026-11-12: "show the Repliers estimate even before the purchase price or mortgage"):
+  - Repliers' API (docs.repliers.io/reference/create-an-estimate) needs the postal code, bedrooms, bathrooms,
+    square feet, and the property type and style as the MLS board writes them. The property's Value page asks
+    for these once ("Get this home's value from Repliers"), with type and style picked from the board's own list.
+    No purchase price or mortgage needed.
+  - The value shows on the Value page and the property card: "Worth about $X, likely between $low and $high ·
+    Repliers Estimates · date · usually within about N%". Where the owner lives in part of the home, the whole
+    home's value and the rented share are both shown. Refreshed about once a month.
+  - If Repliers cannot value a home (add-on off, a field it does not accept…), the Value page shows Repliers'
+    reason and "Try again"; Support → Health logs it.
+  - The server keeps each answer 30 days per home (address and details), so a home is paid for once a month;
+    corrected details ask again.
+  - Without a provider the figure is labelled "Rough estimate from the rent, not an appraisal" or "Estimate from
+    what you paid and the local price trend" ("Sample AVM (placeholder)" is gone).
+  - Connections → Property values: optional Repliers board ID (for a key that covers more than one MLS board).
+    Test checks the key, lists the board's types, styles and boards, and values a sample home.
+
+### R19. Comparison rates ☑
+- "Your money is earning" compares a property's return with high-interest savings, a 5-year GIC and a broad stock
+  index fund. These were fixed placeholder numbers (2.75%, 3.6%, 7.5%).
+- 5-year GIC: the Bank of Canada's weekly figure for the big banks' posted 5-year GIC rate (Valet API, series
+  V80691341, free, no key), read by the server each day. 2.75% for the week of Nov 4, 2026.
+- High-interest savings and the stock index fund have no official rate: the super user sets them on Price &
+  promotions → Comparison rates. Each rate shows its source and date in the app.
 
 ### R17. Tenants older than Keyholder: in good standing? ☑
 - Adding a tenant whose lease started before this month asks: are they in good standing, and the last month

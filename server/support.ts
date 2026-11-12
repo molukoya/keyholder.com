@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AppState } from '../src/data/types';
 import { DEFAULT_UNIT_CENTS, generateSupport, SLA_HOURS, type Announcement, type Customer, type DataRequest, type Member, type Platform, type Priority, type Promotion, type Reply, type RuleStatus, type SupportBase, type TeamRole, type Ticket, type TicketMsg } from '../src/support/data';
 import { addDays, todayISO } from '../src/lib/dates';
+import { DEFAULT_BENCHMARKS, GIC_SOURCE, type Benchmark, type Benchmarks } from '../src/lib/jurisdiction';
 import type { Config } from './config';
 import type { Db, Q } from './db';
 import { queueMail } from './email';
@@ -27,6 +28,22 @@ const putSetting = (q: Q, key: string, value: unknown) =>
 // ---------------- The super user's settings ----------------
 /** The Landlord plan price per unit a month, in cents. A new price applies to new subscribers only. */
 export const unitPrice = async (q: Q) => (await setting<{ unitCents: number }>(q, 'plans.landlord', () => ({ unitCents: DEFAULT_UNIT_CENTS }))).unitCents;
+/**
+ * What landlords compare their property's return with. 5-year GIC: the Bank of Canada's figure, read each day
+ * (benchmarks.gic). High-interest savings and the stock index fund: set by the super user (benchmarks).
+ */
+export async function benchmarksNow(q: Q): Promise<Benchmarks> {
+  const set = await setting<Partial<Record<'savings' | 'index', Benchmark & { by?: string }>>>(q, 'benchmarks', () => ({}));
+  const gic = await setting<{ pct: number; asOf: string } | null>(q, 'benchmarks.gic', () => null);
+  const pick = (b: (Benchmark & { by?: string }) | undefined, d: Benchmark): Benchmark => (b ? { pct: b.pct, asOf: b.asOf, source: b.source } : d);
+  return {
+    savings: pick(set.savings, DEFAULT_BENCHMARKS.savings),
+    gic: gic ? { pct: gic.pct, asOf: gic.asOf, source: GIC_SOURCE } : DEFAULT_BENCHMARKS.gic,
+    index: pick(set.index, DEFAULT_BENCHMARKS.index),
+  };
+}
+/** Saves the Bank of Canada's latest 5-year GIC rate. */
+export const saveGic = (q: Q, pct: number, asOf: string) => putSetting(q, 'benchmarks.gic', { pct, asOf, fetchedAt: new Date().toISOString() });
 /** Bank connection: on for everyone or off, and banks turned off one by one. */
 export const bankSettings = (q: Q) => setting<Platform['banks']>(q, 'banks', () => ({ enabled: true, off: [] }));
 const TEAM_LABEL: Record<string, TeamRole> = { super: 'Super user', admin: 'Admin', support: 'Support' };
@@ -91,7 +108,7 @@ export async function snapshot(db: Q, me: User): Promise<SupportSnapshot> {
   const d = defaults();
   // Price, promotions and banks: everyone on the team sees them; only the super user changes them.
   const promotions = (await db.query<PromoRow>(`select id, code, kind, value, months, ends_on::text as ends_on, max_uses, uses, status, created_at from promotions order by created_at desc`)).map(promoOut);
-  const platform: Platform = { unitCents: await unitPrice(db), promotions, banks: await bankSettings(db) };
+  const platform: Platform = { unitCents: await unitPrice(db), promotions, banks: await bankSettings(db), benchmarks: await benchmarksNow(db) };
   return {
     live: true, me: me.name, myRole: me.role === 'super' ? 'super' : me.role === 'admin' ? 'admin' : 'support', platform, today, customers, tickets, invoices: [], requests, team,
     replies: await setting<Reply[]>(db, 'support.replies', () => d.replies),
@@ -192,6 +209,17 @@ export async function applyChange(db: Db, cfg: Config, me: User, next: SupportBa
       } else if (p.status !== was.status && ['active', 'paused', 'ended'].includes(p.status) && was.status !== 'ended') {
         await q.query('update promotions set status = $2 where id = $1', [p.id, p.status]); done.push(`promo ${was.code}`);
       }
+    }
+    // Comparison rates the super user sets (the GIC is the Bank of Canada's and is not changed here).
+    const rate = (b: Benchmark | undefined) => !!b && Number.isFinite(b.pct) && b.pct >= 0 && b.pct <= 25;
+    if (pl?.benchmarks && (rate(pl.benchmarks.savings) || rate(pl.benchmarks.index))) {
+      const today = todayISO(), out: Record<string, Benchmark & { by: string }> = {};
+      for (const k of ['savings', 'index'] as const) {
+        const n = pl.benchmarks[k], was = cur.platform.benchmarks[k];
+        if (rate(n) && n.pct !== was.pct) out[k] = { pct: Math.round(n.pct * 100) / 100, asOf: today, source: k === 'savings' ? DEFAULT_BENCHMARKS.savings.source : DEFAULT_BENCHMARKS.index.source, by: me.email };
+        else out[k] = { ...was, by: me.email };
+      }
+      if (out.savings.pct !== cur.platform.benchmarks.savings.pct || out.index.pct !== cur.platform.benchmarks.index.pct) { await putSetting(q, 'benchmarks', out); done.push('benchmarks'); }
     }
     if (pl?.banks && !same(pl.banks, cur.platform.banks) && typeof pl.banks.enabled === 'boolean' && Array.isArray(pl.banks.off)) {
       await putSetting(q, 'banks', { enabled: pl.banks.enabled, off: [...new Set(pl.banks.off.map((x) => String(x).slice(0, 80)))].slice(0, 200) }); done.push('banks');

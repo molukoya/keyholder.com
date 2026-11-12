@@ -7,7 +7,7 @@ import { keyholderScore } from '../lib/score';
 import { banksOn } from '../data/api';
 import { portfolio } from '../lib/finance';
 import { monthChange } from '../lib/silver';
-import { RETURN_PRESETS } from '../lib/jurisdiction';
+import { benchmarks } from '../lib/jurisdiction';
 import { fmtShort } from '../lib/money';
 import { Drawer, Field, MoneyInput, Seg } from './ui';
 import { MortgageFields, newMortgage } from './forms';
@@ -73,7 +73,7 @@ export function PropertyCard({ property, active, banner }: { property: Property;
       <div className="pcard-figs">
         <div><span>Worth about</span><strong>{rough ? '~' : ''}{fmtShort(row.value)}</strong></div>
         <div><span>Yours</span><strong>{row.owedKnown ? fmtShort(row.yours) : '—'}</strong></div>
-        <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong>{row.returnPct !== null && <em className="vs-gic">GIC {RETURN_PRESETS.typical}%</em>}</div>
+        <div><span>Return a year</span><strong>{row.returnPct === null ? '—' : `${row.returnPct.toFixed(1)}%`}</strong>{row.returnPct !== null && <em className="vs-gic">GIC {benchmarks().gic.pct}%</em>}</div>
       </div>
       <div className="pcard-source">{month !== null && level !== 'bronze' ? <><strong>{month >= 0 ? '+' : '−'}{fmtShort(Math.abs(month))} this month</strong> · </> : null}{row.valueInfo.source}</div>
     </div>

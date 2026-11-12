@@ -17,10 +17,10 @@ import {
   accountFor, audit, createLinkToken, createSession, createUser, endAllSessions, endSession, isTeam, publicUser, readState, sessionUser,
   SESSION_COOKIE, stateProblem, useLinkToken, userByEmail, userById, writeState, type User,
 } from './services';
-import { applyChange, bankSettings, customerState, deleteAccount, snapshot, unitPrice } from './support';
+import { applyChange, bankSettings, benchmarksNow, customerState, deleteAccount, snapshot, unitPrice } from './support';
 import { fieldOf, Keys, type ServiceId } from './keys';
 import { applyBankUpdate, dropBankFromState, itemByPlaidId, itemsFor, Plaid, PlaidError, syncItem } from './plaid';
-import { avmEstimate, AvmError } from './avm';
+import { avmEstimate, AvmError, avmOptions, type AvmOptions } from './avm';
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null; sessionToken: string | null }
@@ -116,7 +116,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   const publicConfig = async () => {
     await keys.refresh(db);
     const b = await bankSettings(db);
-    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: b.enabled && plaid.ready(), banksOff: b.enabled ? b.off : [], addressLookup: !!keys.places(), avm: keys.state('avm') === 'saved', version: VERSION };
+    return { google: !!keys.google(), emailDelivery: keys.email().provider !== 'log', banks: b.enabled && plaid.ready(), banksOff: b.enabled ? b.off : [], addressLookup: !!keys.places(), avm: keys.state('avm') === 'saved', benchmarks: await benchmarksNow(db), version: VERSION };
   };
   // Counted per address and email, after the body is read, so one person's typos never lock out another.
   const authLimit = { rateLimit: { hook: 'preHandler' as const, max: 10, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => `${r.ip}:${normEmail(String((r.body as { email?: string })?.email ?? ''))}` } };
@@ -403,22 +403,44 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   });
 
   // ---------------- Property values (AVM) ----------------
-  // The provider's estimate for one property's address. Kept 30 days per address, so a home is paid for once a month.
+  // The provider's estimate for one home. Kept 30 days per home (address and details), so a home is paid for once
+  // a month; changed details (a corrected style or size) ask again.
+  const avmSetUp = async () => { await keys.refresh(db); if (keys.state('avm') !== 'saved') fail(404, 'Property values are not set up.'); return keys.get('avm.provider')!; };
+  const avmOpts = () => ({ base: cfg.repliersBaseUrl, boardId: keys.get('avm.boardId') || undefined });
   app.post('/api/valuation', { config: { rateLimit: { hook: 'preHandler' as const, max: 30, timeWindow: '1 minute', keyGenerator: (r: FastifyRequest) => r.user?.id ?? r.ip } } }, async (req) => {
     await ownerAccount(req);
-    await keys.refresh(db);
-    if (keys.state('avm') !== 'saved') fail(404, 'Property values are not set up.');
-    const a = z.object({ street: z.string().trim().min(3).max(200), city: z.string().trim().min(1).max(80), province: z.string().length(2), postalCode: z.string().max(10).optional(),
-      lat: z.number().min(40).max(85).nullish(), lng: z.number().min(-145).max(-50).nullish(), type: z.string().max(20).optional(), bedrooms: z.number().int().min(0).max(20).optional() }).parse(req.body);
-    const provider = keys.get('avm.provider')!;
-    const key = createHash('sha256').update(`${provider}|${a.street.toLowerCase()}|${a.city.toLowerCase()}|${a.province}`).digest('hex');
+    const provider = await avmSetUp();
+    const line = (max: number) => z.string().trim().min(1).max(max).regex(/^[^\r\n]*$/);
+    const h = z.object({
+      street: line(200), city: line(80), province: z.string().length(2), postalCode: z.string().trim().regex(/^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/, 'postal code'),
+      propertyType: line(80), style: line(80), bedrooms: z.number().int().min(0).max(30), bathrooms: z.number().int().min(1).max(30),
+      sqft: z.number().int().min(200).max(30000), yearBuilt: z.number().int().min(1700).max(2100).optional(),
+    }).parse(req.body);
+    const key = createHash('sha256').update(JSON.stringify([provider, avmOpts().boardId ?? '', h.street.toLowerCase(), h.city.toLowerCase(), h.province, h.postalCode.replace(/\s/g, '').toUpperCase(),
+      h.propertyType, h.style, h.bedrooms, h.bathrooms, h.sqft, h.yearBuilt ?? null])).digest('hex');
     const hit = await db.one<{ result: unknown }>(`select result from valuation_cache where key = $1 and fetched_at > now() - interval '30 days'`, [key]);
     if (hit) return { ...(hit.result as object), cached: true };
     try {
-      const e = await avmEstimate(provider, keys.get('avm.apiKey')!, fetcher, a, cfg.repliersBaseUrl);
+      const e = await avmEstimate(provider, keys.get('avm.apiKey')!, fetcher, h, avmOpts());
       const result = { ...e, date: new Date().toISOString().slice(0, 10) };
       await db.query(`insert into valuation_cache (key, result) values ($1, $2::jsonb) on conflict (key) do update set result = excluded.result, fetched_at = now()`, [key, JSON.stringify(result)]);
       return result;
+    } catch (e) {
+      if (e instanceof AvmError) { await recordError(db, 'Property values', e.message); fail(e.status === 501 ? 501 : e.status === 422 ? 422 : e.status >= 500 ? 502 : 400, e.message); }
+      throw e;
+    }
+  });
+  // The property types and styles the provider accepts (Repliers: the values in the account's MLS data), a day at a time.
+  let avmChoices: { at: number; sig: string; value: AvmOptions } | null = null;
+  app.get('/api/valuation/options', async (req) => {
+    await ownerAccount(req);
+    const provider = await avmSetUp();
+    const sig = `${provider}|${keys.get('avm.apiKey')?.slice(-6)}|${avmOpts().boardId ?? ''}`;
+    if (avmChoices && avmChoices.sig === sig && Date.now() - avmChoices.at < 24 * 3600_000) return avmChoices.value;
+    try {
+      const value = await avmOptions(provider, keys.get('avm.apiKey')!, fetcher, avmOpts());
+      avmChoices = { at: Date.now(), sig, value };
+      return value;
     } catch (e) {
       if (e instanceof AvmError) { await recordError(db, 'Property values', e.message); fail(e.status === 501 ? 501 : e.status >= 500 ? 502 : 400, e.message); }
       throw e;

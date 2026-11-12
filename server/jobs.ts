@@ -9,6 +9,7 @@ import { queueMail, recordError, sendDue } from './email';
 import { Keys } from './keys';
 import { digestMail } from './mails';
 import { readState, writeState } from './services';
+import { saveGic } from './support';
 
 // Background work. With WORKER=inline (the default) the web process runs it; on a bigger setup a
 // separate `npm run worker` process can. Everything here is safe to run twice: jobs claim their day
@@ -76,6 +77,20 @@ export async function cleanup(db: Db) {
   await db.query(`delete from auth_tokens where expires_at < now() - interval '7 days'`);
 }
 
+// The Bank of Canada's weekly figure for the big banks' posted 5-year GIC rate (Valet API, free, no key).
+export const GIC_SERIES = 'V80691341';
+/** Reads the latest 5-year GIC rate and saves it for the app. Returns it, or throws with the reason. */
+export async function refreshGic(cfg: Config, db: Db, fetcher: typeof fetch = fetch) {
+  const r = await fetcher(`${cfg.bocBaseUrl ?? 'https://www.bankofcanada.ca'}/valet/observations/${GIC_SERIES}/json?recent=1`, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`Bank of Canada answered ${r.status}`);
+  const b = (await r.json()) as { observations?: { d: string; [k: string]: unknown }[] };
+  const o = b.observations?.[0];
+  const pct = Number((o?.[GIC_SERIES] as { v?: string } | undefined)?.v);
+  if (!o || !/^\d{4}-\d{2}-\d{2}$/.test(o.d) || !Number.isFinite(pct) || pct < 0 || pct > 25) throw new Error('Bank of Canada sent no usable 5-year GIC rate');
+  await saveGic(db, pct, o.d);
+  return { pct, asOf: o.d };
+}
+
 /** Starts the background loop: the email queue every 10 s, the daily run and clean-up once an hour. */
 export function startWorker(cfg: Config, db: Db, log: (msg: string) => void, keys = new Keys(cfg)) {
   let stopped = false, busy = false;
@@ -94,6 +109,20 @@ export function startWorker(cfg: Config, db: Db, log: (msg: string) => void, key
       const today = todayISO();
       if (new Date().getHours() >= cfg.dailyHour && (await claim(db, 'daily', today))) log(`daily run: ${JSON.stringify(await dailyRun(cfg, db, today))}`);
     } catch (e) { log(`hourly job error: ${(e as Error).message}`); }
+    await gic();
+  };
+  // Once a day (and soon after starting); a failed read is tried again the next hour.
+  const gic = async () => {
+    if (stopped) return;
+    try {
+      if (!(await claim(db, 'gic', todayISO()))) return;
+      const g = await refreshGic(cfg, db);
+      log(`5-year GIC rate: ${g.pct}% (week of ${g.asOf})`);
+    } catch (e) {
+      await db.query(`update job_runs set detail = 'retry' where job = 'gic'`).catch(() => {});
+      await recordError(db, 'Comparison rates', `The 5-year GIC rate could not be read: ${(e as Error).message}`).catch(() => {});
+      log(`GIC rate error: ${(e as Error).message}`);
+    }
   };
   const a = setInterval(tick, 10_000);
   const b = setInterval(hourly, 60 * 60_000);

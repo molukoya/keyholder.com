@@ -7,7 +7,7 @@ import { useStore } from '../data/store';
 import { propertyLevel } from '../lib/levels';
 import { addDays, addPeriods, fmtDate, fmtMonthShort, periodOf } from '../lib/dates';
 import { picture, recordsStart, rentalPortion, taxPack } from '../lib/finance';
-import { CATEGORIES, OTHER_BANKS, POPULAR_BANKS, RETURN_PRESETS, category, type Band } from '../lib/jurisdiction';
+import { CATEGORIES, OTHER_BANKS, POPULAR_BANKS, returnPresets, category, type Band } from '../lib/jurisdiction';
 import { banksOff, banksOn, serverMode } from '../data/api';
 import { connectWithPlaid } from '../data/plaid';
 import * as sync from '../data/sync';
@@ -378,8 +378,8 @@ export function ThePicture() {
 export function BenchmarkRuler({ value, band, unit = '%', compact, labels, higherIsBetter = true, title }: {
   value: number; band?: Band; unit?: string; compact?: boolean; labels?: [string, string, string]; higherIsBetter?: boolean; title?: string;
 }) {
-  const b = band ?? RETURN_PRESETS;
-  const lbl = labels ?? (band ? ['Low', 'Typical', 'High'] : RETURN_PRESETS.labels);
+  const b = band ?? returnPresets();
+  const lbl = labels ?? (band ? ['Low', 'Typical', 'High'] : returnPresets().labels);
   const lo = Math.min(b.low, value) - Math.abs(b.high - b.low) * 0.4;
   const hi = Math.max(b.high, value) + Math.abs(b.high - b.low) * 0.4;
   const x = (v: number) => `${((v - lo) / (hi - lo || 1)) * 100}%`;

@@ -556,6 +556,11 @@ html body .drawer { z-index: 126; }
 .standing-list { display: grid; gap: 12px; margin-bottom: 16px; }
 .standing-q { display: grid; gap: 12px; border: 1px solid var(--accent-tint); box-shadow: 0 0 0 3px var(--accent-tint) inset; }
 .standing-q .field { margin: 0; }
+/* The home's value from Repliers (Value page). */
+.home-value, .home-facts { margin-bottom: 24px; }
+.home-facts .field { margin: 0; }
+.hv-error strong { color: var(--rust); }
+.home-value .btn-row { flex-wrap: wrap; }
 .standing-head { display: flex; gap: 12px; align-items: flex-start; }
 .standing-head h2 { margin: 0 0 4px; font-size: 18px; }
 .standing-head p { margin: 0; }

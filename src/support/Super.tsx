@@ -56,10 +56,24 @@ export function Pricing() {
   };
   const setStatus = (x: Promotion, status: Promotion['status'], verb: string) =>
     sup((d) => { d.platform.promotions.find((y) => y.id === x.id)!.status = status; }, { action: `Promotion ${verb}`, detail: x.code }, `${x.code} ${verb}`);
+  // Comparison rates: the GIC comes from the Bank of Canada; savings and the stock index fund are set here.
+  const bm = s.platform.benchmarks;
+  const [rates, setRates] = useState({ savings: String(bm.savings.pct), index: String(bm.index.pct) });
+  const pctOf = (v: string) => Math.round(Number(v.replace(/[%\s]/g, '')) * 100) / 100;
+  const okRate = (v: string) => { const n = pctOf(v); return v.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 25; };
+  const ratesChanged = pctOf(rates.savings) !== bm.savings.pct || pctOf(rates.index) !== bm.index.pct;
+  const saveRates = (e: FormEvent) => {
+    e.preventDefault(); if (!okRate(rates.savings) || !okRate(rates.index) || !ratesChanged) return;
+    const today = new Date().toISOString().slice(0, 10);
+    sup((d) => {
+      if (pctOf(rates.savings) !== bm.savings.pct) d.platform.benchmarks.savings = { pct: pctOf(rates.savings), asOf: today, source: 'Set by Keyholder' };
+      if (pctOf(rates.index) !== bm.index.pct) d.platform.benchmarks.index = { pct: pctOf(rates.index), asOf: today, source: 'Long-run yearly average, not a promise' };
+    }, { action: 'Comparison rates changed', detail: `Savings ${bm.savings.pct}% → ${pctOf(rates.savings)}%, stock index fund ${bm.index.pct}% → ${pctOf(rates.index)}%` }, 'Comparison rates saved. Landlords see them on their next visit.');
+  };
 
   return (
     <>
-      <PageHead eyebrow="Super user" title="Price & promotions" sub="The Landlord plan price and promo codes" />
+      <PageHead eyebrow="Super user" title="Price & promotions" sub="The Landlord plan price, promo codes and the rates landlords compare with" />
       <section className="sp-card sp-sec" id="price">
         <h2 className="sp-h3">Landlord plan price</h2>
         <p className="sp-price-now"><strong>{fmtMoney(cur, 2)}</strong> per unit, a month</p>
@@ -101,6 +115,23 @@ export function Pricing() {
           </form>
         ) : <OnlySuper />}
         <p className="sp-small">Landlords enter a code when they upgrade to the Landlord plan. Codes start working at checkout once card payments (Stripe) are on.</p>
+      </section>
+
+      <section className="sp-card sp-sec" id="benchmarks">
+        <h2 className="sp-h3">Comparison rates</h2>
+        <p className="sp-small">Landlords see what their money earns in a property next to these three, on each property's Value page.</p>
+        <ul className="sp-rows sp-bench">
+          <li><span><strong>5-year GIC: {bm.gic.pct}%</strong><span>{bm.gic.source}, week of {fmtDate(bm.gic.asOf)}. Updated by itself each day.</span></span></li>
+          <li><span><strong>High-interest savings: {bm.savings.pct}%</strong><span>{bm.savings.source}, {fmtDate(bm.savings.asOf)}. No official rate exists: check a few big banks and online banks now and then.</span></span></li>
+          <li><span><strong>Broad stock index fund: {bm.index.pct}%</strong><span>{bm.index.source}, {fmtDate(bm.index.asOf)}.</span></span></li>
+        </ul>
+        {canEdit ? (
+          <form className="sp-inline-form" onSubmit={saveRates}>
+            <label className="field"><span className="label">High-interest savings (% a year)</span><input id="bm-savings" className="input" inputMode="decimal" value={rates.savings} onChange={(e) => setRates({ ...rates, savings: e.target.value })} /></label>
+            <label className="field"><span className="label">Stock index fund (% a year)</span><input id="bm-index" className="input" inputMode="decimal" value={rates.index} onChange={(e) => setRates({ ...rates, index: e.target.value })} /></label>
+            <button className="btn primary" disabled={!okRate(rates.savings) || !okRate(rates.index) || !ratesChanged}>Save rates</button>
+          </form>
+        ) : <OnlySuper />}
       </section>
     </>
   );

@@ -16,7 +16,8 @@ const ok = (tag, name, pass, note = '') => { results.push({ tag, name, pass, not
 const step = async (tag, name, fn) => {
   if (ONLY.length && !ONLY.includes(name.split(' ')[0].toUpperCase())) return;
   try { const note = await fn(); ok(tag, name, true, note || ''); } catch (e) {
-    ok(tag, name, false, String(e.message).split('\n')[0].slice(0, 200));
+    const lines = String(e.message).split('\n'); const waiting = lines.find((l) => /waiting for/.test(l));
+    ok(tag, name, false, (lines[0] + (waiting ? ` (${waiting.replace(/\x1b\[[0-9;]*m/g, '').trim()})` : '')).slice(0, 300));
     // SHOTS=dir: a picture of the landlord's page when a check fails.
     if (process.env.SHOTS && global.__pg) await global.__pg.screenshot({ path: `${process.env.SHOTS}/${tag}-${name.split(' ')[0]}.png` }).catch(() => {});
   }
@@ -30,7 +31,7 @@ const MOCK_PORT = PORT + 1;
 const MOCK = `http://localhost:${MOCK_PORT}`;
 const plaidKey = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
 const plaidJwk = plaidKey.publicKey.export({ format: 'jwk' });
-const mock = { calls: [], items: new Map(), next: new Map(), n: 0 };
+const mock = { calls: [], items: new Map(), next: new Map(), n: 0, estimatesStatus: 200 };
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const mockServer = http.createServer((req, res) => {
   let raw = ''; req.on('data', (c) => { raw += c; });
@@ -50,7 +51,17 @@ const mockServer = http.createServer((req, res) => {
     } else if (path === '/item/remove') out = { request_id: 'r' };
     else if (path === '/webhook_verification_key/get') out = { key: { ...plaidJwk, alg: 'ES256', kid: b.key_id, use: 'sig' } };
     else if (path === '/institutions/get') out = { institutions: [] };
-    else if (path === '/estimates') out = { estimateId: 'e1', estimate: 905000, estimateHigh: 960000, estimateLow: 860000, confidence: 'high' };
+    // Repliers, as its docs describe it: the MLS board's own types and styles, and estimates that need them.
+    // The Bank of Canada's weekly 5-year GIC rate (Valet API).
+    else if (path === '/valet/observations/V80691341/json?recent=1') out = { seriesDetail: {}, observations: [{ d: '2026-11-11', V80691341: { v: '2.85' } }] };
+    else if (path.startsWith('/listings?')) out = { aggregates: { details: { propertyType: { Detached: 900, 'Semi-Detached': 300 }, style: { '2-Storey': 500, Bungalow: 400 } }, boardId: { 12: 1500 } } };
+    else if (path === '/estimates') {
+      const missing = [...['city', 'streetName', 'streetNumber', 'zip'].filter((k) => !b.address?.[k]).map((k) => `address.${k}`),
+        ...['numBathrooms', 'numBedrooms', 'propertyType', 'sqft', 'style'].filter((k) => b.details?.[k] === undefined).map((k) => `details.${k}`)];
+      const status = mock.estimatesStatus !== 200 ? mock.estimatesStatus : missing.length ? 400 : 200;
+      if (status !== 200) { res.writeHead(status, { 'content-type': 'application/json' }); res.end(status === 400 ? JSON.stringify([missing.map((param) => ({ param, msg: 'is required' }))]) : ''); return; }
+      out = { estimateId: 1, estimate: 905000, estimateHigh: 960000, estimateLow: 860000, confidence: 0.086, payload: b };
+    }
     else { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{}'); return; }
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(out));
   });
@@ -107,7 +118,7 @@ function watch(pg, errors, label) {
   rmSync(DATA, { recursive: true, force: true });
   await new Promise((r) => mockServer.listen(MOCK_PORT, r));
   const server = spawn(process.execPath, ['server-dist/index.mjs'], {
-    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, KEYS_SECRET: 'e2e-keys-secret-0123456789abcdef', PLAID_BASE_URL: MOCK, REPLIERS_BASE_URL: MOCK, DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
+    env: { ...process.env, PORT: String(PORT), PGLITE_DIR: DATA, LOG_LEVEL: 'warn', ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password, KEYS_SECRET: 'e2e-keys-secret-0123456789abcdef', PLAID_BASE_URL: MOCK, REPLIERS_BASE_URL: MOCK, BOC_BASE_URL: MOCK, DEV_TOOLS: 'on', NODE_ENV: 'development', APP_URL: `http://localhost:${PORT}` },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   let b;
@@ -363,6 +374,16 @@ function watch(pg, errors, label) {
         await ad.fill('#sp-price', '8'); await ad.locator('#price >> text=Save price').click();
         await until(async () => (await (await fetch(`${BASE}api/pricing`)).json()).unitCents === 800, 5000, 'price back');
       });
+      await step(tag, 'E21b Comparison rates: the 5-year GIC comes from the Bank of Canada by itself; the super user sets savings and the stock index fund; the app gets them', async () => {
+        const rates = async () => (await (await fetch(`${BASE}api/session`)).json()).config.benchmarks;
+        await until(async () => (await rates()).gic.pct === 2.85, 15000, 'the Bank of Canada rate read by the server');
+        await go(ad, 'support/pricing'); await ad.waitForSelector('#benchmarks >> text=5-year GIC: 2.85%');
+        await ad.waitForSelector('#benchmarks >> text=/Bank of Canada.*week of Nov 11, 2026/');
+        const savings = tag === 'phone' ? '3.4' : '3.2';
+        await ad.fill('#bm-savings', savings); await ad.fill('#bm-index', '7'); await ad.locator('#benchmarks >> text=Save rates').click();
+        await until(async () => { const r = await rates(); return r.savings.pct === Number(savings) && r.index.pct === 7 && r.gic.pct === 2.85; }, 5000, 'rates saved');
+        await ad.waitForSelector(`#benchmarks >> text=High-interest savings: ${savings}%`);
+      });
       await step(tag, 'E22 Super user → Banks: turning one bank off reaches the app; turning it back on', async () => {
         await go(ad, 'support/banks'); await ad.locator('.sp-bank-list li:has-text("TD") >> text=Turn off').click();
         await until(async () => (await (await fetch(`${BASE}api/session`)).json()).config.banksOff.includes('TD'), 5000, 'TD off');
@@ -446,12 +467,28 @@ function watch(pg, errors, label) {
         await until(async () => (await api(pg, '/api/state')).body.data.txns.some((t) => t.id === `pl-${item}-t9`), 6000, 'the new transaction');
         if (mock.calls.some((c) => c.path.includes('refresh'))) throw new Error('asked the bank to refresh');
       });
-      await step(tag, 'E30 Property values come from Repliers (not the sample placeholder) and are kept 30 days', async () => {
-        await until(async () => (await api(pg, '/api/state')).body.data.valuations.some((v) => v.source === 'avm' && v.likely === 90500000), 10000, 'a Repliers value');
-        await go(pg, 'rentals'); await pg.locator('.prop-strip').first().click(); await pg.waitForSelector('.pcard-source >> text=Repliers Estimates');
-        if (await pg.locator('.pcard-source >> text=Sample AVM').count()) throw new Error('the placeholder still shows');
+      await step(tag, 'E30 No purchase price needed: the landlord adds the home\'s details on the Value page and Repliers\' value shows (a refusal is explained, Try again works); kept 30 days', async () => {
+        const prop = (await api(pg, '/api/state')).body.data.properties.find((x) => x.nickname === 'Oak house');
+        if (prop.purchasePrice) throw new Error('this check needs a property without a purchase price');
+        await pg.reload(); // values were turned on (E27) after this page opened
+        if (!(await api(pg, '/api/session')).body.user) await signIn(pg, email, password);
+        await go(pg, `rent/property/${prop.id}/value`); await pg.waitForSelector('#home-facts >> text=Get this home\'s value from Repliers');
+        if (await pg.locator('text=Sample AVM').count()) throw new Error('the placeholder still shows');
+        await pg.waitForSelector('#hf-type option[value="Detached"]', { state: 'attached' });
+        const sqft = tag === 'phone' ? 1650 : 1600; // each run its own home (the server keeps each home's answer 30 days)
+        await pg.fill('#hf-postal', 'm5v 1a1'); await pg.fill('#hf-sqft', String(sqft)); await pg.fill('#hf-beds', '3'); await pg.fill('#hf-baths', '2');
+        await pg.selectOption('#hf-type', 'Detached'); await pg.selectOption('#hf-style', '2-Storey');
+        mock.estimatesStatus = 403; // the Estimates add-on is off at Repliers: the page says so
+        await pg.click('#hf-save'); await pg.waitForSelector('#home-value >> text=/Estimates add-on is not on/');
+        mock.estimatesStatus = 200;
+        await pg.locator('#home-value >> text=Try again').click();
+        await pg.waitForSelector('#home-value >> text=Repliers Estimates'); await pg.waitForSelector('#home-value >> text=$905k');
+        const sent = mock.calls.filter((c) => c.path === '/estimates').pop().body;
+        if (sent.address.zip !== 'M5V 1A1' || sent.details.sqft !== sqft || sent.details.style !== '2-Storey' || sent.address.streetName !== 'Oak') throw new Error('sent ' + JSON.stringify(sent));
+        await until(async () => (await api(pg, '/api/state')).body.data.valuations.some((v) => v.source === 'avm' && v.likely === 90500000 && v.errorPct === 8.6), 10000, 'the value saved to the account');
+        await pg.waitForSelector('.pcard-source >> text=Repliers Estimates');
         const n = mock.calls.filter((c) => c.path === '/estimates').length;
-        await pg.reload(); await pg.waitForSelector('.pcard-source'); await wait(800);
+        await pg.reload(); await pg.waitForSelector('#home-value'); await wait(800);
         if (mock.calls.filter((c) => c.path === '/estimates').length !== n) throw new Error('asked Repliers again within 30 days');
       });
       await step(tag, 'E31 Disconnect removes the bank at Plaid (no more billing) and from Settings', async () => {
