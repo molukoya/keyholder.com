@@ -58,7 +58,7 @@ Other hosts: the `Dockerfile` builds one container; give it `DATABASE_URL`, or a
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Turns on "Continue with Google". Redirect URI: `APP_URL/api/auth/google/callback`. |
 | `KEYS_SECRET` | — (Render generates one) | Locks the API keys saved on the dashboard (Support → Connections), AES-256-GCM. Without it, keys can only be set here in Render. Never change it once keys are saved. |
 | `GOOGLE_PLACES_API_KEY` | — | Address suggestions when adding a property (Google Places API (New)). |
-| `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `FLINKS_CUSTOMER_ID`, `FLINKS_INSTANCE`, `FLINKS_API_SECRET`, `AVM_PROVIDER`, `AVM_API_KEY` | — | Card payments, bank data and property values (being built). Can be set here or on the Connections page. |
+| `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `AVM_PROVIDER`, `AVM_API_KEY` | — | Card payments, bank data and property values (being built). Can be set here or on the Connections page. |
 | `WORKER` | `inline` | `inline`: email sender and daily jobs run in the web service. `off`: run `npm run worker` separately. |
 | `DAILY_HOUR` | `9` | Hour (server time zone, `TZ`) for automatic reminders and the daily summary email. |
 | `SESSION_DAYS` | `30` | Sign-in lasts this many days (renewed while used). |
@@ -100,7 +100,7 @@ failed (shown under System health). Test and sample addresses (`example.com`, `.
   one short email lists what needs them.
 - Welcome / confirm email, password reset, support request received, support replies, team invitations.
 
-**API keys (Connections).** Google sign-in, email (Resend or Postmark), address lookup (Google Places), Stripe, Flinks and
+**API keys (Connections).** Google sign-in, email (Resend or Postmark), address lookup (Google Places), Stripe, Plaid and
 property-value (AVM) keys can be set in Render or, by the
 super user, on Support → Connections. Keys saved there are encrypted with `KEYS_SECRET`, shown only as their last 4
 characters, need the super user's password to change, are logged in the audit log, and take over from Render's (removing
@@ -156,7 +156,7 @@ Migrations are in `server/migrations.ts` and run at start-up (each once, in a tr
 
 ## Not done yet (needs an outside service or a decision)
 
-- **Bank data**: needs a Canadian aggregator (Flinks, see `docs/REQUIREMENTS.md` R12). Until then the live app
+- **Bank data**: needs a bank-data provider (Plaid, see `docs/REQUIREMENTS.md` R12). Until then the live app
   shows bank checks as "Coming soon" (`/api/session` config `banks: false`) and removes any practice bank
   connection left in an account; only the browser-only preview simulates them. The matcher is real code.
 - **Card payments** for the Landlord plan (Stripe): plans can be set by the team; nobody is charged.

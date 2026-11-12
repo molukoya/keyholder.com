@@ -387,6 +387,10 @@ describe('the super user', () => {
     expect(det.body).toEqual({ street: '100 Queen Street West', city: 'Toronto', province: 'ON', postalCode: 'M5H 2N2', country: 'CA', lat: 43.6535, lng: -79.3841 });
     expect(JSON.stringify(sug.body) + JSON.stringify(det.body)).not.toContain('AIzaTestPlacesKey9999');
     expect((await call('POST', '/api/admin/connections/test', { cookie: sup, body: { service: 'places' } })).body).toMatchObject({ ok: true });
+    // Plaid (bank data): keys saved now; the Test lists one Canadian bank in the chosen environment.
+    await save(ADMIN.password, { 'plaid.clientId': 'plaid-client-1', 'plaid.secret': 'plaid-sandbox-secret-7777', 'plaid.env': 'sandbox' });
+    expect((await call('POST', '/api/admin/connections/test', { cookie: sup, body: { service: 'plaid' } })).body).toMatchObject({ ok: true, message: expect.stringContaining('sandbox') });
+    expect(googleCalls.some((u) => u.includes('sandbox.plaid.com/institutions/get'))).toBe(true);
     // Removing a saved key goes back to Render's value.
     await save(ADMIN.password, { 'google.clientId': null });
     const start2 = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
