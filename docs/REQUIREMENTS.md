@@ -1,7 +1,7 @@
 # Keyholder: next upgrades (requirements)
 
 Agreed with the owner on 2026-11-11 ("go with your recommendations"). Built in three phases, in order.
-Phase 3 waits until the owner has created the Stripe and Flinks accounts.
+Phase 3 waits until the owner has created the Stripe and Plaid accounts.
 
 Status: ☐ to do · ◐ in progress · ☑ done
 
@@ -65,7 +65,7 @@ Status: ☐ to do · ◐ in progress · ☑ done
 
 ### R10. API keys in the dashboard ☑
 - "Connections" page, super user only: Google sign-in, email (Resend), address lookup (Google Places), Stripe,
-  bank data (Flinks), property values (AVM). Grouped "In use" and "Coming"; the preview shows the same list.
+  bank data (Plaid), property values (AVM). Grouped "In use" and "Coming"; the preview shows the same list.
   Each shows its status, a Test button, and lets you enter or replace keys.
 - Keys are stored encrypted with `KEYS_SECRET` (a new Render setting). After saving only the last 4
   characters show. Changing a key asks for the password. Every change is logged.
@@ -83,20 +83,21 @@ Status: ☐ to do · ◐ in progress · ☑ done
 ### R15. Admin sees only the dashboard ☑
 - No "Sample landlord app" button; admin / admin in the preview opens only the support dashboard too.
 
-## Phase 3: payments and real bank data (needs the owner's Stripe and Flinks accounts)
+## Phase 3: payments and real bank data (needs the owner's Stripe and Plaid accounts)
 
 ### R11. Stripe payments ☐
 - Upgrade to the Landlord plan by card on Stripe Checkout (Keyholder never sees card numbers).
 - Monthly, per unit. Stripe's billing page: change card, invoices, cancel.
 - Promo codes (R8) apply at checkout. The dashboard's Revenue page shows real payments.
 
-### R12. Real bank connection (Flinks), "Link bank" on Income and Expenses ☐
-- Flinks (Canadian): Flinks Connect for the landlord to sign in to their bank, then read-only transactions.
-  Built and tested first on Flinks' sandbox ("toolbox"); real banks need a Flinks contract.
+### R12. Real bank connection (Plaid), "Link bank" on Income and Expenses ☐
+- Plaid (chosen over Flinks by the owner): Plaid Link for the landlord to sign in to their bank, then read-only
+  transactions. Self-serve signup and a free sandbox to build and test with; major Canadian banks.
 - A small "Link bank" button by the title of Income and Expenses.
 - Deposits appear in Income to match to rent; withdrawals appear in Expenses to file. Read-only.
 - The server checks for new transactions every 4 hours.
-- Real bank data needs the Flinks contract (talk to their sales team early).
+- Real bank data needs Plaid's Production access (a business review; some Canadian banks also need an OAuth
+  registration that can take weeks: start early).
 
 ### R16. Property values (AVM) ☐
 - An estimated market value for each property, updated monthly, from an AVM provider. Recommended: Repliers

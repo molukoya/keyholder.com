@@ -770,18 +770,23 @@ const step = async (tag, name, fn) => { if (!want(name[0])) return; try { const 
       if (await pg.locator('text=Sample landlord app').count()) throw new Error('Sample landlord app button still there');
       await go(pg, 'today'); await pg.waitForSelector('.sp-head'); const h = await pg.evaluate(() => location.hash); if (!h.startsWith('#/support')) throw new Error('opened ' + h);
     });
-    await step(tag, 'J7d Connections lists every service (in use: Google, Email, Address lookup; coming: Stripe, Flinks, Property values), even in the preview', async () => {
+    await step(tag, 'J7d Connections lists every service (in use: Google, Email, Address lookup; coming: Stripe, Plaid, Property values), even in the preview', async () => {
       await go(pg, 'support/connections'); await pg.waitForSelector('#conn-preview');
-      for (const [g, names] of [['now', ['Google sign-in', 'Email (Resend)', 'Address lookup (Google Places)']], ['coming', ['Stripe payments', 'Bank data (Flinks)', 'Property values (AVM)']]]) {
+      for (const [g, names] of [['now', ['Google sign-in', 'Email (Resend)', 'Address lookup (Google Places)']], ['coming', ['Stripe payments', 'Bank data (Plaid)', 'Property values (AVM)']]]) {
         const got = await pg.locator(`#group-${g} .sp-conn h2`).allTextContents();
         if (got.join('|') !== names.join('|')) throw new Error(`${g}: ${got.join(', ')}`);
       }
-      if (await pg.locator('text=Plaid').count()) throw new Error('Plaid still listed');
+      if (await pg.locator('text=Flinks').count()) throw new Error('Flinks still listed');
       if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('sideways scroll');
     });
-    await step(tag, 'J7e Overview: map of Canada with a dot per city (sizes by landlords), the busiest places listed', async () => {
+    await step(tag, 'J7e Overview: Needs you now and the map half and half (map on the right); a dot per city, the busiest places listed', async () => {
       await go(pg, 'support'); await pg.waitForSelector('.sp-lmap svg');
       const dots = await pg.locator('.sp-lmap-dot').count(); if (dots < 10) throw new Error(dots + ' dots');
+      // Top row: Needs you now on the left, the map on the right, half and half, same height (stacked on phones).
+      const boxes = await pg.evaluate(() => [...document.querySelectorAll('.sp-top-row > section')].map((x) => { const r = x.getBoundingClientRect(); return { id: x.getAttribute('aria-labelledby'), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; }));
+      if (boxes.map((x) => x.id).join() !== 'needs,map') throw new Error('order: ' + JSON.stringify(boxes));
+      if (tag !== 'phone' && !(boxes[1].x > boxes[0].x && Math.abs(boxes[0].w - boxes[1].w) <= 2 && Math.abs(boxes[0].h - boxes[1].h) <= 2 && boxes[0].y === boxes[1].y)) throw new Error('not half and half: ' + JSON.stringify(boxes));
+      if (tag === 'phone' && !(boxes[1].y > boxes[0].y)) throw new Error('not stacked: ' + JSON.stringify(boxes));
       if ((await pg.locator('.sp-lmap-prov').count()) !== 13) throw new Error('provinces and territories missing');
       const box = await pg.locator('.sp-lmap svg').boundingBox(); if (!box || box.height < 150) throw new Error('map too small');
       await pg.locator('.sp-lmap-top li').first().hover(); await pg.waitForSelector('.sp-lmap-caption >> text=landlords');

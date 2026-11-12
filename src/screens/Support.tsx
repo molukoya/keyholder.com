@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
 import { addDays, daysBetween, fmtDate } from '../lib/dates';
-import { BarChart, Spark, Status } from '../support/charts';
+import { BarChart, Spark } from '../support/charts';
 import { customerOf, fmtMoney, isLive, isSuper, live, loadLive, mrr, timeLeft, useSupport, useSupportToasts, within, type SupportState } from '../support/store';
 import { isStaff, useConn } from '../data/api';
 import { Inbox, TicketPage } from '../support/Inbox';
@@ -208,14 +208,23 @@ function Overview() {
   return (
     <>
       <PageHead eyebrow="Today" title="Overview" sub={fmtDate(t)} />
-      <section className="sp-sec" aria-labelledby="needs">
-        <h2 id="needs" className="sp-h2">Needs you now</h2>
-        {needs.length ? (
-          <ul className="sp-needs">{needs.map((x) => (
-            <li key={x.text}><span className={`tile-ic ${x.tone}`} aria-hidden><Icon name={x.icon} size={18} /></span><span>{x.text}</span><Link className="btn small" to={x.to}>{x.btn}</Link></li>
-          ))}</ul>
-        ) : <p className="sp-empty"><Status tone="good">All clear</Status></p>}
-      </section>
+      {/* Top row, half and half: what needs the team now, and where the landlords are. */}
+      <div className="sp-two sp-top-row">
+        <section className="sp-card sp-needs-card" aria-labelledby="needs">
+          <h2 id="needs" className="sp-h3">Needs you now</h2>
+          {needs.length ? (
+            <ul className="sp-needs">{needs.map((x) => (
+              <li key={x.text}><span className={`tile-ic ${x.tone}`} aria-hidden><Icon name={x.icon} size={18} /></span><span>{x.text}</span><Link className="btn small" to={x.to}>{x.btn}</Link></li>
+            ))}</ul>
+          ) : (
+            <div className="sp-allclear" role="status"><span className="tile-ic mint" aria-hidden><Icon name="check" size={22} /></span><strong>All clear</strong><span>Nothing needs you right now.</span></div>
+          )}
+        </section>
+        <section className="sp-card" aria-labelledby="map">
+          <h2 id="map" className="sp-h3">Where your landlords are</h2>
+          <LandlordMap customers={cs} />
+        </section>
+      </div>
       <section className="sp-sec" aria-labelledby="nums">
         <h2 id="nums" className="sp-h2">Last 30 days</h2>
         <div className="sp-tiles four">
@@ -224,10 +233,6 @@ function Overview() {
           <Tile label="Monthly revenue" value={fmtMoney(revenue)} delta={pct(revenue, prevRevenue)} note={`${paying.length} paying`} />
           <Tile label="Open requests" value={String(open.length)} note={overdue.length ? `${overdue.length} overdue` : 'None overdue'} good={false} />
         </div>
-      </section>
-      <section className="sp-card sp-sec" aria-labelledby="map">
-        <h2 id="map" className="sp-h3">Where your landlords are</h2>
-        <LandlordMap customers={cs} />
       </section>
       <div className="sp-two">
         <section className="sp-card" aria-labelledby="sg">

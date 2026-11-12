@@ -124,7 +124,7 @@ export function Banks() {
       <section className="sp-card sp-sec">
         <div className="sp-card-head"><h2 className="sp-h3">Bank connection</h2><Status tone={b.enabled ? 'good' : 'bad'}>{b.enabled ? 'On' : 'Off for everyone'}</Status></div>
         <p className="sp-small">{isLive()
-          ? 'Landlords see "Coming soon" until the bank service (Flinks) is connected. These switches are kept and apply from then.'
+          ? 'Landlords see "Coming soon" until the bank service (Plaid) is connected. These switches are kept and apply from then.'
           : 'Preview: the sample app simulates bank connections, and follows these switches.'}</p>
         {canEdit ? <button id="banks-all" className={`btn${b.enabled ? ' ghost danger' : ' primary'}`} onClick={toggleAll}>{b.enabled ? 'Turn off for everyone' : 'Turn on for everyone'}</button> : <OnlySuper />}
       </section>
@@ -158,7 +158,7 @@ const GROUPS: { id: ServiceInfo['group']; title: string; sub: string }[] = [
   { id: 'coming', title: 'Coming', sub: 'Being built. Keys can be saved now; they are used once each feature is ready.' },
 ];
 /** Browser-only preview: the same list with sample statuses (there is no server, so nothing can be saved). */
-const PREVIEW_STATE: Record<ServiceId, ServiceState> = { google: 'connected', email: 'off', places: 'none', stripe: 'none', flinks: 'none', avm: 'none' };
+const PREVIEW_STATE: Record<ServiceId, ServiceState> = { google: 'connected', email: 'off', places: 'none', stripe: 'none', plaid: 'none', avm: 'none' };
 const previewData = (): ConnData => ({
   canSave: false,
   services: SERVICES.map((svc) => ({

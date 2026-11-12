@@ -68,7 +68,7 @@ export class Keys {
     if (id === 'email') return this.email().provider !== 'log' ? 'connected' : has('email.resendKey') || has('email.postmarkToken') ? 'off' : 'none';
     if (id === 'places') return has('places.apiKey') ? 'connected' : 'none';
     if (id === 'stripe') return has('stripe.secretKey') && has('stripe.publishableKey') ? 'saved' : 'none';
-    if (id === 'flinks') return has('flinks.customerId') && has('flinks.instance') ? 'saved' : 'none';
+    if (id === 'plaid') return has('plaid.clientId') && has('plaid.secret') ? 'saved' : 'none';
     return has('avm.provider') && has('avm.apiKey') ? 'saved' : 'none';
   }
   /** How email is sent right now. A provider without its key falls back to keeping emails in the outbox. */
@@ -154,9 +154,13 @@ export class Keys {
         const b = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
         return { ok: false, message: `Google does not accept this key (${r.status}). ${b.error?.message ?? 'Check that "Places API (New)" is turned on and the key is allowed to use it.'}`.trim() };
       }
-      if (service === 'flinks') {
-        if (this.state('flinks') === 'none') return { ok: false, message: 'Not set: add the Customer ID and Instance.' };
-        return { ok: null, message: 'Saved. Flinks keys are checked once bank connections are built (Phase 3).' };
+      if (service === 'plaid') {
+        const id = this.get('plaid.clientId'), secret = this.get('plaid.secret'), env = this.get('plaid.env') === 'production' ? 'production' : 'sandbox';
+        if (!id || !secret) return { ok: false, message: 'Not set: add the Client ID and Secret.' };
+        // Lists one Canadian bank: works with any valid keys, changes nothing.
+        const r = await fetcher(`https://${env}.plaid.com/institutions/get`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: id, secret, count: 1, offset: 0, country_codes: ['CA'] }) });
+        return r.ok ? { ok: true, message: `Plaid accepts these keys (${env}).` } : { ok: false, message: `Plaid does not accept these keys (${r.status}). Check that the secret matches the environment.` };
       }
       if (this.state('avm') === 'none') return { ok: false, message: 'Not set: choose a provider and add its API key.' };
       return { ok: null, message: 'Saved. These keys are checked once property values are connected.' };

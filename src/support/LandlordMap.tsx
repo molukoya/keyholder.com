@@ -39,6 +39,7 @@ export function LandlordMap({ customers }: { customers: Customer[] }) {
   const r = (n: number) => 7 + 20 * Math.sqrt(n / max);
   return (
     <div className="sp-lmap">
+      <p className="sp-lmap-total"><strong>{total}</strong> landlords in <strong>{places.length}</strong> {places.length === 1 ? 'place' : 'places'}</p>
       <div className="sp-lmap-art">
         <svg viewBox={`0 0 ${CANADA_VIEW.w} ${CANADA_VIEW.h}`} role="img" aria-label={`Map of Canada: landlords in ${places.length} places`}>
           {Object.entries(PROVINCE_PATHS).map(([code, d]) => (
@@ -52,11 +53,10 @@ export function LandlordMap({ customers }: { customers: Customer[] }) {
             </circle>
           ))}
         </svg>
-        <p className="sp-lmap-caption" aria-live="polite">{shown ? <><strong>{shown.name}, {shown.province}</strong> · {plural(shown.count)}</> : 'Point at a dot to see the city'}</p>
+        <p className="sp-lmap-caption" aria-live="polite">{shown ? <><strong>{shown.name}, {shown.province}</strong> · {plural(shown.count)}</> : places.length ? 'Point at a dot to see the city' : 'No landlords yet: their cities show here as they sign up.'}</p>
       </div>
       <div className="sp-lmap-side">
-        <p className="sp-lmap-total"><strong>{total}</strong> landlords in <strong>{places.length}</strong> {places.length === 1 ? 'place' : 'places'}</p>
-        <ul className="sp-lmap-top">{places.slice(0, 7).map((p) => (
+        <ul className="sp-lmap-top">{places.slice(0, 6).map((p) => (
           <li key={p.key} onMouseEnter={() => setOn(p.key)} onMouseLeave={() => setOn(null)} className={on === p.key ? 'on' : ''}>
             <span className="sp-lmap-dot-key" aria-hidden />{p.name}, {p.province}<strong>{p.count}</strong>
           </li>

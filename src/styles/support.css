@@ -263,7 +263,7 @@
 .sp-test.info { color: var(--ink-soft); }
 
 /* Overview map: where the landlords are (city level) */
-.sp-lmap { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(220px, 1fr); gap: 24px; align-items: start; }
+.sp-lmap { display: grid; gap: 4px; }
 .sp-lmap-art svg { display: block; width: 100%; height: auto; }
 .sp-lmap-prov { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 1.2; stroke-linejoin: round; }
 .sp-lmap-prov.has { fill: var(--accent-tint); }
@@ -272,10 +272,16 @@
 .sp-lmap-caption { margin: 6px 0 0; font-size: 14px; color: var(--ink-soft); min-height: 1.5em; }
 .sp-lmap-total { margin: 0 0 10px; font-size: 15px; color: var(--ink-soft); }
 .sp-lmap-total strong { color: var(--ink); font-size: 20px; }
-.sp-lmap-top { list-style: none; margin: 0 0 12px; padding: 0; }
+.sp-lmap-top { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
 .sp-lmap-top li { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-top: 1px solid var(--rule); font-size: 15px; border-radius: 8px; }
-.sp-lmap-top li:first-child { border-top: 0; }
+.sp-lmap-top li:nth-child(-n+2) { border-top: 0; }
 .sp-lmap-top li.on { background: var(--accent-tint); }
 .sp-lmap-top li strong { margin-left: auto; }
 .sp-lmap-dot-key { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); opacity: .8; flex: none; }
-@media (max-width: 900px) { .sp-lmap { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 420px) { .sp-lmap-top { grid-template-columns: minmax(0, 1fr); } .sp-lmap-top li:nth-child(2) { border-top: 1px solid var(--rule); } }
+/* Overview top row: Needs you now and the map, same height. */
+.sp-top-row { align-items: stretch; }
+.sp-top-row > .sp-card { display: flex; flex-direction: column; }
+.sp-needs-card .sp-needs { flex: 1; align-content: start; }
+.sp-allclear { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 32px 16px; color: var(--ink-soft); }
+.sp-allclear strong { font-size: 20px; color: var(--ink); }

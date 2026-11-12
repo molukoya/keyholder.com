@@ -100,7 +100,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: cfg.cookieSecure, path: '/', maxAge: cfg.sessionDays * 86400 });
   };
   // What the app needs to know. Google and email follow the keys in effect (Connections page, then Render).
-  // banks: real bank checks need the bank-data provider (Flinks, Phase 3); until then the app says "Coming soon".
+  // banks: real bank checks need the bank-data provider (Plaid, Phase 3); until then the app says "Coming soon".
   // addressLookup: address suggestions (Google Places) when its key is set.
   // banksOff: banks the super user turned off one by one.
   const publicConfig = async () => {
@@ -417,7 +417,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   });
   app.post('/api/admin/connections/test', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
     const me = needSuper(req);
-    const { service } = z.object({ service: z.enum(['google', 'email', 'places', 'stripe', 'flinks', 'avm']) }).parse(req.body);
+    const { service } = z.object({ service: z.enum(['google', 'email', 'places', 'stripe', 'plaid', 'avm']) }).parse(req.body);
     await keys.refresh(db, true);
     const r = await keys.test(service as ServiceId, fetcher, cfg.appUrl);
     await audit(db, { actor: me.email, actorId: me.id, scope: 'admin', action: 'Connection tested', detail: `${service}: ${r.ok ? 'ok' : 'not working'}`, ip: ip(req) });
