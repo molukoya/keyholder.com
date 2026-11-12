@@ -136,6 +136,8 @@ All under `/api`, JSON. Changing requests need `X-Keyholder: 1`. Errors are `{ "
 | `POST /plaid/webhook` | Plaid (signed) | New transactions: read right away. The signature (ES256 JWT over the body) is checked. |
 | `POST /valuation` | landlord | Repliers' value for a home: address, postal code, bedrooms, bathrooms, square feet, MLS property type and style (kept 30 days per home) |
 | `GET /valuation/options` | landlord | The property types and styles the MLS board accepts (Repliers aggregates; a day at a time) |
+| `POST /forms/:formId/pdf` | landlord | Ontario's official LTB form (N4, N1, N2, N5, N12, N11) filled with the given field values, as a PDF |
+| `POST /notices/:id/email` | landlord | A served notice emailed to the tenants who agreed to email notices, the official form attached |
 | `GET /address/suggest?q=` · `GET /address/details?id=` | signed in | Canadian address suggestions · street, city, province, postal code, position (Google Places, 60 a minute) |
 | `GET /announcements` | anyone | Active announcements |
 | `POST /auth/signup` | anyone | `{ name, email, password }` → creates the account and signs in |
@@ -160,7 +162,9 @@ Migrations are in `server/migrations.ts` and run at start-up (each once, in a tr
 `settings`, `system_errors`, `job_runs`, `promotions`, `secrets` (encrypted API keys), `bank_items` (Plaid
 connections, access tokens encrypted), `valuation_cache` (AVM answers, 30 days). Settings include
 `benchmarks` (savings and stock index fund rates, set by the super user) and `benchmarks.gic` (the Bank of
-Canada's 5-year GIC rate, read daily by the worker from www.bankofcanada.ca/valet, series V80691341).
+Canada's 5-year GIC rate, read daily by the worker from www.bankofcanada.ca/valet, series V80691341). The outbox
+has an `attachment` column: an official form to attach (which form and its values; the PDF is made when the email is
+sent). Ontario's official forms are in `server/forms/ltb` (see its README).
 
 ## Not done yet (needs an outside service or a decision)
 

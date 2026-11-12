@@ -1,5 +1,7 @@
 import { PageSub } from '../components/Guide';
-import { useEffect, useState } from 'react';
+import { OfficialPdfButton } from '../components/OfficialForm';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import type { Applicant, Lease, Listing, Notice, Tenant, Unit } from '../data/types';
@@ -381,7 +383,7 @@ export function LateRentDrawer({ lease, onClose }: { lease: Lease; onClose: () =
       {done.length > 0 && (
         <>
           <h3 style={{ margin: '16px 0 8px' }}>Notices so far</h3>
-          <ul className="rows">{done.map((n) => <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span>{n.kind}{n.arrears ? ` · ${fmt(n.arrears)}` : ''}{n.terminationDate ? ` · by ${fmtDate(n.terminationDate)}` : ''}</span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></li>)}</ul>
+          <ul className="rows">{done.map((n) => <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span>{n.kind}{n.arrears ? ` · ${fmt(n.arrears)}` : ''}{n.terminationDate ? ` · by ${fmtDate(n.terminationDate)}` : ''}</span><span className="row-act"><OfficialPdfButton notice={n} /><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></span></li>)}</ul>
         </>
       )}
       <p className="tiny soft" style={{ marginTop: 16 }}>{province(prop.province).name} · {province(prop.province).tribunal}. Keyholder prepares documents; you decide and sign. <a href={AUTHORITY_URL[prop.province]} target="_blank" rel="noopener noreferrer">Official site</a></p>
@@ -421,7 +423,7 @@ export function NoticesTab({ propertyId }: { propertyId: string }) {
           {notices.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices yet.</p> : (
             <ul className="rows">{notices.map((n) => {
               const t = state.tenants.find((x) => x.id === n.tenantId);
-              return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></li>;
+              return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{n.arrears ? `${fmt(n.arrears)} · ` : ''}{n.serveMethod} by {n.servedBy}{n.emailedAt ? ' · emailed' : ''}{n.terminationDate ? ` · ${n.arrears ? 'pay by' : 'ends'} ${fmtDate(n.terminationDate)}` : ''}</span></span><span className="row-act"><OfficialPdfButton notice={n} /><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{statusLabel(n.status)}</Stamp></span></li>;
             })}</ul>
           )}
         </div>
@@ -509,12 +511,45 @@ export function RaiseRent({ lease, onClose }: { lease: Lease; onClose: () => voi
   return <FormWizard lease={lease} formId={formsFor(prop.province, 'rent-increase')[0].id} onClose={onClose} />;
 }
 
+/**
+ * The "⋯" menu on a unit row. It opens on top of the page (not inside the card, which would cut it off), next to
+ * its button, upward when the button is near the bottom of the screen, and follows the button when the page
+ * scrolls. Escape, a click elsewhere, or the button leaving the screen closes it.
+ */
+type MenuPos = { top?: number; bottom?: number; right: number };
 function UnitMenu({ onRaise }: { onRaise: () => void }) {
-  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<MenuPos | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const place = (): MenuPos | null => {
+    if (!btn.current) return null;
+    const r = btn.current.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) return null;
+    const right = Math.max(8, window.innerWidth - r.right);
+    return window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, right } : { top: r.bottom + 4, right };
+  };
+  const toggle = () => setPos((p) => (p ? null : place()));
+  const open = !!pos;
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setPos(null);
+    const follow = () => setPos(place());
+    const down = (e: PointerEvent) => { if (!menu.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) close(); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { close(); btn.current?.focus(); } };
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('keydown', key);
+    window.addEventListener('scroll', follow, true);
+    window.addEventListener('resize', follow);
+    menu.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    return () => { window.removeEventListener('pointerdown', down); window.removeEventListener('keydown', key); window.removeEventListener('scroll', follow, true); window.removeEventListener('resize', follow); };
+  }, [open]);
   return (
     <span className="row-menu">
-      <button className="btn ghost small dots" aria-label="More options" aria-expanded={open} onClick={() => setOpen((o) => !o)}>⋯</button>
-      {open && <span className="row-menu-pop" role="menu"><button role="menuitem" onClick={() => { setOpen(false); onRaise(); }}>Raise rent</button></span>}
+      <button ref={btn} className="btn ghost small dots" aria-label="More options" aria-haspopup="menu" aria-expanded={!!pos} onClick={toggle}>⋯</button>
+      {pos && createPortal(
+        <div ref={menu} className="row-menu-pop floating" role="menu" style={pos}>
+          <button role="menuitem" onClick={() => { setPos(null); onRaise(); }}>Raise rent</button>
+        </div>, document.body)}
     </span>
   );
 }

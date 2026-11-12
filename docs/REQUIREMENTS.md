@@ -146,3 +146,25 @@ Status: ☐ to do · ◐ in progress · ☑ done
 ### R18. Bigger Settings and Sign out ☑
 - Computers: labelled buttons (icon + word, 44px tall) at the top right; Sign out on the Settings page only.
 - Phones: larger icons with the word under each. The support dashboard's Sign out is a bordered button too.
+
+### R20. Notices are official documents (Ontario) ☑
+- Owner, 2026-11-12: "Update my notices to be official documents since backend is now completed."
+- On the live site, Ontario's notices are the Landlord and Tenant Board's own forms, filled in by the server from
+  Keyholder's records: N4 (2026/09), N1 and N2 (v. 01/04/2022), N5 (2026/09), N12 (2026/10), N11 (v. 01/04/2022).
+  The files are Tribunals Ontario's (server/forms/ltb, every page identical to the published form); Keyholder fills
+  only their fields. "Open the filled form (PDF)" before approving; approving signs it with the landlord's name and
+  keeps exactly what was filled in, so the served form can be opened again from any notice list ("Official form").
+- Served by email (the tenant agreed to notices by email): the official form is emailed to everyone on the lease as
+  a PDF attachment.
+- What each form needs is asked in the notice screen: N1 or N2 (units first lived in after Nov 15, 2018 use the N2),
+  above-guideline reason (LTB order or application), the landlord's mailing address (N1, N2), N5 reason, first or
+  second N5 and up to three dated events (and repair or replacement cost), N12 who moves in and their relation.
+- Dates follow the forms: N4 7 days (+5 by mail); N5 20 days (14 for a second N5); N12 at least 60 days, on the last
+  day of a rental period and not before a fixed term ends.
+- Applications (L1, L9, L2) are filed online through the Tribunals Ontario Portal; the served notice is attached
+  there. Other provinces: Keyholder's summary with a link to the official form.
+
+### R21. Unit menu above the card ☑
+- The "⋯" menu on a unit row on Rentals opens on top of the page (not cut off by the card), next to its button, upward
+  near the bottom of the screen, and follows the button when the page scrolls.
+

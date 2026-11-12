@@ -556,6 +556,13 @@ html body .drawer { z-index: 126; }
 .standing-list { display: grid; gap: 12px; margin-bottom: 16px; }
 .standing-q { display: grid; gap: 12px; border: 1px solid var(--accent-tint); box-shadow: 0 0 0 3px var(--accent-tint) inset; }
 .standing-q .field { margin: 0; }
+/* Ontario's official LTB forms (notice wizard and notice lists). */
+.official-note { border-top: 1px dashed var(--rule); margin-top: 12px; padding-top: 4px; }
+.official-note .btn { margin-bottom: 4px; }
+.n5-event { align-items: start; }
+.check-line { display: flex; gap: 10px; align-items: center; margin: 4px 0 16px; font-size: var(--t-16); cursor: pointer; }
+.check-line input { width: 20px; height: 20px; accent-color: var(--accent); }
+.row-act .official-pdf { white-space: nowrap; }
 /* The home's value from Repliers (Value page). */
 .home-value, .home-facts { margin-bottom: 24px; }
 .home-facts .field { margin: 0; }

@@ -228,4 +228,9 @@ create table valuation_cache (
 );
 `,
   },
+  {
+    // An email can carry an official form: which form and what goes in it (the PDF is made when the email is sent).
+    id: '004_outbox_attachment',
+    sql: `alter table outbox add column attachment jsonb;`,
+  },
 ];

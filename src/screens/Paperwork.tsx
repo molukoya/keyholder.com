@@ -1,4 +1,5 @@
 import { BackToMore, PageSub } from '../components/Guide';
+import { OfficialPdfButton } from '../components/OfficialForm';
 import { useState } from 'react';
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
 import type { Lease, Message, Province, Receipt } from '../data/types';
@@ -99,7 +100,7 @@ function NoticesLog() {
         {ns.length === 0 ? <p className="soft" style={{ margin: 0 }}>No notices yet. Prepare one from a tenant's page.</p> : (
           <ul className="rows">{ns.map((n) => {
             const t = state.tenants.find((x) => x.id === n.tenantId);
-            return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{fmt(n.arrears)} · delivered {n.serveMethod} by {n.servedBy}{n.terminationDate ? ` · pay by ${fmtDate(n.terminationDate)}` : ''}</span></span><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{({ served: 'Served', 'voided-by-payment': 'Paid', filed: 'Ready', signed: 'Signed' } as Record<string, string>)[n.status]}</Stamp></li>;
+            return <li key={n.id} className="row"><span className="margin">{n.servedOn ? fmtDate(n.servedOn) : '—'}</span><span><span className="title">{n.kind} · {t?.names.join(' & ')}</span><span className="sub" style={{ display: 'block' }}>{n.arrears ? `${fmt(n.arrears)} · ` : ''}delivered {n.serveMethod} by {n.servedBy}{n.emailedAt ? ' · emailed' : ''}{n.terminationDate ? ` · ${n.arrears ? 'pay by' : 'ends'} ${fmtDate(n.terminationDate)}` : ''}</span></span><span className="row-act"><OfficialPdfButton notice={n} /><Stamp kind={n.status === 'voided-by-payment' ? 'superseded' : 'served'}>{({ served: 'Served', 'voided-by-payment': 'Paid', filed: 'Ready', signed: 'Signed' } as Record<string, string>)[n.status]}</Stamp></span></li>;
           })}</ul>
         )}
       </div>

@@ -497,6 +497,38 @@ function watch(pg, errors, label) {
         await until(async () => !(await api(pg, '/api/state')).body.data.banks.some((b) => b.bank === 'RBC Royal Bank'), 6000, 'bank removed');
         if (mock.calls.filter((c) => c.path === '/item/remove').length !== removes + 1) throw new Error('not removed at Plaid');
       });
+      await step(tag, 'E32 Late rent: the N4 is the Landlord and Tenant Board\'s own form, filled in; approved by email, it goes to the tenant attached', async () => {
+        // The landlord's phone, the rental's postal code, rent owing and the tenant's consent to notices by email.
+        const cur = (await api(pg, '/api/state')).body; const d = cur.data;
+        const lease = d.leases.find((l) => d.tenants.find((t) => t.id === l.tenantId)?.names[0] === 'Rita Gomez');
+        const t = d.tenants.find((x) => x.id === lease.tenantId); t.emailConsent = true; t.emailConsentDate = isoToday();
+        const unit = d.units.find((u) => u.id === lease.unitId); d.properties.find((p) => p.id === unit.propertyId).postalCode = 'M5V 1A1';
+        d.profile.phone = '416-555-0199';
+        const start = new Date(); start.setMonth(start.getMonth() - 3); lease.start = start.toISOString().slice(0, 8) + '01'; delete lease.paidThrough; lease.standingChecked = true;
+        d.payments = d.payments.filter((p) => p.leaseId !== lease.id);
+        const put = await pg.evaluate(async (body) => (await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Keyholder': '1' }, body: JSON.stringify(body) })).status, { baseRevision: cur.revision, data: d });
+        if (put !== 200) throw new Error('save ' + put);
+        await pg.reload(); await go(pg, 'rentals'); await pg.locator('.unit-row:has-text("Rita") >> text=Late rent options').click();
+        await pg.locator('.late-steps li:has-text("N4") >> text=Prepare').click();
+        await pg.waitForSelector('.letter >> text=Official form'); await pg.waitForSelector('.official-note >> text=N4 (2026/09)');
+        // The filled form opens (a PDF made by the server from the official file).
+        const [tab, res] = await Promise.all([pg.waitForEvent('popup'), pg.waitForResponse((r) => r.url().endsWith('/api/forms/on-n4/pdf')), pg.click('#fw-open-form')]);
+        if (res.status() !== 200 || res.headers()['content-type'] !== 'application/pdf') throw new Error('the filled form ' + res.status());
+        await tab.close().catch(() => {});
+        const pdf = await pg.evaluate(async () => { const r = await fetch('/api/forms/on-n4/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Keyholder': '1' }, body: JSON.stringify({ values: { 'form1[0].sfrmForm[0].PartyAddressInfo[0].txtLandlord[0]': 'Test' } }) }); const b = await r.arrayBuffer(); return { type: r.headers.get('content-type'), head: new TextDecoder().decode(b.slice(0, 5)), size: b.byteLength }; });
+        if (pdf.type !== 'application/pdf' || pdf.head !== '%PDF-' || pdf.size < 100000) throw new Error('not a PDF: ' + JSON.stringify(pdf));
+        const bad = await pg.evaluate(async () => (await fetch('/api/forms/on-n4/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Keyholder': '1' }, body: JSON.stringify({ values: { 'not.a.field': 'x' } }) })).status);
+        if (bad !== 422) throw new Error('a made-up field was accepted: ' + bad);
+        await pg.waitForTimeout(200); if (!(await pg.locator('.slide-confirm').count())) throw new Error('checks failed: ' + (await pg.locator('.checks li.bad').allTextContents()).join(' | '));
+        await approve(pg);
+        const n = await until(async () => (await api(pg, '/api/state')).body.data.notices.find((x) => x.kind === 'N4' && x.official && x.emailedAt), 15000, 'the notice saved with its official form and emailed');
+        if (n.official.version !== 'N4 (2026/09)' || !n.official.values['form1[0].sfrmForm[0].PartyAddressInfo[0].txtPostalCode[0]']) throw new Error('form values ' + JSON.stringify(n.official).slice(0, 200));
+        const mails = await outbox(`rita.${tag}@tenant-e2e.ca`);
+        const m = mails.find((x) => x.kind === 'notice');
+        if (!m || m.attached_form !== 'on-n4' || !/^N4 - Rita Gomez - .*\.pdf$/.test(m.attached_file)) throw new Error('email ' + JSON.stringify(m));
+        // The served form can be opened again from the notice list.
+        await go(pg, 'paperwork/notices'); await pg.waitForSelector('.row:has-text("N4") .official-pdf');
+      });
       await step(tag, 'E18 No preview on the live site: admin / admin is refused', async () => {
         const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
         await signIn(p, 'admin', 'admin'); await p.waitForSelector('.acct-error');

@@ -45,7 +45,7 @@ export function formChecks(state: AppState, lease: Lease, form: FormDef, method:
     out.push({ ok: true, text: 'Only rent is claimed, no late fees or other charges' });
   }
   if (form.situation === 'rent-increase') {
-    const newRent = Number(details.newRent || 0) * 100;
+    const newRent = Math.round(Number(details.newRent || 0) * 100);
     const eff = details.effective || '';
     const lastIncrease = state.notices.filter((n) => n.leaseId === lease.id && formById(n.formId)?.situation === 'rent-increase').map((n) => n.details?.effective ?? '').sort().pop();
     const since = lastIncrease || lease.start;
@@ -53,12 +53,19 @@ export function formChecks(state: AppState, lease: Lease, form: FormDef, method:
     out.push({ ok: newRent > lease.rent, text: newRent > lease.rent ? `New rent is higher than ${(lease.rent / 100).toFixed(2)}` : 'Enter a new rent higher than the current rent' });
     out.push({ ok: !!eff && daysBetween(since, eff) >= 365, text: eff && daysBetween(since, eff) >= 365 ? 'At least 12 months since the tenancy started or the last increase' : 'Must be at least 12 months after the tenancy started or the last increase' });
     if (form.noticeDays) out.push({ ok: !!eff && daysBetween(today, eff) >= form.noticeDays, text: `At least ${form.noticeDays} days' notice before the increase` });
-    if (guide && newRent > lease.rent) {
+    if (guide && newRent > lease.rent && form.id !== 'on-n2') {
       const pct = ((newRent - lease.rent) / lease.rent) * 100;
-      out.push({ ok: true, warn: pct > guide, text: pct > guide ? `${pct.toFixed(1)}% is above the ${guide}% guideline. Allowed only for exempt units or with approval.` : `${pct.toFixed(1)}% is within the ${guide}% guideline` });
+      const above = pct > guide + 1e-9;
+      // Ontario's N1 says why an increase above the guideline is allowed (an LTB order, or an application made).
+      if (above && form.id === 'on-n1') out.push({ ok: !!details.aboveGuideline, warn: true, text: details.aboveGuideline ? `${pct.toFixed(1)}% is above the ${guide}% guideline: ${details.aboveGuideline === 'order' ? 'approved by an LTB order' : 'you applied to the LTB for approval'}` : `${pct.toFixed(1)}% is above the ${guide}% guideline: say whether an LTB order approved it, or the unit is exempt (N2)` });
+      else out.push({ ok: true, warn: above, text: above ? `${pct.toFixed(1)}% is above the ${guide}% guideline. Allowed only for exempt units or with approval.` : `${pct.toFixed(1)}% is within the ${guide}% guideline` });
     }
   }
-  if (form.situation === 'damage') out.push({ ok: (details.what ?? '').trim().length > 10, text: 'What happened is described with dates' });
+  if (form.id === 'on-n5') {
+    const events = [1, 2, 3].filter((k) => (details[`ev${k}When`] ?? '').trim() && (details[`ev${k}What`] ?? '').trim().length > 10);
+    out.push({ ok: events.length > 0, text: events.length ? `${events.length} event${events.length > 1 ? 's' : ''} described with the date and time` : 'Describe what happened, with the date and time' });
+    if (details.n5Reason === 'overcrowd' && details.n5Second !== 'yes') out.push({ ok: Number(details.people) > 0, text: 'How many people may live there is filled in' });
+  } else if (form.situation === 'damage') out.push({ ok: (details.what ?? '').trim().length > 10, text: 'What happened is described with dates' });
   if (form.situation === 'own-use') out.push({ ok: !!details.who?.trim(), text: 'Who will move in is named' });
   if (form.situation === 'end-agreement') out.push({ ok: !!details.endDate, text: 'An end date both of you agree to' });
   out.push({ ok: !!tenant?.names.length && !!prop?.address, text: 'Tenant names and the rental address are filled in' });

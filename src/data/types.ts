@@ -25,6 +25,8 @@ export interface Profile {
   email: string;
   /** Optional: shown on receipts and letters. */
   phone?: string;
+  /** Where tenants can write to the landlord (asked for on the official rent increase notices, N1 and N2). */
+  mailingAddress?: string;
   province: Province;
   city: string;
   setup: SetupKind;
@@ -422,6 +424,11 @@ export interface Notice {
   status: NoticeStatus;
   /** Form-specific answers (new rent, reason, who moves in, inspection notes…). */
   details?: Record<string, string>;
+  /** Ontario's official LTB form: exactly what was filled in (by the PDF's own field names), so the served form can be
+   *  downloaded again at any time, word for word. */
+  official?: { version: string; values: Record<string, string | true | { radio: string }> };
+  /** When the official form was emailed to the tenant(s). */
+  emailedAt?: string;
 }
 
 export interface AuditEntry {

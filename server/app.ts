@@ -21,6 +21,9 @@ import { applyChange, bankSettings, benchmarksNow, customerState, deleteAccount,
 import { fieldOf, Keys, type ServiceId } from './keys';
 import { applyBankUpdate, dropBankFromState, itemByPlaidId, itemsFor, Plaid, PlaidError, syncItem } from './plaid';
 import { avmEstimate, AvmError, avmOptions, type AvmOptions } from './avm';
+import { fillOfficial, formFilename, OfficialFormError } from './officialForms';
+import { hasOfficialForm, OFFICIAL } from '../src/lib/ltbForms';
+import { formById } from '../src/lib/forms';
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null; sessionToken: string | null }
@@ -447,6 +450,57 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
     }
   });
 
+  // ---------------- Ontario's official LTB forms ----------------
+  // The official form filled in with the values the app worked out (to look at before approving, or to download a
+  // served one again). Only the landlord's own document; nothing is stored.
+  const formValues = z.record(z.string().max(200), z.union([z.string().max(3000), z.literal(true), z.object({ radio: z.string().max(10) })]))
+    .refine((v) => Object.keys(v).length <= 250, 'Too many fields.');
+  app.post('/api/forms/:formId/pdf', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
+    await ownerAccount(req);
+    const { formId } = z.object({ formId: z.string().max(40) }).parse(req.params);
+    if (!hasOfficialForm(formId)) fail(404, 'There is no official form for this notice.');
+    const b = z.object({ values: formValues, filename: z.string().max(120).optional() }).parse(req.body);
+    try {
+      const pdf = await fillOfficial(formId, b.values);
+      reply.header('Content-Type', 'application/pdf').header('Content-Disposition', `inline; filename="${(b.filename ?? `${formId}.pdf`).replace(/[^\w .-]/g, '')}"`).header('Cache-Control', 'no-store');
+      return reply.send(Buffer.from(pdf));
+    } catch (e) {
+      if (e instanceof OfficialFormError) fail(422, e.message);
+      throw e;
+    }
+  });
+  // A served notice, emailed to everyone on the lease who agreed to notices by email, with the official form attached.
+  app.post('/api/notices/:id/email', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const { u, accountId } = await ownerAccount(req);
+    const { id } = z.object({ id: z.string().max(80) }).parse(req.params);
+    const s = await readState(db, accountId);
+    const n = s.data?.notices?.find((x) => x.id === id);
+    if (!n || !n.official || !hasOfficialForm(n.formId)) fail(404, 'That notice is not saved yet, or has no official form.');
+    const t = s.data!.tenants.find((x) => x.id === n!.tenantId);
+    if (!t?.emailConsent) fail(400, 'The tenant has not agreed to notices by email. Deliver it by hand or by mail.');
+    const people = (t!.people?.length ? t!.people : [{ name: t!.names[0] ?? '', email: t!.email, phone: t!.phone }]).filter((p) => p.email);
+    if (!people.length) fail(400, 'Add the tenant\'s email address first.');
+    const f = formById(n!.formId)!;
+    const landlord = s.data!.profile.name || u.name;
+    const filename = formFilename(f.code, t!.names.join(' & '), n!.servedOn ?? new Date().toISOString().slice(0, 10));
+    let queued = 0;
+    for (const p of people) {
+      const id2 = await queueMail(db, {
+        to: p.email, toName: p.name, replyTo: u.email, kind: 'notice', accountId, dedupeKey: `notice:${n!.id}:${p.email.toLowerCase()}`,
+        subject: `${f.code}: ${f.title}`,
+        text: [`Hello ${p.name || t!.names.join(' & ')},`, '',
+          `${landlord} has given you a notice: ${f.code}, ${f.title}. It is attached as the Landlord and Tenant Board's form (${OFFICIAL[n!.formId].version}).`,
+          n!.terminationDate ? `The date in the notice: ${n!.terminationDate}.` : '', '',
+          'Please read it carefully. For information about your rights, contact the Landlord and Tenant Board: tribunalsontario.ca/ltb, 1-888-332-3234.', '',
+          `Reply to this email to reach ${landlord}.`].filter((x, k, a) => x !== '' || a[k - 1] !== '').join('\n'),
+        attachment: { formId: n!.formId, values: n!.official!.values, filename },
+      });
+      if (id2) queued++;
+    }
+    await audit(db, { actor: u.email, actorId: u.id, accountId, scope: 'app', action: 'Notice emailed', detail: `${f.code} to ${people.length} tenant${people.length > 1 ? 's' : ''}`, ip: ip(req) });
+    return { queued, to: people.map((p) => p.email) };
+  });
+
   // ---------------- Help: a landlord writes to support ----------------
   app.post('/api/support/tickets', { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } }, async (req, reply) => {
     const u = need(req);
@@ -577,7 +631,7 @@ export async function buildApp({ cfg, db, fetch: fetcher = fetch, staticDir, key
   if (cfg.devTools) {
     app.get('/api/dev/outbox', async (req) => {
       const to = String((req.query as { to?: string }).to ?? '');
-      return db.query(`select kind, to_email, subject, text_body, status, created_at from outbox where ($1 = '' or lower(to_email) = lower($1)) order by created_at desc limit 50`, [to]);
+      return db.query(`select kind, to_email, subject, text_body, status, created_at, attachment->>'formId' as attached_form, attachment->>'filename' as attached_file from outbox where ($1 = '' or lower(to_email) = lower($1)) order by created_at desc limit 50`, [to]);
     });
   }
 
